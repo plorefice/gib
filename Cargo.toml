@@ -6,3 +6,9 @@ edition = "2018"
 
 [dependencies]
 sdl2 = "0.32"
+
+[profile.dev]
+overflow-checks = false
+
+[profile.release]
+debug = true
