@@ -63,16 +63,16 @@ pub trait MemW<T: MemSize> {
 pub trait MemRW<T: MemSize>: MemR<T> + MemW<T> {}
 
 pub struct Bus {
-    rom_00: Memory,
-    rom_nn: Memory,
+    pub rom_00: Memory,
+    pub rom_nn: Memory,
 
-    eram: Memory,
-    hram: Memory,
-    wram_00: Memory,
-    wram_nn: Memory,
+    pub eram: Memory,
+    pub hram: Memory,
+    pub wram_00: Memory,
+    pub wram_nn: Memory,
 
-    apu: APU,
-    ppu: PPU,
+    pub apu: APU,
+    pub ppu: PPU,
 }
 
 impl Bus {
@@ -105,10 +105,6 @@ impl Bus {
             apu: APU::new(),
             ppu: PPU::new(),
         }
-    }
-
-    pub fn ppu(&self) -> &PPU {
-        &self.ppu
     }
 }
 

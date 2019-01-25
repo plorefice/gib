@@ -75,19 +75,32 @@ impl PPU {
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {
-        for y in 0usize..256 {
-            for x in 0usize..256 {
-                let pid = (y * 1024) + (x * 4);
+        if (self.lcdc() & 0x80) == 0 {
+            for b in vbuf.iter_mut() {
+                *b = 0xFF;
+            }
+        } else {
+            for py in 0usize..144 {
+                for px in 0usize..160 {
+                    let y = (py + usize::from(self.scroll_y())) % 256;
+                    let x = (px + usize::from(self.scroll_x())) % 256;
 
-                let t = self.tile_at(((y >> 3) << 5) + (x >> 3));
-                let px = t.pixel((x & 0x07) as u8, (y & 0x7) as u8);
-                let shade = self.shade(px);
+                    let pid = (py * (160 * 4)) + (px * 4);
 
-                vbuf[pid] = shade;
-                vbuf[pid + 1] = shade;
-                vbuf[pid + 2] = shade;
+                    let t = self.bg_tile(((y >> 3) << 5) + (x >> 3));
+                    let px = t.pixel((x & 0x07) as u8, (y & 0x7) as u8);
+                    let shade = self.shade(px);
+
+                    vbuf[pid] = shade;
+                    vbuf[pid + 1] = shade;
+                    vbuf[pid + 2] = shade;
+                }
             }
         }
+    }
+
+    pub fn hsync(&mut self) {
+        self.regs[0x04] = (self.regs[0x04] + 1) % 154;
     }
 
     fn io_read<T: MemSize>(&self, idx: u16) -> T {
@@ -98,8 +111,20 @@ impl PPU {
         T::write_le(&mut self.regs[usize::from(idx)..], v);
     }
 
+    fn lcdc(&self) -> u8 {
+        self.regs[0x00]
+    }
+
     fn bgp(&self) -> u8 {
-        self.regs[0x7]
+        self.regs[0x07]
+    }
+
+    fn scroll_x(&self) -> u8 {
+        self.regs[0x03]
+    }
+
+    fn scroll_y(&self) -> u8 {
+        self.regs[0x02]
     }
 
     fn shade(&self, color: u8) -> u8 {
@@ -112,9 +137,18 @@ impl PPU {
         }
     }
 
-    fn tile_at(&self, bgid: usize) -> &Tile {
-        let tid = self.bgtm0[bgid];
-        &self.tdt[usize::from(tid)]
+    fn bg_tile(&self, id: usize) -> &Tile {
+        let tile_id = if (self.lcdc() & 0x08) == 0 {
+            self.bgtm0[id]
+        } else {
+            self.bgtm1[id]
+        };
+
+        if (self.lcdc() & 0x10) == 0 {
+            &self.tdt[(128 + i32::from(tile_id as i8)) as usize]
+        } else {
+            &self.tdt[usize::from(tile_id)]
+        }
     }
 }
 

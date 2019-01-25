@@ -10,8 +10,8 @@ use std::process;
 use sdl2::event::Event;
 use sdl2::rect::Rect;
 
-const X_RES: u32 = 256; // 160
-const Y_RES: u32 = 256; // 144
+const X_RES: u32 = 160;
+const Y_RES: u32 = 144;
 
 fn main() {
     let fname = match env::args().nth(1) {
