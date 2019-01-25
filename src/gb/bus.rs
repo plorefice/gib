@@ -140,7 +140,7 @@ impl<T: MemSize> MemW<T> for Bus {
             0xF000..=0xFDFF => self.wram_nn.write(addr - 0xF000, val),
             0xFE00..=0xFE9F => self.ppu.oam_mut().write(addr - 0xFE00, val),
             0xFF10..=0xFF3F => (), // Sound controller
-            0xFF47 => println!("write to LCD"),
+            0xFF47 => (),          // LCD registers
             0xFF80..=0xFFFE => self.hram.write(addr - 0xFF80, val),
             _ => panic!("invalid memory address: 0x{:04X}", addr),
         }

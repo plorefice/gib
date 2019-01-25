@@ -84,19 +84,19 @@ impl PPU {
             for x in 0usize..256 {
                 let pid = (y * 1024) + (x * 4);
 
-                let t = self.tile_at((((y >> 3) << 5) + (x >> 3)) as u8);
-                let px = t.pixel((x % 8) as u8, (y % 8) as u8);
+                let t = self.tile_at(((y >> 3) << 5) + (x >> 3));
+                let px = t.pixel((x & 0x07) as u8, (y & 0x7) as u8);
 
                 vbuf[pid] = if px == 0 { 0x00 } else { 0xFF };
                 vbuf[pid + 1] = if px == 0 { 0x00 } else { 0xFF };
                 vbuf[pid + 2] = if px == 0 { 0x00 } else { 0xFF };
-                vbuf[pid + 3] = 0;
             }
         }
     }
 
-    fn tile_at(&self, idx: u8) -> &Tile {
-        &self.tdt[(128 + isize::from(idx as i8)) as usize]
+    fn tile_at(&self, bgid: usize) -> &Tile {
+        let tid = self.bgtm0[bgid];
+        &self.tdt[usize::from(tid)]
     }
 }
 
@@ -104,12 +104,12 @@ impl<T: MemSize> MemR<T> for PPU {
     fn read(&self, addr: u16) -> T {
         match addr {
             0x0000..=0x17FF => {
-                let tid = usize::from(addr / 16);
-                let bid = usize::from(addr % 16);
+                let tid = usize::from(addr >> 4);
+                let bid = usize::from(addr & 0xF);
                 T::read_le(&self.tdt[tid].data()[bid..])
             }
-            0x1800..=0x1BFF => panic!("Background Tile Map #0 not implemented"),
-            0x1C00..=0x1FFF => panic!("Background Tile Map #0 not implemented"),
+            0x1800..=0x1BFF => T::read_le(&self.bgtm0[usize::from(addr - 0x1800)..]),
+            0x1C00..=0x1FFF => T::read_le(&self.bgtm1[usize::from(addr - 0x1C00)..]),
             _ => unreachable!(),
         }
     }
@@ -119,8 +119,8 @@ impl<T: MemSize> MemW<T> for PPU {
     fn write(&mut self, addr: u16, val: T) {
         match addr {
             0x0000..=0x17FF => {
-                let tid = usize::from(addr / 16);
-                let bid = usize::from(addr % 16);
+                let tid = usize::from(addr >> 4);
+                let bid = usize::from(addr & 0xF);
                 T::write_le(&mut self.tdt[tid].data_mut()[bid..], val);
             }
             0x1800..=0x1BFF => T::write_le(&mut self.bgtm0[usize::from(addr - 0x1800)..], val),
