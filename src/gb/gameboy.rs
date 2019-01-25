@@ -26,10 +26,6 @@ impl GameBoy {
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {
-        for b in vbuf.chunks_mut(4) {
-            b[0] = 0xFF;
-            b[1] = 0xFF;
-            b[2] = 0xFF;
-        }
+        self.bus.ppu().rasterize(vbuf);
     }
 }

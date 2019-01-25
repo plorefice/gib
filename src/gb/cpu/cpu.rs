@@ -39,13 +39,17 @@ impl CPU {
         let opc = self.fetch::<u8>(bus);
         self.op(bus, opc);
 
-        println!(
-            "OPC: {:02X} PC0: {:04X} PC1: {:04X} F: {:04b}",
-            opc,
-            self.prev_pc,
-            self.pc,
-            self.f() >> 4
-        );
+        if self.pc == 0x59 {
+            self.pc -= 1;
+        }
+
+        // println!(
+        // "OPC: {:02X} PC0: {:04X} PC1: {:04X} F: {:04b}",
+        // opc,
+        // self.prev_pc,
+        // self.pc,
+        // self.f() >> 4
+        // );
     }
 
     pub fn fetch<T: MemSize>(&mut self, bus: &mut Bus) -> T {

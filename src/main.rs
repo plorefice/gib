@@ -10,6 +10,9 @@ use std::process;
 use sdl2::event::Event;
 use sdl2::rect::Rect;
 
+const X_RES: u32 = 256; // 160
+const Y_RES: u32 = 256; // 144
+
 fn main() {
     let fname = match env::args().nth(1) {
         Some(fname) => fname,
@@ -32,7 +35,7 @@ fn main() {
     let mut events = ctx.event_pump().expect("could not retrieve event pump");
 
     let mut canvas = video
-        .window("gb-rs", 160, 144)
+        .window("gb-rs", X_RES, Y_RES)
         .position_centered()
         .build()
         .expect("could not create window")
@@ -42,7 +45,7 @@ fn main() {
 
     let tc = canvas.texture_creator();
 
-    let mut surface = tc.create_texture_streaming(None, 160, 144).unwrap();
+    let mut surface = tc.create_texture_streaming(None, X_RES, Y_RES).unwrap();
     let mut gb = GameBoy::with_cartridge(&rom[..]);
 
     'outer: loop {
@@ -55,7 +58,7 @@ fn main() {
         gb.run_to_vblank();
 
         surface
-            .with_lock(Some(Rect::new(0, 0, 160, 144)), |mut vbuf, _| {
+            .with_lock(Some(Rect::new(0, 0, X_RES, Y_RES)), |mut vbuf, _| {
                 gb.rasterize(&mut vbuf);
             })
             .unwrap();

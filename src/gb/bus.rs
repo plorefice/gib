@@ -1,5 +1,5 @@
 use super::memory::Memory;
-use super::video::VPU;
+use super::video::PPU;
 
 pub trait MemSize {
     fn byte_size() -> u8;
@@ -63,11 +63,13 @@ pub trait MemRW<T: MemSize>: MemR<T> + MemW<T> {}
 pub struct Bus {
     rom_00: Memory,
     rom_nn: Memory,
+
     eram: Memory,
-    vram: VPU,
+    hram: Memory,
     wram_00: Memory,
     wram_nn: Memory,
-    hram: Memory,
+
+    ppu: PPU,
 }
 
 impl Bus {
@@ -91,12 +93,18 @@ impl Bus {
         Bus {
             rom_00: rom_00,
             rom_nn: rom_nn,
+
             eram: Memory::new(0x2000),
-            vram: VPU::new(),
+            hram: Memory::new(127),
             wram_00: Memory::new(0x1000),
             wram_nn: Memory::new(0x1000),
-            hram: Memory::new(127),
+
+            ppu: PPU::new(),
         }
+    }
+
+    pub fn ppu(&self) -> &PPU {
+        &self.ppu
     }
 }
 
@@ -105,14 +113,14 @@ impl<T: MemSize> MemR<T> for Bus {
         match addr {
             0x0000..=0x3FFF => self.rom_00.read(addr),
             0x4000..=0x7FFF => self.rom_nn.read(addr - 0x4000),
-            0x8000..=0x9FFF => self.vram.read(addr - 0x8000),
+            0x8000..=0x9FFF => self.ppu.read(addr - 0x8000),
             0xA000..=0xBFFF => self.eram.read(addr - 0xA000),
             0xC000..=0xCFFF => self.wram_00.read(addr - 0xC000),
             0xD000..=0xDFFF => self.wram_nn.read(addr - 0xD000),
             0xE000..=0xEFFF => self.wram_00.read(addr - 0xE000),
             0xF000..=0xFDFF => self.wram_nn.read(addr - 0xF000),
-            0xFE00..=0xFE9F => self.vram.oam().read(addr - 0xFE00),
-            0xFF10..=0xFF3F => unimplemented!(),
+            0xFE00..=0xFE9F => self.ppu.oam().read(addr - 0xFE00),
+            0xFF10..=0xFF3F => unimplemented!(), // Sound controller
             0xFF80..=0xFFFE => self.hram.read(addr - 0xFF80),
             _ => panic!("invalid memory address: 0x{:04X}", addr),
         }
@@ -124,14 +132,14 @@ impl<T: MemSize> MemW<T> for Bus {
         match addr {
             0x0000..=0x3FFF => self.rom_00.write(addr, val),
             0x4000..=0x7FFF => self.rom_nn.write(addr - 0x4000, val),
-            0x8000..=0x9FFF => self.vram.write(addr - 0x8000, val),
+            0x8000..=0x9FFF => self.ppu.write(addr - 0x8000, val),
             0xA000..=0xBFFF => self.eram.write(addr - 0xA000, val),
             0xC000..=0xCFFF => self.wram_00.write(addr - 0xC000, val),
             0xD000..=0xDFFF => self.wram_nn.write(addr - 0xD000, val),
             0xE000..=0xEFFF => self.wram_00.write(addr - 0xE000, val),
             0xF000..=0xFDFF => self.wram_nn.write(addr - 0xF000, val),
-            0xFE00..=0xFE9F => self.vram.oam_mut().write(addr - 0xFE00, val),
-            0xFF10..=0xFF3F => println!("Write to SNDC"),
+            0xFE00..=0xFE9F => self.ppu.oam_mut().write(addr - 0xFE00, val),
+            0xFF10..=0xFF3F => (), // Sound controller
             0xFF47 => println!("write to LCD"),
             0xFF80..=0xFFFE => self.hram.write(addr - 0xFF80, val),
             _ => panic!("invalid memory address: 0x{:04X}", addr),
