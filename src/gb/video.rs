@@ -32,21 +32,27 @@ impl Sprite {
     }
 }
 
-impl<T: MemSize> MemR<T> for [Sprite; 40] {
+impl<'a, T: MemSize> MemR<T> for &'a [Sprite] {
     fn read(&self, addr: u16) -> T {
         let s = &self[usize::from(addr >> 2)];
         T::read_le(&s.data()[usize::from(addr % 2)..])
     }
 }
 
-impl<T: MemSize> MemW<T> for [Sprite; 40] {
+impl<'a, T: MemSize> MemR<T> for &'a mut [Sprite] {
+    fn read(&self, addr: u16) -> T {
+        (self as &MemR<T>).read(addr)
+    }
+}
+
+impl<'a, T: MemSize> MemW<T> for &'a mut [Sprite] {
     fn write(&mut self, addr: u16, val: T) {
         let s = &mut self[usize::from(addr >> 2)];
         T::write_le(&mut s.data_mut()[usize::from(addr % 2)..], val);
     }
 }
 
-impl<T: MemSize> MemRW<T> for [Sprite; 40] {}
+impl<'a, T: MemSize> MemRW<T> for &'a mut [Sprite] {}
 
 pub struct PPU {
     tdt: [Tile; 384],  // Tile Data Table
@@ -65,12 +71,12 @@ impl PPU {
         }
     }
 
-    pub fn oam<T: MemSize>(&self) -> &MemR<T> {
-        &self.oam
+    pub fn oam<'a, T: MemSize>(&'a self) -> impl MemR<T> + 'a {
+        &self.oam[..]
     }
 
-    pub fn oam_mut<T: MemSize>(&mut self) -> &mut MemRW<T> {
-        &mut self.oam
+    pub fn oam_mut<'a, T: MemSize>(&'a mut self) -> impl MemRW<T> + 'a {
+        &mut self.oam[..]
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {
