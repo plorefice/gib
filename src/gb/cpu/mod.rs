@@ -1,6 +1,6 @@
-mod cpu;
+mod core;
 mod opcodes;
 
 use super::bus;
 
-pub use cpu::CPU;
+pub use self::core::CPU;

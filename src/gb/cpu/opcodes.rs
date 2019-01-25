@@ -1,5 +1,5 @@
 use super::bus::{Bus, MemR, MemW};
-use super::cpu::CPU;
+use super::CPU;
 
 macro_rules! pop {
     ($cpu:ident, $bus:ident, $cond:expr, $reg:ident) => {{
