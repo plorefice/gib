@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -eu
+
+cd "$(dirname "$0")/.."
+
+sudo rm -f /tmp/{graph.svg,out.stacks}
+
+cargo build --release
+
+sudo dtrace -c 'target/release/gb-rs roms/DMG_ROM.BIN' \
+	-o /tmp/out.stacks \
+	-n 'profile-997 /execname == "gb-rs"/ { @[ustack(100)] = count(); }'
+
+stackcollapse.pl /tmp/out.stacks \
+	| rust-unmangle \
+	| flamegraph.pl > /tmp/graph.svg \
+	&& open -a Safari /tmp/graph.svg
