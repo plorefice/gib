@@ -116,6 +116,7 @@ macro_rules! add16 {
         $cpu.set_sf(false);
         $cpu.set_hc((old & 0xF) + ($v & 0xF) >= 0x10);
         $cpu.set_cy($dst < old);
+        $cpu.clk += 4;
     }};
 }
 
@@ -408,8 +409,8 @@ impl CPU {
             0xE5 => push!(self, bus, hl),
             0xF5 => push!(self, bus, af),
 
-            0x08 => { let a16: u16 = self.fetch_pc(bus); bus.write(a16, self.sp); }
-            0xF9 => self.sp = self.hl,
+            0x08 => { let a16: u16 = self.fetch_pc(bus); self.store(bus, a16, self.sp); }
+            0xF9 => { self.sp = self.hl; self.clk += 4; }
 
             0xF8 => {
                 let d8: u8 = self.fetch_pc(bus);
@@ -533,15 +534,15 @@ impl CPU {
             /*
              * 	16bit arithmetic/logical instructions
              */
-            0x03 => self.bc += 1,
-            0x13 => self.de += 1,
-            0x23 => self.hl += 1,
-            0x33 => self.sp += 1,
+            0x03 => { self.bc += 1; self.clk += 4; }
+            0x13 => { self.de += 1; self.clk += 4; }
+            0x23 => { self.hl += 1; self.clk += 4; }
+            0x33 => { self.sp += 1; self.clk += 4; }
 
-            0x0B => self.bc -= 1,
-            0x1B => self.de -= 1,
-            0x2B => self.hl -= 1,
-            0x3B => self.sp -= 1,
+            0x0B => { self.bc -= 1; self.clk += 4; }
+            0x1B => { self.de -= 1; self.clk += 4; }
+            0x2B => { self.hl -= 1; self.clk += 4; }
+            0x3B => { self.sp -= 1; self.clk += 4; }
 
             0x09 => add16!(self, self.hl, self.bc),
             0x19 => add16!(self, self.hl, self.de),
@@ -551,6 +552,7 @@ impl CPU {
                 let d8: u8 = self.fetch_pc(bus);
                 add16!(self, self.sp, u16::from(d8));
                 self.set_zf(false);
+                self.clk += 4;
             }
 
             /*
@@ -977,32 +979,6 @@ mod test {
     }
 
     #[test]
-    fn opcode_ld_timings() {
-        for opc in 0x40..=0x7F {
-            if opc != 0x76 {
-                check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 });
-            }
-        }
-
-        [0x02u8, 0x12, 0x22, 0x32, 0x0A, 0x1A, 0x2A, 0x3A]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 8));
-
-        [0x06u8, 0x16, 0x26, 0x0E, 0x1E, 0x2E, 0x3E]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 2, 8));
-
-        [0x36u8, 0xE0, 0xF0]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 2, 12));
-
-        check_opcode(None, 0xE2, 1, 8);
-        check_opcode(None, 0xF2, 1, 8);
-        check_opcode(None, 0xEA, 3, 16);
-        check_opcode(None, 0xFA, 3, 16);
-    }
-
-    #[test]
     fn opcode_misc_timings() {
         [0x00u8, 0x10, 0x76, 0xF3, 0xFB]
             .iter()
@@ -1080,5 +1056,61 @@ mod test {
 
         check_opcode(None, 0xC9, 0xC9C9, 16);
         check_opcode(None, 0xD9, 0xD9D9, 16);
+    }
+
+    #[test]
+    fn opcode_ld8_timings() {
+        for opc in 0x40..=0x7F {
+            if opc != 0x76 {
+                check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 });
+            }
+        }
+
+        [0x02u8, 0x12, 0x22, 0x32, 0x0A, 0x1A, 0x2A, 0x3A]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 1, 8));
+
+        [0x06u8, 0x16, 0x26, 0x0E, 0x1E, 0x2E, 0x3E]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 2, 8));
+
+        [0x36u8, 0xE0, 0xF0]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 2, 12));
+
+        check_opcode(None, 0xE2, 1, 8);
+        check_opcode(None, 0xF2, 1, 8);
+        check_opcode(None, 0xEA, 3, 16);
+        check_opcode(None, 0xFA, 3, 16);
+    }
+
+    #[test]
+    fn opcode_ld16_timings() {
+        [0x01u8, 0x11, 0x21, 0x31]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 3, 12));
+
+        [0xC1u8, 0xD1, 0xE1, 0xF1]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 1, 12));
+
+        [0xC5u8, 0xD5, 0xE5, 0xF5]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 1, 16));
+
+        check_opcode(None, 0x08, 3, 20);
+        check_opcode(None, 0xF8, 2, 12);
+        check_opcode(None, 0xF9, 1, 8);
+    }
+
+    #[test]
+    fn opcode_alu16_timings() {
+        [
+            0x03u8, 0x13, 0x23, 0x33, 0x0B, 0x1B, 0x2B, 0x3B, 0x09, 0x19, 0x29, 0x39,
+        ]
+        .iter()
+        .for_each(|&opc| check_opcode(None, opc, 1, 8));
+
+        check_opcode(None, 0xE8, 2, 16);
     }
 }
