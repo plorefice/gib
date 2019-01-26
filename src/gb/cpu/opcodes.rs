@@ -390,7 +390,11 @@ impl CPU {
             0x08 => { let a16 = self.fetch::<u16>(bus); bus.write(a16, self.sp); }
             0xF9 => self.sp = self.hl,
 
-            0xF8 => unimplemented!(),
+            0xF8 => {
+                let d8 = self.fetch::<u8>(bus);
+                add16!(self, self.hl, self.sp + u16::from(d8));
+                self.set_zf(false);
+            }
 
             /*
              * 8bit arithmetic/logical instructions
