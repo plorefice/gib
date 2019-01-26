@@ -32,27 +32,27 @@ impl Sprite {
     }
 }
 
-impl<'a, T: MemSize> MemR<T> for &'a [Sprite] {
-    fn read(&self, addr: u16) -> T {
+impl<'a> MemR for &'a [Sprite] {
+    fn read<T: MemSize>(&self, addr: u16) -> T {
         let s = &self[usize::from(addr >> 2)];
         T::read_le(&s.data()[usize::from(addr % 2)..])
     }
 }
 
-impl<'a, T: MemSize> MemR<T> for &'a mut [Sprite] {
-    fn read(&self, addr: u16) -> T {
-        (self as &MemR<T>).read(addr)
+impl<'a> MemR for &'a mut [Sprite] {
+    fn read<T: MemSize>(&self, addr: u16) -> T {
+        (&*self as &[Sprite]).read(addr)
     }
 }
 
-impl<'a, T: MemSize> MemW<T> for &'a mut [Sprite] {
-    fn write(&mut self, addr: u16, val: T) {
+impl<'a> MemW for &'a mut [Sprite] {
+    fn write<T: MemSize>(&mut self, addr: u16, val: T) {
         let s = &mut self[usize::from(addr >> 2)];
         T::write_le(&mut s.data_mut()[usize::from(addr % 2)..], val);
     }
 }
 
-impl<'a, T: MemSize> MemRW<T> for &'a mut [Sprite] {}
+impl<'a> MemRW for &'a mut [Sprite] {}
 
 pub struct PPU {
     tdt: [Tile; 384],  // Tile Data Table
@@ -152,8 +152,8 @@ impl PPU {
     }
 }
 
-impl<T: MemSize> MemR<T> for PPU {
-    fn read(&self, addr: u16) -> T {
+impl MemR for PPU {
+    fn read<T: MemSize>(&self, addr: u16) -> T {
         match addr {
             0x8000..=0x97FF => {
                 let addr = addr - 0x8000;
@@ -170,8 +170,8 @@ impl<T: MemSize> MemR<T> for PPU {
     }
 }
 
-impl<T: MemSize> MemW<T> for PPU {
-    fn write(&mut self, addr: u16, val: T) {
+impl MemW for PPU {
+    fn write<T: MemSize>(&mut self, addr: u16, val: T) {
         match addr {
             0x8000..=0x97FF => {
                 let addr = addr - 0x8000;

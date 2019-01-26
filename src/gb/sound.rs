@@ -8,8 +8,8 @@ impl APU {
     }
 }
 
-impl<T: MemSize> MemR<T> for APU {
-    fn read(&self, addr: u16) -> T {
+impl MemR for APU {
+    fn read<T: MemSize>(&self, addr: u16) -> T {
         // TODO: it's gonna be a while before sound is implemented :)
         match addr {
             _ => T::default(),
@@ -17,8 +17,8 @@ impl<T: MemSize> MemR<T> for APU {
     }
 }
 
-impl<T: MemSize> MemW<T> for APU {
-    fn write(&mut self, addr: u16, _val: T) {
+impl MemW for APU {
+    fn write<T: MemSize>(&mut self, addr: u16, _val: T) {
         // TODO: it's gonna be a while before sound is implemented :)
         match addr {
             _ => (),

@@ -1,4 +1,4 @@
-use super::bus::{Bus, MemR, MemW};
+use super::bus::MemRW;
 use super::CPU;
 
 macro_rules! pop {
@@ -215,7 +215,7 @@ macro_rules! set {
 impl CPU {
     #[rustfmt::skip]
     #[allow(clippy::cyclomatic_complexity)]
-    pub fn op(&mut self, bus: &mut Bus, opcode: u8) {
+    pub fn op(&mut self, bus: &mut impl MemRW, opcode: u8) {
         match opcode {
             /*
              * Misc/control instructions
@@ -227,32 +227,32 @@ impl CPU {
             0xFB => self.intr_enabled = true,
 
             0xCB => {
-                let cb = self.fetch::<u8>(bus);
+                let cb: u8 = self.fetch_pc(bus);
                 self.op_cb(bus, cb);
             }
 
             /*
              * Jump/calls
              */
-            0x20 => { let off = self.fetch::<i8>(bus); jr!(self, !self.zf(), off); }
-            0x30 => { let off = self.fetch::<i8>(bus); jr!(self, !self.cy(), off); }
-            0x28 => { let off = self.fetch::<i8>(bus); jr!(self, self.zf(),  off); }
-            0x38 => { let off = self.fetch::<i8>(bus); jr!(self, self.cy(),  off); }
-            0x18 => { let off = self.fetch::<i8>(bus); jr!(self, true,       off); }
+            0x20 => { let off: i8 = self.fetch_pc(bus); jr!(self, !self.zf(), off); }
+            0x30 => { let off: i8 = self.fetch_pc(bus); jr!(self, !self.cy(), off); }
+            0x28 => { let off: i8 = self.fetch_pc(bus); jr!(self, self.zf(),  off); }
+            0x38 => { let off: i8 = self.fetch_pc(bus); jr!(self, self.cy(),  off); }
+            0x18 => { let off: i8 = self.fetch_pc(bus); jr!(self, true,       off); }
 
-            0xC2 => { let abs = self.fetch::<u16>(bus); jp!(self, !self.zf(), abs); }
-            0xD2 => { let abs = self.fetch::<u16>(bus); jp!(self, !self.cy(), abs); }
-            0xCA => { let abs = self.fetch::<u16>(bus); jp!(self, self.zf(),  abs); }
-            0xDA => { let abs = self.fetch::<u16>(bus); jp!(self, self.cy(),  abs); }
-            0xC3 => { let abs = self.fetch::<u16>(bus); jp!(self, true,       abs); }
+            0xC2 => { let abs: u16 = self.fetch_pc(bus); jp!(self, !self.zf(), abs); }
+            0xD2 => { let abs: u16 = self.fetch_pc(bus); jp!(self, !self.cy(), abs); }
+            0xCA => { let abs: u16 = self.fetch_pc(bus); jp!(self, self.zf(),  abs); }
+            0xDA => { let abs: u16 = self.fetch_pc(bus); jp!(self, self.cy(),  abs); }
+            0xC3 => { let abs: u16 = self.fetch_pc(bus); jp!(self, true,       abs); }
 
             0xE9 => jp!(self, true, self.hl),
 
-            0xC4 => { let abs = self.fetch::<u16>(bus); call!(self, bus, !self.zf(), abs); }
-            0xD4 => { let abs = self.fetch::<u16>(bus); call!(self, bus, !self.cy(), abs); }
-            0xCC => { let abs = self.fetch::<u16>(bus); call!(self, bus, self.zf(),  abs); }
-            0xDC => { let abs = self.fetch::<u16>(bus); call!(self, bus, self.cy(),  abs); }
-            0xCD => { let abs = self.fetch::<u16>(bus); call!(self, bus, true,       abs); }
+            0xC4 => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, !self.zf(), abs); }
+            0xD4 => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, !self.cy(), abs); }
+            0xCC => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, self.zf(),  abs); }
+            0xDC => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, self.cy(),  abs); }
+            0xCD => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, true,       abs); }
 
             0xC0 => pop!(self, bus, !self.zf(), pc),
             0xD0 => pop!(self, bus, !self.cy(), pc),
@@ -286,14 +286,14 @@ impl CPU {
             0x2A => { self.set_a(bus.read(self.hl)); self.hl += 1; }
             0x3A => { self.set_a(bus.read(self.hl)); self.hl -= 1; }
 
-            0x06 => { let d8 = self.fetch::<u8>(bus); self.set_b(d8);          }
-            0x16 => { let d8 = self.fetch::<u8>(bus); self.set_d(d8);          }
-            0x26 => { let d8 = self.fetch::<u8>(bus); self.set_d(d8);          }
-            0x36 => { let d8 = self.fetch::<u8>(bus); bus.write(self.hl, d8); }
-            0x0E => { let d8 = self.fetch::<u8>(bus); self.set_c(d8);          }
-            0x1E => { let d8 = self.fetch::<u8>(bus); self.set_e(d8);          }
-            0x2E => { let d8 = self.fetch::<u8>(bus); self.set_l(d8);          }
-            0x3E => { let d8 = self.fetch::<u8>(bus); self.set_a(d8);          }
+            0x06 => { let d8: u8 = self.fetch_pc(bus); self.set_b(d8);          }
+            0x16 => { let d8: u8 = self.fetch_pc(bus); self.set_d(d8);          }
+            0x26 => { let d8: u8 = self.fetch_pc(bus); self.set_d(d8);          }
+            0x36 => { let d8: u8 = self.fetch_pc(bus); bus.write(self.hl, d8); }
+            0x0E => { let d8: u8 = self.fetch_pc(bus); self.set_c(d8);          }
+            0x1E => { let d8: u8 = self.fetch_pc(bus); self.set_e(d8);          }
+            0x2E => { let d8: u8 = self.fetch_pc(bus); self.set_l(d8);          }
+            0x3E => { let d8: u8 = self.fetch_pc(bus); self.set_a(d8);          }
 
             0x40 => self.set_b(self.b()),
             0x41 => self.set_b(self.c()),
@@ -301,7 +301,7 @@ impl CPU {
             0x43 => self.set_b(self.e()),
             0x44 => self.set_b(self.h()),
             0x45 => self.set_b(self.l()),
-            0x46 => self.set_b(bus.read(self.hl)),
+            0x46 => { let b = self.fetch(bus, self.hl); self.set_b(b); }
             0x47 => self.set_b(self.a()),
             0x48 => self.set_c(self.b()),
             0x49 => self.set_c(self.c()),
@@ -309,7 +309,7 @@ impl CPU {
             0x4B => self.set_c(self.e()),
             0x4C => self.set_c(self.h()),
             0x4D => self.set_c(self.l()),
-            0x4E => self.set_c(bus.read(self.hl)),
+            0x4E => { let d8 = self.fetch(bus, self.hl); self.set_c(d8); }
             0x4F => self.set_c(self.a()),
             0x50 => self.set_d(self.b()),
             0x51 => self.set_d(self.c()),
@@ -317,7 +317,7 @@ impl CPU {
             0x53 => self.set_d(self.e()),
             0x54 => self.set_d(self.h()),
             0x55 => self.set_d(self.l()),
-            0x56 => self.set_d(bus.read(self.hl)),
+            0x56 => { let d8 = self.fetch(bus, self.hl); self.set_d(d8); }
             0x57 => self.set_d(self.a()),
             0x58 => self.set_e(self.b()),
             0x59 => self.set_e(self.c()),
@@ -325,7 +325,7 @@ impl CPU {
             0x5B => self.set_e(self.e()),
             0x5C => self.set_e(self.h()),
             0x5D => self.set_e(self.l()),
-            0x5E => self.set_e(bus.read(self.hl)),
+            0x5E => { let d8 = self.fetch(bus, self.hl); self.set_e(d8); }
             0x5F => self.set_e(self.a()),
             0x60 => self.set_h(self.b()),
             0x61 => self.set_h(self.c()),
@@ -333,7 +333,7 @@ impl CPU {
             0x63 => self.set_h(self.e()),
             0x64 => self.set_h(self.h()),
             0x65 => self.set_h(self.l()),
-            0x66 => self.set_h(bus.read(self.hl)),
+            0x66 => { let d8 = self.fetch(bus, self.hl); self.set_h(d8); }
             0x67 => self.set_h(self.a()),
             0x68 => self.set_l(self.b()),
             0x69 => self.set_l(self.c()),
@@ -341,7 +341,7 @@ impl CPU {
             0x6B => self.set_l(self.e()),
             0x6C => self.set_l(self.h()),
             0x6D => self.set_l(self.l()),
-            0x6E => self.set_l(bus.read(self.hl)),
+            0x6E => { let d8 = self.fetch(bus, self.hl); self.set_l(d8); }
             0x6F => self.set_l(self.a()),
             0x78 => self.set_a(self.b()),
             0x79 => self.set_a(self.c()),
@@ -349,7 +349,7 @@ impl CPU {
             0x7B => self.set_a(self.e()),
             0x7C => self.set_a(self.h()),
             0x7D => self.set_a(self.l()),
-            0x7E => self.set_a(bus.read(self.hl)),
+            0x7E => { let d8 = self.fetch(bus, self.hl); self.set_a(d8); }
             0x7F => self.set_a(self.a()),
 
             0x70 => bus.write(self.hl, self.b()),
@@ -360,22 +360,22 @@ impl CPU {
             0x75 => bus.write(self.hl, self.l()),
             0x77 => bus.write(self.hl, self.a()),
 
-            0xE0 => { let d8 = u16::from(self.fetch::<u8>(bus)); bus.write(0xFF00 + d8, self.a()); }
-            0xF0 => { let d8 = u16::from(self.fetch::<u8>(bus)); self.set_a(bus.read(0xFF00 + d8)); }
+            0xE0 => { let d8: u8 = self.fetch_pc(bus); bus.write(0xFF00 + d8 as u16, self.a()); }
+            0xF0 => { let d8: u8 = self.fetch_pc(bus); self.set_a(bus.read(0xFF00 + d8 as u16)); }
 
             0xE2 => bus.write(0xFF00 + u16::from(self.c()), self.a()),
             0xF2 => self.set_a(bus.read(0xFF00 + u16::from(self.c()))),
 
-            0xEA => { let d16 = self.fetch::<u16>(bus); bus.write(d16, self.a()); }
-            0xFA => { let d16 = self.fetch::<u16>(bus); self.set_a(bus.read(d16)); }
+            0xEA => { let d16: u16 = self.fetch_pc(bus); bus.write(d16, self.a()); }
+            0xFA => { let d16: u16 = self.fetch_pc(bus); self.set_a(bus.read(d16)); }
 
             /*
              * 16bit load/store/move instructions
              */
-            0x01 => self.bc = self.fetch::<u16>(bus),
-            0x11 => self.de = self.fetch::<u16>(bus),
-            0x21 => self.hl = self.fetch::<u16>(bus),
-            0x31 => self.sp = self.fetch::<u16>(bus),
+            0x01 => self.bc = self.fetch_pc(bus),
+            0x11 => self.de = self.fetch_pc(bus),
+            0x21 => self.hl = self.fetch_pc(bus),
+            0x31 => self.sp = self.fetch_pc(bus),
 
             0xC1 => pop!(self, bus, true, bc),
             0xD1 => pop!(self, bus, true, de),
@@ -387,11 +387,11 @@ impl CPU {
             0xE5 => push!(self, bus, hl),
             0xF5 => push!(self, bus, af),
 
-            0x08 => { let a16 = self.fetch::<u16>(bus); bus.write(a16, self.sp); }
+            0x08 => { let a16: u16 = self.fetch_pc(bus); bus.write(a16, self.sp); }
             0xF9 => self.sp = self.hl,
 
             0xF8 => {
-                let d8 = self.fetch::<u8>(bus);
+                let d8: u16 = self.fetch_pc(bus);
                 add16!(self, self.hl, self.sp + u16::from(d8));
                 self.set_zf(false);
             }
@@ -407,7 +407,7 @@ impl CPU {
             0x2C => { let v = inc!(self, self.l()); self.set_l(v); }
             0x3C => { let v = inc!(self, self.a()); self.set_a(v); }
             0x34 => {
-                let v = inc!(self, (bus as &mut MemR<u8>).read(self.hl));
+                let v = inc!(self, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -419,7 +419,7 @@ impl CPU {
             0x2D => { let v = dec!(self, self.l()); self.set_l(v); }
             0x3D => { let v = dec!(self, self.a()); self.set_a(v); }
             0x35 => {
-                let v = dec!(self, (bus as &mut MemR<u8>).read(self.hl));
+                let v = dec!(self, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -430,8 +430,8 @@ impl CPU {
             0x84 => add!(self, self.h()),
             0x85 => add!(self, self.l()),
             0x87 => add!(self, self.a()),
-            0x86 => add!(self, (bus as &mut MemR<u8>).read(self.hl)),
-            0xC6 => { let d8 = self.fetch::<u8>(bus); add!(self, d8); }
+            0x86 => add!(self, bus.read::<u8>(self.hl)),
+            0xC6 => { let d8: u8 = self.fetch_pc(bus); add!(self, d8); }
 
             0x88 => add!(self, self.b() + u8::from(self.cy())),
             0x89 => add!(self, self.c() + u8::from(self.cy())),
@@ -440,8 +440,8 @@ impl CPU {
             0x8C => add!(self, self.h() + u8::from(self.cy())),
             0x8D => add!(self, self.l() + u8::from(self.cy())),
             0x8F => add!(self, self.a() + u8::from(self.cy())),
-            0x8E => add!(self, (bus as &mut MemR<u8>).read(self.hl) + u8::from(self.cy())),
-            0xCE => { let d8 = self.fetch::<u8>(bus); add!(self, d8 + u8::from(self.cy())); }
+            0x8E => add!(self, bus.read::<u8>(self.hl) + u8::from(self.cy())),
+            0xCE => { let d8: u8 = self.fetch_pc(bus); add!(self, d8 + u8::from(self.cy())); }
 
             0x90 => sub!(self, self.b()),
             0x91 => sub!(self, self.c()),
@@ -450,8 +450,8 @@ impl CPU {
             0x94 => sub!(self, self.h()),
             0x95 => sub!(self, self.l()),
             0x97 => sub!(self, self.a()),
-            0x96 => sub!(self, (bus as &mut MemR<u8>).read(self.hl)),
-            0xD6 => { let d8 = self.fetch::<u8>(bus); sub!(self, d8); }
+            0x96 => sub!(self, bus.read::<u8>(self.hl)),
+            0xD6 => { let d8: u8 = self.fetch_pc(bus); sub!(self, d8); }
 
             0x98 => sub!(self, self.b() + u8::from(self.cy())),
             0x99 => sub!(self, self.c() + u8::from(self.cy())),
@@ -460,8 +460,8 @@ impl CPU {
             0x9C => sub!(self, self.h() + u8::from(self.cy())),
             0x9D => sub!(self, self.l() + u8::from(self.cy())),
             0x9F => sub!(self, self.a() + u8::from(self.cy())),
-            0x9E => sub!(self, (bus as &mut MemR<u8>).read(self.hl) + u8::from(self.cy())),
-            0xDE => { let d8 = self.fetch::<u8>(bus); sub!(self, d8 + u8::from(self.cy())); }
+            0x9E => sub!(self, bus.read::<u8>(self.hl) + u8::from(self.cy())),
+            0xDE => { let d8: u8 = self.fetch_pc(bus); sub!(self, d8 + u8::from(self.cy())); }
 
             0xA0 => and!(self, self.b()),
             0xA1 => and!(self, self.c()),
@@ -470,8 +470,8 @@ impl CPU {
             0xA4 => and!(self, self.h()),
             0xA5 => and!(self, self.l()),
             0xA7 => and!(self, self.a()),
-            0xA6 => and!(self, (bus as &mut MemR<u8>).read(self.hl)),
-            0xE6 => { let d8 = self.fetch::<u8>(bus); and!(self, d8); }
+            0xA6 => and!(self, bus.read::<u8>(self.hl)),
+            0xE6 => { let d8: u8 = self.fetch_pc(bus); and!(self, d8); }
 
             0xA8 => xor!(self, self.b()),
             0xA9 => xor!(self, self.c()),
@@ -480,8 +480,8 @@ impl CPU {
             0xAC => xor!(self, self.h()),
             0xAD => xor!(self, self.l()),
             0xAF => xor!(self, self.a()),
-            0xAE => xor!(self, (bus as &mut MemR<u8>).read(self.hl)),
-            0xEE => { let d8 = self.fetch::<u8>(bus); xor!(self, d8); }
+            0xAE => xor!(self, bus.read::<u8>(self.hl)),
+            0xEE => { let d8: u8 = self.fetch_pc(bus); xor!(self, d8); }
 
             0xB0 => or!(self, self.b()),
             0xB1 => or!(self, self.c()),
@@ -490,8 +490,8 @@ impl CPU {
             0xB4 => or!(self, self.h()),
             0xB5 => or!(self, self.l()),
             0xB7 => or!(self, self.a()),
-            0xB6 => or!(self, (bus as &mut MemR<u8>).read(self.hl)),
-            0xF6 => { let d8 = self.fetch::<u8>(bus); or!(self, d8); }
+            0xB6 => or!(self, bus.read::<u8>(self.hl)),
+            0xF6 => { let d8: u8 = self.fetch_pc(bus); or!(self, d8); }
 
             0xB8 => cmp!(self, self.a(), self.b()),
             0xB9 => cmp!(self, self.a(), self.c()),
@@ -500,8 +500,8 @@ impl CPU {
             0xBC => cmp!(self, self.a(), self.h()),
             0xBD => cmp!(self, self.a(), self.l()),
             0xBF => cmp!(self, self.a(), self.a()),
-            0xBE => cmp!(self, self.a(), (bus as &mut MemR<u8>).read(self.hl)),
-            0xFE => { let d8 = self.fetch::<u8>(bus); cmp!(self, self.a(), d8); }
+            0xBE => cmp!(self, self.a(), bus.read::<u8>(self.hl)),
+            0xFE => { let d8: u8 = self.fetch_pc(bus); cmp!(self, self.a(), d8); }
 
             0x2F => { self.set_a(!self.a()); self.set_sf(true); self.set_hc(true); }
             0x37 => { self.set_sf(false); self.set_hc(false); self.set_cy(true); }
@@ -527,8 +527,8 @@ impl CPU {
             0x29 => add16!(self, self.hl, self.hl),
             0x39 => add16!(self, self.hl, self.sp),
             0xE8 => {
-                let d8 = u16::from(self.fetch::<u8>(bus));
-                add16!(self, self.sp, d8);
+                let d8: u8 = self.fetch_pc(bus);
+                add16!(self, self.sp, d8 as u16);
                 self.set_zf(false);
             }
 
@@ -551,7 +551,7 @@ impl CPU {
 
     #[rustfmt::skip]
     #[allow(clippy::cyclomatic_complexity)]
-    fn op_cb(&mut self, bus: &mut Bus, opcode: u8) {
+    fn op_cb(&mut self, bus: &mut impl MemRW, opcode: u8) {
         match opcode {
             0x00 => { let v = rl!(self, true, self.b()); self.set_b(v); }
             0x01 => { let v = rl!(self, true, self.c()); self.set_c(v); }
@@ -561,7 +561,7 @@ impl CPU {
             0x05 => { let v = rl!(self, true, self.l()); self.set_l(v); }
             0x07 => { let v = rl!(self, true, self.a()); self.set_a(v); }
             0x06 => {
-                let v = rl!(self, true, (bus as &mut MemR<u8>).read(self.hl));
+                let v = rl!(self, true, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -573,7 +573,7 @@ impl CPU {
             0x0D => { let v = rr!(self, true, self.l()); self.set_l(v); }
             0x0F => { let v = rr!(self, true, self.a()); self.set_a(v); }
             0x0E => {
-                let v = rr!(self, true, (bus as &mut MemR<u8>).read(self.hl));
+                let v = rr!(self, true, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -585,7 +585,7 @@ impl CPU {
             0x15 => { let v = rl!(self, false, self.l()); self.set_l(v); }
             0x17 => { let v = rl!(self, false, self.a()); self.set_a(v); }
             0x16 => {
-                let v = rl!(self, false, (bus as &mut MemR<u8>).read(self.hl));
+                let v = rl!(self, false, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -597,7 +597,7 @@ impl CPU {
             0x1D => { let v = rr!(self, false, self.l()); self.set_l(v); }
             0x1F => { let v = rr!(self, false, self.a()); self.set_a(v); }
             0x1E => {
-                let v = rr!(self, false, (bus as &mut MemR<u8>).read(self.hl));
+                let v = rr!(self, false, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -609,7 +609,7 @@ impl CPU {
             0x25 => { let v = sla!(self, self.l()); self.set_l(v); }
             0x27 => { let v = sla!(self, self.a()); self.set_a(v); }
             0x26 => {
-                let v = sla!(self, (bus as &mut MemR<u8>).read(self.hl));
+                let v = sla!(self, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -621,7 +621,7 @@ impl CPU {
             0x2D => { let v = sra!(self, self.l()); self.set_l(v); }
             0x2F => { let v = sra!(self, self.a()); self.set_a(v); }
             0x2E => {
-                let v = sra!(self, (bus as &mut MemR<u8>).read(self.hl));
+                let v = sra!(self, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -633,7 +633,7 @@ impl CPU {
             0x35 => { let v = swap!(self, self.l()); self.set_l(v); }
             0x37 => { let v = swap!(self, self.a()); self.set_a(v); }
             0x36 => {
-                let v = swap!(self, (bus as &mut MemR<u8>).read(self.hl));
+                let v = swap!(self, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -645,7 +645,7 @@ impl CPU {
             0x3D => { let v = srl!(self, self.l()); self.set_l(v); }
             0x3F => { let v = srl!(self, self.a()); self.set_a(v); }
             0x3E => {
-                let v = srl!(self, (bus as &mut MemR<u8>).read(self.hl));
+                let v = srl!(self, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -656,7 +656,7 @@ impl CPU {
             0x44 => bit!(self, 0, self.h()),
             0x45 => bit!(self, 0, self.l()),
             0x47 => bit!(self, 0, self.a()),
-            0x46 => bit!(self, 0, (bus as &mut MemR<u8>).read(self.hl)),
+            0x46 => bit!(self, 0, bus.read::<u8>(self.hl)),
 
             0x48 => bit!(self, 1, self.b()),
             0x49 => bit!(self, 1, self.c()),
@@ -665,7 +665,7 @@ impl CPU {
             0x4C => bit!(self, 1, self.h()),
             0x4D => bit!(self, 1, self.l()),
             0x4F => bit!(self, 1, self.a()),
-            0x4E => bit!(self, 1, (bus as &mut MemR<u8>).read(self.hl)),
+            0x4E => bit!(self, 1, bus.read::<u8>(self.hl)),
 
             0x50 => bit!(self, 2, self.b()),
             0x51 => bit!(self, 2, self.c()),
@@ -674,7 +674,7 @@ impl CPU {
             0x54 => bit!(self, 2, self.h()),
             0x55 => bit!(self, 2, self.l()),
             0x57 => bit!(self, 2, self.a()),
-            0x56 => bit!(self, 2, (bus as &mut MemR<u8>).read(self.hl)),
+            0x56 => bit!(self, 2, bus.read::<u8>(self.hl)),
 
             0x58 => bit!(self, 3, self.b()),
             0x59 => bit!(self, 3, self.c()),
@@ -683,7 +683,7 @@ impl CPU {
             0x5C => bit!(self, 3, self.h()),
             0x5D => bit!(self, 3, self.l()),
             0x5F => bit!(self, 3, self.a()),
-            0x5E => bit!(self, 3, (bus as &mut MemR<u8>).read(self.hl)),
+            0x5E => bit!(self, 3, bus.read::<u8>(self.hl)),
 
             0x60 => bit!(self, 4, self.b()),
             0x61 => bit!(self, 4, self.c()),
@@ -692,7 +692,7 @@ impl CPU {
             0x64 => bit!(self, 4, self.h()),
             0x65 => bit!(self, 4, self.l()),
             0x67 => bit!(self, 4, self.a()),
-            0x66 => bit!(self, 4, (bus as &mut MemR<u8>).read(self.hl)),
+            0x66 => bit!(self, 4, bus.read::<u8>(self.hl)),
 
             0x68 => bit!(self, 5, self.b()),
             0x69 => bit!(self, 5, self.c()),
@@ -701,7 +701,7 @@ impl CPU {
             0x6C => bit!(self, 5, self.h()),
             0x6D => bit!(self, 5, self.l()),
             0x6F => bit!(self, 5, self.a()),
-            0x6E => bit!(self, 5, (bus as &mut MemR<u8>).read(self.hl)),
+            0x6E => bit!(self, 5, bus.read::<u8>(self.hl)),
 
             0x70 => bit!(self, 6, self.b()),
             0x71 => bit!(self, 6, self.c()),
@@ -710,7 +710,7 @@ impl CPU {
             0x74 => bit!(self, 6, self.h()),
             0x75 => bit!(self, 6, self.l()),
             0x77 => bit!(self, 6, self.a()),
-            0x76 => bit!(self, 6, (bus as &mut MemR<u8>).read(self.hl)),
+            0x76 => bit!(self, 6, bus.read::<u8>(self.hl)),
 
             0x78 => bit!(self, 7, self.b()),
             0x79 => bit!(self, 7, self.c()),
@@ -719,7 +719,7 @@ impl CPU {
             0x7C => bit!(self, 7, self.h()),
             0x7D => bit!(self, 7, self.l()),
             0x7F => bit!(self, 7, self.a()),
-            0x7E => bit!(self, 7, (bus as &mut MemR<u8>).read(self.hl)),
+            0x7E => bit!(self, 7, bus.read::<u8>(self.hl)),
 
             0x80 => self.set_b(res!(0, self.b())),
             0x81 => self.set_c(res!(0, self.c())),
@@ -729,7 +729,7 @@ impl CPU {
             0x85 => self.set_l(res!(0, self.l())),
             0x87 => self.set_a(res!(0, self.a())),
             0x86 => {
-                let v = res!(0, (bus as &mut MemR<u8>).read(self.hl));
+                let v = res!(0, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -741,7 +741,7 @@ impl CPU {
             0x8D => self.set_l(res!(1, self.l())),
             0x8F => self.set_a(res!(1, self.a())),
             0x8E => {
-                let v = res!(1, (bus as &mut MemR<u8>).read(self.hl));
+                let v = res!(1, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -753,7 +753,7 @@ impl CPU {
             0x95 => self.set_l(res!(2, self.l())),
             0x97 => self.set_a(res!(2, self.a())),
             0x96 => {
-                let v = res!(2, (bus as &mut MemR<u8>).read(self.hl));
+                let v = res!(2, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -765,7 +765,7 @@ impl CPU {
             0x9D => self.set_l(res!(3, self.l())),
             0x9F => self.set_a(res!(3, self.a())),
             0x9E => {
-                let v = res!(3, (bus as &mut MemR<u8>).read(self.hl));
+                let v = res!(3, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -777,7 +777,7 @@ impl CPU {
             0xA5 => self.set_l(res!(4, self.l())),
             0xA7 => self.set_a(res!(4, self.a())),
             0xA6 => {
-                let v = res!(4, (bus as &mut MemR<u8>).read(self.hl));
+                let v = res!(4, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -789,7 +789,7 @@ impl CPU {
             0xAD => self.set_l(res!(5, self.l())),
             0xAF => self.set_a(res!(5, self.a())),
             0xAE => {
-                let v = res!(5, (bus as &mut MemR<u8>).read(self.hl));
+                let v = res!(5, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -801,7 +801,7 @@ impl CPU {
             0xB5 => self.set_l(res!(6, self.l())),
             0xB7 => self.set_a(res!(6, self.a())),
             0xB6 => {
-                let v = res!(6, (bus as &mut MemR<u8>).read(self.hl));
+                let v = res!(6, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -813,7 +813,7 @@ impl CPU {
             0xBD => self.set_l(res!(7, self.l())),
             0xBF => self.set_a(res!(7, self.a())),
             0xBE => {
-                let v = res!(7, (bus as &mut MemR<u8>).read(self.hl));
+                let v = res!(7, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -825,7 +825,7 @@ impl CPU {
             0xC5 => self.set_l(set!(0, self.l())),
             0xC7 => self.set_a(set!(0, self.a())),
             0xC6 => {
-                let v = set!(0, (bus as &mut MemR<u8>).read(self.hl));
+                let v = set!(0, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -837,7 +837,7 @@ impl CPU {
             0xCD => self.set_l(set!(1, self.l())),
             0xCF => self.set_a(set!(1, self.a())),
             0xCE => {
-                let v = set!(1, (bus as &mut MemR<u8>).read(self.hl));
+                let v = set!(1, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -849,7 +849,7 @@ impl CPU {
             0xD5 => self.set_l(set!(2, self.l())),
             0xD7 => self.set_a(set!(2, self.a())),
             0xD6 => {
-                let v = set!(2, (bus as &mut MemR<u8>).read(self.hl));
+                let v = set!(2, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -861,7 +861,7 @@ impl CPU {
             0xDD => self.set_l(set!(3, self.l())),
             0xDF => self.set_a(set!(3, self.a())),
             0xDE => {
-                let v = set!(3, (bus as &mut MemR<u8>).read(self.hl));
+                let v = set!(3, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -873,7 +873,7 @@ impl CPU {
             0xE5 => self.set_l(set!(4, self.l())),
             0xE7 => self.set_a(set!(4, self.a())),
             0xE6 => {
-                let v = set!(4, (bus as &mut MemR<u8>).read(self.hl));
+                let v = set!(4, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -885,7 +885,7 @@ impl CPU {
             0xED => self.set_l(set!(5, self.l())),
             0xEF => self.set_a(set!(5, self.a())),
             0xEE => {
-                let v = set!(5, (bus as &mut MemR<u8>).read(self.hl));
+                let v = set!(5, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -897,7 +897,7 @@ impl CPU {
             0xF5 => self.set_l(set!(6, self.l())),
             0xF7 => self.set_a(set!(6, self.a())),
             0xF6 => {
-                let v = set!(6, (bus as &mut MemR<u8>).read(self.hl));
+                let v = set!(6, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
 
@@ -909,9 +909,49 @@ impl CPU {
             0xFD => self.set_l(set!(7, self.l())),
             0xFF => self.set_a(set!(7, self.a())),
             0xFE => {
-                let v = set!(7, (bus as &mut MemR<u8>).read(self.hl));
+                let v = set!(7, bus.read::<u8>(self.hl));
                 bus.write(self.hl, v);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::super::bus::{MemR, MemSize, MemW};
+    use super::*;
+
+    impl<'a> MemR for &'a mut [u8] {
+        fn read<T: MemSize>(&self, addr: u16) -> T {
+            T::read_le(&self[addr as usize..])
+        }
+    }
+
+    impl<'a> MemW for &'a mut [u8] {
+        fn write<T: MemSize>(&mut self, addr: u16, val: T) {
+            T::write_le(&mut self[addr as usize..], val);
+        }
+    }
+
+    impl<'a> MemRW for &'a mut [u8] {}
+
+    #[test]
+    fn opcode_ld_works() {
+        for opc in 0x40..=0x7F {
+            if opc == 0x76 {
+                continue;
+            }
+
+            let mut cpu = CPU::new();
+            cpu.exec(&mut (&mut [opc, 0xAAu8][..]));
+
+            assert!(cpu.pc == 1, "wrong PC for {:02X}: {}", opc, cpu.pc);
+            assert!(
+                cpu.clk == if (opc & 0x07) != 0x6 { 4 } else { 8 },
+                "wrong clk count for {:02X}: {}",
+                opc,
+                cpu.clk
+            );
         }
     }
 }

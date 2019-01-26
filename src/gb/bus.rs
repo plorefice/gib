@@ -52,15 +52,15 @@ impl MemSize for u16 {
     }
 }
 
-pub trait MemR<T: MemSize> {
-    fn read(&self, addr: u16) -> T;
+pub trait MemR {
+    fn read<T: MemSize>(&self, addr: u16) -> T;
 }
 
-pub trait MemW<T: MemSize> {
-    fn write(&mut self, addr: u16, val: T);
+pub trait MemW {
+    fn write<T: MemSize>(&mut self, addr: u16, val: T);
 }
 
-pub trait MemRW<T: MemSize>: MemR<T> + MemW<T> {}
+pub trait MemRW: MemR + MemW {}
 
 const BOOT_ROM: [u8; 256] = [
     0x31, 0xfe, 0xff, 0xaf, 0x21, 0xff, 0x9f, 0x32, 0xcb, 0x7c, 0x20, 0xfb, 0x21, 0x26, 0xff, 0x0e,
@@ -148,8 +148,8 @@ impl Bus {
     }
 }
 
-impl<T: MemSize> MemR<T> for Bus {
-    fn read(&self, addr: u16) -> T {
+impl MemR for Bus {
+    fn read<T: MemSize>(&self, addr: u16) -> T {
         match addr {
             0x0000..=0x3FFF => self.rom_00.read(addr),
             0x4000..=0x7FFF => self.rom_nn.read(addr - 0x4000),
@@ -170,8 +170,8 @@ impl<T: MemSize> MemR<T> for Bus {
     }
 }
 
-impl<T: MemSize> MemW<T> for Bus {
-    fn write(&mut self, addr: u16, val: T) {
+impl MemW for Bus {
+    fn write<T: MemSize>(&mut self, addr: u16, val: T) {
         match addr {
             0x0000..=0x3FFF => self.rom_00.write(addr, val),
             0x4000..=0x7FFF => self.rom_nn.write(addr - 0x4000, val),
@@ -191,3 +191,5 @@ impl<T: MemSize> MemW<T> for Bus {
         }
     }
 }
+
+impl MemRW for Bus {}

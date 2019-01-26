@@ -1,4 +1,4 @@
-use super::bus::{Bus, MemR, MemSize};
+use super::bus::{MemRW, MemSize};
 
 pub struct CPU {
     pub af: u16,
@@ -33,24 +33,21 @@ impl CPU {
         }
     }
 
-    pub fn exec(&mut self, bus: &mut Bus) {
+    pub fn exec(&mut self, bus: &mut impl MemRW) {
         self.prev_pc = self.pc;
 
-        let opc = self.fetch::<u8>(bus);
+        let opc = self.fetch_pc(bus);
         self.op(bus, opc);
-
-        // println!(
-        //     "OPC: {:02X} PC0: {:04X} PC1: {:04X} F: {:04b}",
-        //     opc,
-        //     self.prev_pc,
-        //     self.pc,
-        //     self.f() >> 4
-        // );
     }
 
-    pub fn fetch<T: MemSize>(&mut self, bus: &mut Bus) -> T {
-        let v = bus.read(self.pc);
+    pub fn fetch_pc<T: MemSize>(&mut self, bus: &mut impl MemRW) -> T {
+        let v = self.fetch(bus, self.pc);
         self.pc += u16::from(T::byte_size());
+        v
+    }
+
+    pub fn fetch<T: MemSize>(&mut self, bus: &mut impl MemRW, addr: u16) -> T {
+        let v = bus.read::<T>(addr);
         self.clk += u128::from(T::byte_size() * 4);
         v
     }
