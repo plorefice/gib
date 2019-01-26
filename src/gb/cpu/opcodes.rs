@@ -2,20 +2,17 @@ use super::bus::MemRW;
 use super::CPU;
 
 macro_rules! pop {
-    ($cpu:ident, $bus:ident, $cond:expr, $reg:ident) => {{
-        if $cond {
-            $cpu.$reg = $bus.read($cpu.sp);
-            $cpu.sp += 2;
-            $cpu.clk += 8;
-        }
+    ($cpu:ident, $bus:ident, $reg:ident) => {{
+        $cpu.$reg = $cpu.fetch($bus, $cpu.sp);
+        $cpu.sp += 2;
     }};
 }
 
 macro_rules! push {
     ($cpu:ident, $bus:ident, $reg:ident) => {{
         $cpu.sp -= 2;
-        $cpu.clk += 12;
-        $bus.write($cpu.sp, $cpu.$reg);
+        $cpu.clk += 4;
+        $cpu.store($bus, $cpu.sp, $cpu.$reg);
     }};
 }
 
@@ -44,6 +41,16 @@ macro_rules! call {
             push!($cpu, $bus, pc);
             $cpu.pc = $to;
         }
+    }};
+}
+
+macro_rules! ret {
+    ($cpu:ident, $bus:ident, $cond:expr) => {{
+        if $cond {
+            pop!($cpu, $bus, pc);
+            $cpu.clk += 4;
+        }
+        $cpu.clk += 4;
     }};
 }
 
@@ -246,7 +253,7 @@ impl CPU {
             0xDA => { let abs: u16 = self.fetch_pc(bus); jp!(self, self.cy(),  abs); }
             0xC3 => { let abs: u16 = self.fetch_pc(bus); jp!(self, true,       abs); }
 
-            0xE9 => jp!(self, true, self.hl),
+            0xE9 => { jp!(self, true, self.hl); self.clk -= 4; }
 
             0xC4 => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, !self.zf(), abs); }
             0xD4 => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, !self.cy(), abs); }
@@ -254,13 +261,13 @@ impl CPU {
             0xDC => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, self.cy(),  abs); }
             0xCD => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, true,       abs); }
 
-            0xC0 => pop!(self, bus, !self.zf(), pc),
-            0xD0 => pop!(self, bus, !self.cy(), pc),
-            0xC8 => pop!(self, bus, self.zf(),  pc),
-            0xD8 => pop!(self, bus, self.cy(),  pc),
-            0xC9 => pop!(self, bus, true,       pc),
+            0xC0 => ret!(self, bus, !self.zf()),
+            0xD0 => ret!(self, bus, !self.cy()),
+            0xC8 => ret!(self, bus, self.zf()),
+            0xD8 => ret!(self, bus, self.cy()),
 
-            0xD9 => { pop!(self, bus, true, pc); self.intr_enabled = true; }
+            0xC9 => { ret!(self, bus, true); self.clk -= 4; }
+            0xD9 => { ret!(self, bus, true); self.clk -= 4; self.intr_enabled = true; }
 
             0xC7 => call!(self, bus, true, 0x00),
             0xCF => call!(self, bus, true, 0x08),
@@ -391,10 +398,10 @@ impl CPU {
             0x21 => self.hl = self.fetch_pc(bus),
             0x31 => self.sp = self.fetch_pc(bus),
 
-            0xC1 => pop!(self, bus, true, bc),
-            0xD1 => pop!(self, bus, true, de),
-            0xE1 => pop!(self, bus, true, hl),
-            0xF1 => pop!(self, bus, true, af),
+            0xC1 => pop!(self, bus, bc),
+            0xD1 => pop!(self, bus, de),
+            0xE1 => pop!(self, bus, hl),
+            0xF1 => pop!(self, bus, af),
 
             0xC5 => push!(self, bus, bc),
             0xD5 => push!(self, bus, de),
@@ -949,47 +956,129 @@ mod test {
 
     impl<'a> MemRW for &'a mut [u8] {}
 
+    fn check_opcode(cpu: Option<CPU>, opcode: u8, exp_pc: u16, exp_clk: u128) {
+        let mut cpu = cpu.unwrap_or_else(|| CPU::new());
+        cpu.exec(&mut (&mut [opcode; 0x10000][..]));
+
+        assert!(
+            cpu.pc == exp_pc,
+            "wrong PC for {:02X}: {:04X} != {:04X}",
+            opcode,
+            cpu.pc,
+            exp_pc
+        );
+        assert!(
+            cpu.clk == exp_clk,
+            "wrong clk for {:02X}: {} != {}",
+            opcode,
+            cpu.clk,
+            exp_clk
+        );
+    }
+
     #[test]
     fn opcode_ld_timings() {
-        let t = |opc, pc, clk| {
-            let mut cpu = CPU::new();
-            cpu.exec(&mut (&mut [opc; 0x10000][..]));
-
-            assert!(
-                cpu.pc == pc,
-                "wrong PC for {:02X}: {} != {}",
-                opc,
-                cpu.pc,
-                pc
-            );
-            assert!(
-                cpu.clk == clk,
-                "wrong clk for {:02X}: {} != {}",
-                opc,
-                cpu.clk,
-                clk
-            );
-        };
-
         for opc in 0x40..=0x7F {
             if opc != 0x76 {
-                t(opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 });
+                check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 });
             }
         }
 
         [0x02u8, 0x12, 0x22, 0x32, 0x0A, 0x1A, 0x2A, 0x3A]
             .iter()
-            .for_each(|&opc| t(opc, 1, 8));
+            .for_each(|&opc| check_opcode(None, opc, 1, 8));
 
         [0x06u8, 0x16, 0x26, 0x0E, 0x1E, 0x2E, 0x3E]
             .iter()
-            .for_each(|&opc| t(opc, 2, 8));
+            .for_each(|&opc| check_opcode(None, opc, 2, 8));
 
-        [0x36u8, 0xE0, 0xF0].iter().for_each(|&opc| t(opc, 2, 12));
+        [0x36u8, 0xE0, 0xF0]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 2, 12));
 
-        t(0xE2, 1, 8);
-        t(0xF2, 1, 8);
-        t(0xEA, 3, 16);
-        t(0xFA, 3, 16);
+        check_opcode(None, 0xE2, 1, 8);
+        check_opcode(None, 0xF2, 1, 8);
+        check_opcode(None, 0xEA, 3, 16);
+        check_opcode(None, 0xFA, 3, 16);
+    }
+
+    #[test]
+    fn opcode_misc_timings() {
+        [0x00u8, 0x10, 0x76, 0xF3, 0xFB]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 1, 4));
+    }
+
+    #[test]
+    fn opcode_jump_timings() {
+        let cpu_with_zf = || {
+            let mut cpu = CPU::new();
+            cpu.set_zf(true);
+            cpu
+        };
+
+        let cpu_with_cy = || {
+            let mut cpu = CPU::new();
+            cpu.set_cy(true);
+            cpu
+        };
+
+        check_opcode(None, 0x18, 2 + 0x18, 12);
+        check_opcode(None, 0xC3, 0xC3C3, 16);
+        check_opcode(None, 0xCD, 0xCDCD, 24);
+        check_opcode(None, 0xE9, 0, 4);
+
+        check_opcode(None, 0x20, 2 + 0x20, 12);
+        check_opcode(None, 0x28, 2, 8);
+        check_opcode(Some(cpu_with_zf()), 0x20, 2, 8);
+        check_opcode(Some(cpu_with_zf()), 0x28, 2 + 0x28, 12);
+
+        check_opcode(None, 0x30, 2 + 0x30, 12);
+        check_opcode(None, 0x38, 2, 8);
+        check_opcode(Some(cpu_with_cy()), 0x30, 2, 8);
+        check_opcode(Some(cpu_with_cy()), 0x38, 2 + 0x38, 12);
+
+        check_opcode(None, 0xC2, 0xC2C2, 16);
+        check_opcode(None, 0xCA, 3, 12);
+        check_opcode(Some(cpu_with_zf()), 0xC2, 3, 12);
+        check_opcode(Some(cpu_with_zf()), 0xCA, 0xCACA, 16);
+
+        check_opcode(None, 0xD2, 0xD2D2, 16);
+        check_opcode(None, 0xDA, 3, 12);
+        check_opcode(Some(cpu_with_cy()), 0xD2, 3, 12);
+        check_opcode(Some(cpu_with_cy()), 0xDA, 0xDADA, 16);
+
+        check_opcode(None, 0xC4, 0xC4C4, 24);
+        check_opcode(None, 0xCC, 3, 12);
+        check_opcode(Some(cpu_with_zf()), 0xC4, 3, 12);
+        check_opcode(Some(cpu_with_zf()), 0xCC, 0xCCCC, 24);
+
+        check_opcode(None, 0xD4, 0xD4D4, 24);
+        check_opcode(None, 0xDC, 3, 12);
+        check_opcode(Some(cpu_with_cy()), 0xD4, 3, 12);
+        check_opcode(Some(cpu_with_cy()), 0xDC, 0xDCDC, 24);
+
+        check_opcode(None, 0xC7, 0x00, 16);
+        check_opcode(None, 0xD7, 0x10, 16);
+        check_opcode(None, 0xE7, 0x20, 16);
+        check_opcode(None, 0xF7, 0x30, 16);
+
+        check_opcode(None, 0xCF, 0x08, 16);
+        check_opcode(None, 0xDF, 0x18, 16);
+        check_opcode(None, 0xEF, 0x28, 16);
+        check_opcode(None, 0xFF, 0x38, 16);
+
+        check_opcode(None, 0xC0, 0xC0C0, 20);
+        check_opcode(None, 0xC8, 1, 8);
+        check_opcode(Some(cpu_with_zf()), 0xC0, 1, 8);
+        check_opcode(Some(cpu_with_zf()), 0xC8, 0xC8C8, 20);
+
+        check_opcode(None, 0xD0, 0xD0D0, 20);
+        check_opcode(None, 0xD8, 1, 8);
+        check_opcode(Some(cpu_with_cy()), 0xD0, 1, 8);
+        check_opcode(Some(cpu_with_cy()), 0xD8, 0xD8D8, 20);
+
+        check_opcode(None, 0xC9, 0xC9C9, 16);
+        check_opcode(None, 0xD9, 0xD9D9, 16);
     }
 }
