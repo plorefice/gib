@@ -49,8 +49,8 @@ fn main() {
     let mut gb = GameBoy::with_cartridge(&rom[..]);
 
     'outer: loop {
-        while let Some(e) = events.poll_event() {
-            if let Event::Quit { .. } = e {
+        for event in events.poll_iter() {
+            if let Event::Quit { .. } = event {
                 break 'outer;
             }
         }
