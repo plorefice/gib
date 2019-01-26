@@ -274,26 +274,26 @@ impl CPU {
             /*
              * 8bit load/store/move instructions
              */
-            0x02 => bus.write(self.bc, self.a()),
-            0x12 => bus.write(self.de, self.a()),
+            0x02 => self.store(bus, self.bc, self.a()),
+            0x12 => self.store(bus, self.de, self.a()),
 
-            0x22 => { bus.write(self.hl, self.a()); self.hl += 1; }
-            0x32 => { bus.write(self.hl, self.a()); self.hl -= 1; }
+            0x22 => { self.store(bus, self.hl, self.a()); self.hl += 1; }
+            0x32 => { self.store(bus, self.hl, self.a()); self.hl -= 1; }
 
-            0x0A => self.set_a(bus.read(self.bc)),
-            0x1A => self.set_a(bus.read(self.de)),
+            0x0A => { let d8: u8 = self.fetch(bus, self.bc); self.set_a(d8); }
+            0x1A => { let d8: u8 = self.fetch(bus, self.de); self.set_a(d8); }
 
-            0x2A => { self.set_a(bus.read(self.hl)); self.hl += 1; }
-            0x3A => { self.set_a(bus.read(self.hl)); self.hl -= 1; }
+            0x2A => { let d8: u8 = self.fetch(bus, self.hl); self.set_a(d8); self.hl += 1; }
+            0x3A => { let d8: u8 = self.fetch(bus, self.hl); self.set_a(d8); self.hl -= 1; }
 
-            0x06 => { let d8: u8 = self.fetch_pc(bus); self.set_b(d8);          }
-            0x16 => { let d8: u8 = self.fetch_pc(bus); self.set_d(d8);          }
-            0x26 => { let d8: u8 = self.fetch_pc(bus); self.set_d(d8);          }
-            0x36 => { let d8: u8 = self.fetch_pc(bus); bus.write(self.hl, d8); }
-            0x0E => { let d8: u8 = self.fetch_pc(bus); self.set_c(d8);          }
-            0x1E => { let d8: u8 = self.fetch_pc(bus); self.set_e(d8);          }
-            0x2E => { let d8: u8 = self.fetch_pc(bus); self.set_l(d8);          }
-            0x3E => { let d8: u8 = self.fetch_pc(bus); self.set_a(d8);          }
+            0x06 => { let d8: u8 = self.fetch_pc(bus); self.set_b(d8);               }
+            0x16 => { let d8: u8 = self.fetch_pc(bus); self.set_d(d8);               }
+            0x26 => { let d8: u8 = self.fetch_pc(bus); self.set_d(d8);               }
+            0x36 => { let d8: u8 = self.fetch_pc(bus); self.store(bus, self.hl, d8); }
+            0x0E => { let d8: u8 = self.fetch_pc(bus); self.set_c(d8);               }
+            0x1E => { let d8: u8 = self.fetch_pc(bus); self.set_e(d8);               }
+            0x2E => { let d8: u8 = self.fetch_pc(bus); self.set_l(d8);               }
+            0x3E => { let d8: u8 = self.fetch_pc(bus); self.set_a(d8);               }
 
             0x40 => self.set_b(self.b()),
             0x41 => self.set_b(self.c()),
@@ -360,14 +360,28 @@ impl CPU {
             0x75 => bus.write(self.hl, self.l()),
             0x77 => bus.write(self.hl, self.a()),
 
-            0xE0 => { let d8: u8 = self.fetch_pc(bus); bus.write(0xFF00 + d8 as u16, self.a()); }
-            0xF0 => { let d8: u8 = self.fetch_pc(bus); self.set_a(bus.read(0xFF00 + d8 as u16)); }
+            0xE0 => {
+                let d8: u8 = self.fetch_pc(bus);
+                self.store(bus, 0xFF00 + u16::from(d8), self.a());
+            }
+            0xF0 => {
+                let d8: u8 = self.fetch_pc(bus);
+                let a: u8 = self.fetch(bus, 0xFF00 + u16::from(d8));
+                self.set_a(a);
+            }
 
-            0xE2 => bus.write(0xFF00 + u16::from(self.c()), self.a()),
-            0xF2 => self.set_a(bus.read(0xFF00 + u16::from(self.c()))),
+            0xE2 => self.store(bus, 0xFF00 + u16::from(self.c()), self.a()),
+            0xF2 => {
+                let d8: u8 = self.fetch(bus, 0xFF00 + u16::from(self.c()));
+                self.set_a(d8);
+            }
 
-            0xEA => { let d16: u16 = self.fetch_pc(bus); bus.write(d16, self.a()); }
-            0xFA => { let d16: u16 = self.fetch_pc(bus); self.set_a(bus.read(d16)); }
+            0xEA => { let d16: u16 = self.fetch_pc(bus); self.store(bus, d16, self.a()); }
+            0xFA => {
+                let d16: u16 = self.fetch_pc(bus);
+                let a: u8 = self.fetch(bus, d16);
+                self.set_a(a);
+            }
 
             /*
              * 16bit load/store/move instructions
@@ -936,22 +950,46 @@ mod test {
     impl<'a> MemRW for &'a mut [u8] {}
 
     #[test]
-    fn opcode_ld_works() {
-        for opc in 0x40..=0x7F {
-            if opc == 0x76 {
-                continue;
-            }
-
+    fn opcode_ld_timings() {
+        let t = |opc, pc, clk| {
             let mut cpu = CPU::new();
-            cpu.exec(&mut (&mut [opc, 0xAAu8][..]));
+            cpu.exec(&mut (&mut [opc; 0x10000][..]));
 
-            assert!(cpu.pc == 1, "wrong PC for {:02X}: {}", opc, cpu.pc);
             assert!(
-                cpu.clk == if (opc & 0x07) != 0x6 { 4 } else { 8 },
-                "wrong clk count for {:02X}: {}",
+                cpu.pc == pc,
+                "wrong PC for {:02X}: {} != {}",
                 opc,
-                cpu.clk
+                cpu.pc,
+                pc
             );
+            assert!(
+                cpu.clk == clk,
+                "wrong clk for {:02X}: {} != {}",
+                opc,
+                cpu.clk,
+                clk
+            );
+        };
+
+        for opc in 0x40..=0x7F {
+            if opc != 0x76 {
+                t(opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 });
+            }
         }
+
+        [0x02u8, 0x12, 0x22, 0x32, 0x0A, 0x1A, 0x2A, 0x3A]
+            .iter()
+            .for_each(|&opc| t(opc, 1, 8));
+
+        [0x06u8, 0x16, 0x26, 0x0E, 0x1E, 0x2E, 0x3E]
+            .iter()
+            .for_each(|&opc| t(opc, 2, 8));
+
+        [0x36u8, 0xE0, 0xF0].iter().for_each(|&opc| t(opc, 2, 12));
+
+        t(0xE2, 1, 8);
+        t(0xF2, 1, 8);
+        t(0xEA, 3, 16);
+        t(0xFA, 3, 16);
     }
 }

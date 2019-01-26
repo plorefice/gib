@@ -51,6 +51,11 @@ impl CPU {
         self.clk += u128::from(T::byte_size() * 4);
         v
     }
+
+    pub fn store<T: MemSize>(&mut self, bus: &mut impl MemRW, addr: u16, val: T) {
+        bus.write::<T>(addr, val);
+        self.clk += u128::from(T::byte_size() * 4);
+    }
 }
 
 #[rustfmt::skip]
