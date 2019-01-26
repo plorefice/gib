@@ -405,7 +405,7 @@ impl CPU {
             0xF9 => self.sp = self.hl,
 
             0xF8 => {
-                let d8: u16 = self.fetch_pc(bus);
+                let d8: u8 = self.fetch_pc(bus);
                 add16!(self, self.hl, self.sp + u16::from(d8));
                 self.set_zf(false);
             }
@@ -542,7 +542,7 @@ impl CPU {
             0x39 => add16!(self, self.hl, self.sp),
             0xE8 => {
                 let d8: u8 = self.fetch_pc(bus);
-                add16!(self, self.sp, d8 as u16);
+                add16!(self, self.sp, u16::from(d8));
                 self.set_zf(false);
             }
 
