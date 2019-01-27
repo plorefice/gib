@@ -85,7 +85,7 @@ impl PPU {
                     let y = (py + usize::from(self.scroll_y())) % 256;
                     let x = (px + usize::from(self.scroll_x())) % 256;
 
-                    let pid = (py * (160 * 4)) + (px * 4);
+                    let pid = (py * (160 * 3)) + (px * 3);
 
                     let t = self.bg_tile(((y >> 3) << 5) + (x >> 3));
                     let px = t.pixel((x & 0x07) as u8, (y & 0x7) as u8);
