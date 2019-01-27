@@ -126,7 +126,6 @@ macro_rules! cmp {
         $cpu.set_sf(true);
         $cpu.set_hc(($b & 0xF) > ($a & 0xF));
         $cpu.set_cy($b > $a);
-        $cpu.clk += 4;
     }};
 }
 
@@ -360,13 +359,13 @@ impl CPU {
             0x7E => { let d8 = self.fetch(bus, self.hl); self.set_a(d8); }
             0x7F => self.set_a(self.a()),
 
-            0x70 => bus.write(self.hl, self.b()),
-            0x71 => bus.write(self.hl, self.c()),
-            0x72 => bus.write(self.hl, self.d()),
-            0x73 => bus.write(self.hl, self.e()),
-            0x74 => bus.write(self.hl, self.h()),
-            0x75 => bus.write(self.hl, self.l()),
-            0x77 => bus.write(self.hl, self.a()),
+            0x70 => self.store(bus, self.hl, self.b()),
+            0x71 => self.store(bus, self.hl, self.c()),
+            0x72 => self.store(bus, self.hl, self.d()),
+            0x73 => self.store(bus, self.hl, self.e()),
+            0x74 => self.store(bus, self.hl, self.h()),
+            0x75 => self.store(bus, self.hl, self.l()),
+            0x77 => self.store(bus, self.hl, self.a()),
 
             0xE0 => {
                 let d8: u8 = self.fetch_pc(bus);
@@ -452,7 +451,7 @@ impl CPU {
             0x84 => add!(self, self.h()),
             0x85 => add!(self, self.l()),
             0x87 => add!(self, self.a()),
-            0x86 => add!(self, bus.read::<u8>(self.hl)),
+            0x86 => { let d8: u8 = self.fetch(bus, self.hl); add!(self, d8); }
             0xC6 => { let d8: u8 = self.fetch_pc(bus); add!(self, d8); }
 
             0x88 => add!(self, self.b() + u8::from(self.cy())),
@@ -462,7 +461,7 @@ impl CPU {
             0x8C => add!(self, self.h() + u8::from(self.cy())),
             0x8D => add!(self, self.l() + u8::from(self.cy())),
             0x8F => add!(self, self.a() + u8::from(self.cy())),
-            0x8E => add!(self, bus.read::<u8>(self.hl) + u8::from(self.cy())),
+            0x8E => { let d8: u8 = self.fetch(bus, self.hl); add!(self, d8 + u8::from(self.cy())); }
             0xCE => { let d8: u8 = self.fetch_pc(bus); add!(self, d8 + u8::from(self.cy())); }
 
             0x90 => sub!(self, self.b()),
@@ -472,7 +471,7 @@ impl CPU {
             0x94 => sub!(self, self.h()),
             0x95 => sub!(self, self.l()),
             0x97 => sub!(self, self.a()),
-            0x96 => sub!(self, bus.read::<u8>(self.hl)),
+            0x96 => { let d8: u8 = self.fetch(bus, self.hl); sub!(self, d8); }
             0xD6 => { let d8: u8 = self.fetch_pc(bus); sub!(self, d8); }
 
             0x98 => sub!(self, self.b() + u8::from(self.cy())),
@@ -482,7 +481,7 @@ impl CPU {
             0x9C => sub!(self, self.h() + u8::from(self.cy())),
             0x9D => sub!(self, self.l() + u8::from(self.cy())),
             0x9F => sub!(self, self.a() + u8::from(self.cy())),
-            0x9E => sub!(self, bus.read::<u8>(self.hl) + u8::from(self.cy())),
+            0x9E => { let d8: u8 = self.fetch(bus, self.hl); sub!(self, d8 + u8::from(self.cy())); }
             0xDE => { let d8: u8 = self.fetch_pc(bus); sub!(self, d8 + u8::from(self.cy())); }
 
             0xA0 => and!(self, self.b()),
@@ -492,7 +491,7 @@ impl CPU {
             0xA4 => and!(self, self.h()),
             0xA5 => and!(self, self.l()),
             0xA7 => and!(self, self.a()),
-            0xA6 => and!(self, bus.read::<u8>(self.hl)),
+            0xA6 => { let d8: u8 = self.fetch(bus, self.hl); and!(self, d8); }
             0xE6 => { let d8: u8 = self.fetch_pc(bus); and!(self, d8); }
 
             0xA8 => xor!(self, self.b()),
@@ -502,7 +501,7 @@ impl CPU {
             0xAC => xor!(self, self.h()),
             0xAD => xor!(self, self.l()),
             0xAF => xor!(self, self.a()),
-            0xAE => xor!(self, bus.read::<u8>(self.hl)),
+            0xAE => { let d8: u8 = self.fetch(bus, self.hl); xor!(self, d8); }
             0xEE => { let d8: u8 = self.fetch_pc(bus); xor!(self, d8); }
 
             0xB0 => or!(self, self.b()),
@@ -512,7 +511,7 @@ impl CPU {
             0xB4 => or!(self, self.h()),
             0xB5 => or!(self, self.l()),
             0xB7 => or!(self, self.a()),
-            0xB6 => or!(self, bus.read::<u8>(self.hl)),
+            0xB6 => { let d8: u8 = self.fetch(bus, self.hl); or!(self, d8); }
             0xF6 => { let d8: u8 = self.fetch_pc(bus); or!(self, d8); }
 
             0xB8 => cmp!(self, self.a(), self.b()),
@@ -522,7 +521,7 @@ impl CPU {
             0xBC => cmp!(self, self.a(), self.h()),
             0xBD => cmp!(self, self.a(), self.l()),
             0xBF => cmp!(self, self.a(), self.a()),
-            0xBE => cmp!(self, self.a(), bus.read::<u8>(self.hl)),
+            0xBE => { let d8: u8 = self.fetch(bus, self.hl); cmp!(self, self.a(), d8); }
             0xFE => { let d8: u8 = self.fetch_pc(bus); cmp!(self, self.a(), d8); }
 
             0x2F => { self.set_a(!self.a()); self.set_sf(true); self.set_hc(true); }
@@ -1060,11 +1059,15 @@ mod test {
 
     #[test]
     fn opcode_ld8_timings() {
-        for opc in 0x40..=0x7F {
-            if opc != 0x76 {
-                check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 });
-            }
-        }
+        (0x40..=0x6F)
+            .for_each(|opc| check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 }));
+
+        [0x70u8, 0x71, 0x72, 0x73, 0x74, 0x75, 0x77]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 1, 8));
+
+        (0x78..=0x7F)
+            .for_each(|opc| check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 }));
 
         [0x02u8, 0x12, 0x22, 0x32, 0x0A, 0x1A, 0x2A, 0x3A]
             .iter()
@@ -1101,6 +1104,27 @@ mod test {
         check_opcode(None, 0x08, 3, 20);
         check_opcode(None, 0xF8, 2, 12);
         check_opcode(None, 0xF9, 1, 8);
+    }
+
+    #[test]
+    fn opcode_alu8_timings() {
+        [
+            0x04u8, 0x05, 0x0C, 0x0D, 0x14u8, 0x15, 0x1C, 0x1D, 0x24u8, 0x25, 0x2C, 0x2D, 0x3C,
+            0x3D, 0x37, 0x2F, 0x3F,
+        ]
+        .iter()
+        .for_each(|&opc| check_opcode(None, opc, 1, 4));
+
+        [0x34u8, 0x35]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 1, 4));
+
+        (0x80..=0xBF)
+            .for_each(|opc| check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 }));
+
+        [0xC6u8, 0xCE, 0xD6, 0xDE, 0xE6, 0xEE, 0xF6, 0xFE]
+            .iter()
+            .for_each(|&opc| check_opcode(None, opc, 2, 8));
     }
 
     #[test]
