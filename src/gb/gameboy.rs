@@ -31,4 +31,12 @@ impl GameBoy {
     pub fn rasterize(&self, vbuf: &mut [u8]) {
         self.bus.ppu.rasterize(vbuf);
     }
+
+    pub fn cpu(&self) -> &CPU {
+        &self.cpu
+    }
+
+    pub fn bus(&self) -> &Bus {
+        &self.bus
+    }
 }

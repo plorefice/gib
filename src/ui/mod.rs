@@ -1,7 +1,10 @@
 use super::gb::GameBoy;
 
 mod ctx;
+mod disasm;
+
 use ctx::UiContext;
+use disasm::DisasmWindow;
 
 use glium::{
     backend::Facade,
@@ -22,14 +25,20 @@ pub struct EmuUi {
     emu: GameBoy,
     ui_ctx: Rc<RefCell<UiContext>>,
     vpu_texture: Option<imgui::ImTexture>,
+
+    disasm: DisasmWindow,
 }
 
 impl EmuUi {
     pub fn new(emu: GameBoy) -> EmuUi {
+        let disasm = DisasmWindow::new(&emu);
+
         EmuUi {
             emu,
             ui_ctx: Rc::from(RefCell::new(UiContext::new())),
             vpu_texture: None,
+
+            disasm,
         }
     }
 
@@ -70,13 +79,13 @@ impl EmuUi {
                 self.vpu_texture = Some(ui_ctx.renderer.textures().insert(new_screen));
             }
 
-            if !ui_ctx.render(delta_s, |ui| self.render(ui)) {
+            if !ui_ctx.render(delta_s, |ui| self.draw(ui)) {
                 break;
             }
         }
     }
 
-    fn render(&self, ui: &Ui) -> bool {
+    fn draw(&self, ui: &Ui) -> bool {
         ui.window(im_str!("ROM"))
             .size(
                 (EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0),
@@ -90,6 +99,6 @@ impl EmuUi {
                 }
             });
 
-        true
+        self.disasm.draw(ui)
     }
 }

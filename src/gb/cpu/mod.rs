@@ -1,4 +1,5 @@
 mod core;
+mod debug;
 mod opcodes;
 
 use super::bus;
