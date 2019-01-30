@@ -2,7 +2,7 @@ use super::EmuState;
 
 use std::collections::BTreeMap;
 
-use imgui::{ImGuiCond, Ui};
+use imgui::{ImGuiCol, ImGuiCond, Ui};
 
 pub struct DisasmWindow {
     disasm: BTreeMap<u16, String>,
@@ -55,14 +55,20 @@ impl DisasmWindow {
     }
 
     pub fn draw(&mut self, ui: &Ui, state: &mut EmuState) {
-        self.realign_disasm(state, state.gb.cpu().pc);
+        let pc = state.gb.cpu().pc;
+
+        self.realign_disasm(state, pc);
 
         ui.window(im_str!("ROM00 disassembly"))
             .size((300.0, 700.0), ImGuiCond::FirstUseEver)
             .position((10.0, 30.0), ImGuiCond::FirstUseEver)
             .build(|| {
-                for instr in self.disasm.values() {
-                    ui.text(instr);
+                for (addr, instr) in self.disasm.iter() {
+                    if *addr == pc {
+                        ui.with_color_var(ImGuiCol::Text, (0.0, 1.0, 0.0, 1.0), || ui.text(instr));
+                    } else {
+                        ui.text(instr);
+                    }
                 }
             });
     }
