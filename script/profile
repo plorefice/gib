@@ -8,7 +8,7 @@ sudo rm -f /tmp/{graph.svg,out.stacks}
 
 cargo build --release
 
-sudo dtrace -c 'target/release/gb-rs roms/DMG_ROM.BIN' \
+sudo dtrace -c "target/release/gb-rs $1" \
 	-o /tmp/out.stacks \
 	-n 'profile-997 /execname == "gb-rs"/ { @[ustack(100)] = count(); }'
 
