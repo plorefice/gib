@@ -31,7 +31,7 @@ impl UiContext {
     pub fn new() -> UiContext {
         let events_loop = glutin::EventsLoop::new();
 
-        let context = glutin::ContextBuilder::new().with_vsync(true);
+        let context = glutin::ContextBuilder::new();
         let builder = glutin::WindowBuilder::new()
             .with_title("gb-rs")
             .with_dimensions(glutin::dpi::LogicalSize::new(1024.0, 764.0));
