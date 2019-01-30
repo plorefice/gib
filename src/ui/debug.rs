@@ -1,7 +1,7 @@
 use super::utils;
 use super::EmuState;
 
-use imgui::{ImGuiCol, ImGuiCond, ImString, ImVec2, Ui};
+use imgui::{ImGuiCond, ImString, ImVec2, Ui};
 
 pub struct DebuggerWindow;
 
@@ -13,7 +13,7 @@ impl DebuggerWindow {
     pub fn draw(&self, ui: &Ui, state: &mut EmuState) {
         ui.window(im_str!("Debugger"))
             .size((450.0, 140.0), ImGuiCond::FirstUseEver)
-            .position((320.0, 10.0), ImGuiCond::FirstUseEver)
+            .position((320.0, 30.0), ImGuiCond::FirstUseEver)
             .build(|| {
                 let cpu = state.gb.cpu();
 

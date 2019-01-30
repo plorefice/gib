@@ -46,8 +46,8 @@ impl DisasmWindow {
         self.realign_disasm(state, state.gb.cpu().pc);
 
         ui.window(im_str!("ROM00 disassembly"))
-            .size((300.0, 740.0), ImGuiCond::FirstUseEver)
-            .position((10.0, 10.0), ImGuiCond::FirstUseEver)
+            .size((300.0, 700.0), ImGuiCond::FirstUseEver)
+            .position((10.0, 30.0), ImGuiCond::FirstUseEver)
             .build(|| {
                 for (addr, instr) in self.disasm.iter() {
                     let text = format!(

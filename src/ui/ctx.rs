@@ -104,9 +104,9 @@ impl UiContext {
         self.should_quit
     }
 
-    pub fn render<F>(&mut self, delta_s: f32, mut f: F) -> bool
+    pub fn render<F>(&mut self, delta_s: f32, mut f: F)
     where
-        F: FnMut(&Ui) -> bool,
+        F: FnMut(&Ui),
     {
         let window = self.display.gl_window();
         let hidpi_factor = window.get_hidpi_factor();
@@ -120,9 +120,7 @@ impl UiContext {
         };
 
         let ui = self.imgui.frame(frame_size, delta_s);
-        if !f(&ui) {
-            return false;
-        }
+        f(&ui);
 
         let mut target = self.display.draw();
         target.clear_color(0.4, 0.5, 0.6, 1.0);
@@ -130,8 +128,6 @@ impl UiContext {
             .render(&mut target, ui)
             .expect("Rendering failed");
         target.finish().unwrap();
-
-        true
     }
 
     fn window(&self) -> std::cell::Ref<'_, glutin::GlWindow> {
