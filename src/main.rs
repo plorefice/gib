@@ -12,7 +12,7 @@ fn main() {
     use std::env;
     use std::fs;
 
-    let mut emu = ui::EmuUi::new();
+    let mut emu = ui::EmuUi::new(true);
 
     if let Some(ref fname) = env::args().nth(1) {
         if let Ok(rom) = fs::read(fname) {

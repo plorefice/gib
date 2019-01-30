@@ -44,6 +44,7 @@ impl EmuState {
 
 #[derive(Default)]
 pub struct GuiState {
+    debug: bool,
     should_quit: bool,
     file_dialog: Option<utils::FileDialog>,
 }
@@ -60,12 +61,15 @@ pub struct EmuUi {
 }
 
 impl EmuUi {
-    pub fn new() -> EmuUi {
+    pub fn new(debug: bool) -> EmuUi {
+        let mut gui = GuiState::default();
+        gui.debug = debug;
+
         EmuUi {
             ctx: Rc::from(RefCell::new(UiContext::new())),
 
             emu: None,
-            gui: GuiState::default(),
+            gui,
             vpu_texture: None,
 
             disasm: None,
@@ -75,6 +79,16 @@ impl EmuUi {
 
     pub fn load_rom(&mut self, rom: &[u8]) {
         self.emu = Some(EmuState::with(GameBoy::with_cartridge(rom)));
+
+        if self.gui.debug {
+            let emu = match self.emu {
+                Some(ref emu) => emu,
+                None => panic!("initialized above"),
+            };
+
+            self.disasm = Some(DisasmWindow::new(emu));
+            self.debugger = Some(DebuggerWindow::new());
+        }
     }
 
     pub fn run(&mut self) {
