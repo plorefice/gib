@@ -21,6 +21,7 @@ pub struct UiContext {
     pub display: Display,
     pub renderer: Renderer,
     pub events_loop: Rc<RefCell<glutin::EventsLoop>>,
+    pub hidpi_factor: f64,
 
     mouse_state: MouseState,
     should_quit: bool,
@@ -51,6 +52,7 @@ impl UiContext {
             display,
             renderer,
             events_loop: Rc::new(RefCell::from(events_loop)),
+            hidpi_factor,
 
             mouse_state: MouseState::default(),
             should_quit: false,
@@ -58,8 +60,8 @@ impl UiContext {
     }
 
     pub fn poll_events(&mut self) {
-        let hidpi_factor = self.window().get_hidpi_factor();
         let events_loop = self.events_loop.clone();
+        let win_hidpi_factor = self.window().get_hidpi_factor();
 
         events_loop.borrow_mut().poll_events(|event| {
             if let Event::WindowEvent { event, .. } = event {
@@ -69,8 +71,8 @@ impl UiContext {
                     }
                     CursorMoved { position: pos, .. } => {
                         self.mouse_state.pos = pos
-                            .to_physical(hidpi_factor)
-                            .to_logical(hidpi_factor)
+                            .to_physical(win_hidpi_factor)
+                            .to_logical(self.hidpi_factor)
                             .into();
                     }
                     MouseInput { state, button, .. } => match button {
@@ -89,8 +91,10 @@ impl UiContext {
                         phase: TouchPhase::Moved,
                         ..
                     } => {
-                        self.mouse_state.wheel =
-                            pos.to_physical(hidpi_factor).to_logical(hidpi_factor).y as f32;
+                        self.mouse_state.wheel = pos
+                            .to_physical(win_hidpi_factor)
+                            .to_logical(self.hidpi_factor)
+                            .y as f32;
                     }
                     _ => (),
                 }
@@ -109,14 +113,17 @@ impl UiContext {
         F: FnMut(&Ui),
     {
         let window = self.display.gl_window();
-        let hidpi_factor = window.get_hidpi_factor();
+        let win_hidpi_factor = window.get_hidpi_factor();
 
-        let physical_size = window.get_inner_size().unwrap().to_physical(hidpi_factor);
-        let logical_size = physical_size.to_logical(hidpi_factor);
+        let physical_size = window
+            .get_inner_size()
+            .unwrap()
+            .to_physical(win_hidpi_factor);
+        let logical_size = physical_size.to_logical(self.hidpi_factor);
 
         let frame_size = FrameSize {
             logical_size: logical_size.into(),
-            hidpi_factor,
+            hidpi_factor: self.hidpi_factor,
         };
 
         let ui = self.imgui.frame(frame_size, delta_s);
@@ -135,7 +142,7 @@ impl UiContext {
     }
 
     fn load_fonts(imgui: &mut ImGui, hidpi_factor: f64) {
-        let font_size = 13.0 * hidpi_factor as f32;
+        let font_size = (13.0 * hidpi_factor) as f32;
 
         imgui.fonts().add_font_with_config(
             include_bytes!("../../res/mplus-1p-regular.ttf"),
@@ -155,7 +162,7 @@ impl UiContext {
                 .size_pixels(font_size),
         );
 
-        imgui.set_font_global_scale(1.0 / hidpi_factor as f32);
+        imgui.set_font_global_scale((1.0 / hidpi_factor) as f32);
     }
 
     fn update_imgui_mouse(&mut self) {
