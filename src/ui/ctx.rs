@@ -96,6 +96,7 @@ impl UiContext {
                             .to_logical(self.hidpi_factor)
                             .y as f32;
                     }
+                    ReceivedCharacter(c) => self.imgui.add_input_character(c),
                     _ => (),
                 }
             }
