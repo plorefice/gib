@@ -5,4 +5,4 @@ mod opcodes;
 use super::bus;
 
 pub use self::core::CPU;
-pub use self::debug::Instruction;
+pub use self::debug::{Immediate, Instruction};

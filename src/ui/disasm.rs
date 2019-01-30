@@ -1,5 +1,5 @@
 use super::utils;
-use super::EmuState;
+use super::{EmuState, Immediate};
 
 use std::collections::BTreeMap;
 
@@ -45,13 +45,15 @@ impl DisasmWindow {
             self.disasm.insert(
                 from,
                 format!(
-                    "{:04X}: {:02X} {:4}    {}",
+                    "{:04X}:  {:02X} {:5}    {}",
                     from,
                     instr.opcode,
-                    if let Some(imm) = instr.imm {
-                        format!("{:04X}", imm)
-                    } else {
-                        String::new()
+                    match instr.imm {
+                        Some(Immediate::Imm8(d8)) => format!("{:02X}", d8),
+                        Some(Immediate::Imm16(d16)) => {
+                            format!("{:02X} {:02X}", d16 & 0xFF, d16 >> 8)
+                        }
+                        None => String::new(),
                     },
                     instr.mnemonic
                 ),

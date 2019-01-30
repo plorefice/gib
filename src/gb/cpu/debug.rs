@@ -271,11 +271,17 @@ const OPCODE_MNEMONICS: [&str; 256] = [
     "rst 38h",
 ];
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Immediate {
+    Imm8(u8),
+    Imm16(u16),
+}
+
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Instruction {
     pub opcode: u8,
     pub mnemonic: &'static str,
-    pub imm: Option<u16>,
+    pub imm: Option<Immediate>,
     pub size: u8,
 }
 
@@ -284,10 +290,10 @@ impl CPU {
         let opcode = mem.read::<u8>(addr);
         let size = OPCODE_SIZES[opcode as usize];
 
-        let imm: Option<u16> = match size {
+        let imm: Option<Immediate> = match size {
             1 => None,
-            2 => Some(mem.read::<u8>(addr + 1).into()),
-            3 => Some(mem.read::<u16>(addr + 1)),
+            2 => Some(Immediate::Imm8(mem.read::<u8>(addr + 1))),
+            3 => Some(Immediate::Imm16(mem.read::<u16>(addr + 1))),
             _ => unreachable!(),
         };
 
