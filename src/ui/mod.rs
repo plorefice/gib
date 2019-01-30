@@ -129,7 +129,10 @@ impl EmuUi {
 
     fn draw(&mut self, delta_s: f32, ui: &Ui) {
         self.draw_menu_bar(delta_s, ui);
-        //self.draw_screen(ui);
+
+        if self.emu.is_some() {
+            self.draw_screen(ui);
+        }
 
         if let Some(ref mut emu) = self.emu {
             if let Some(ref mut view) = self.disasm {
@@ -227,7 +230,7 @@ impl EmuUi {
                 (EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0),
                 ImGuiCond::FirstUseEver,
             )
-            .position((780.0, 10.0), ImGuiCond::FirstUseEver)
+            .position((430.0, 300.0), ImGuiCond::FirstUseEver)
             .resizable(false)
             .build(|| {
                 if let Some(texture) = self.vpu_texture {
