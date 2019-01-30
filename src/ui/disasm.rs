@@ -1,3 +1,4 @@
+use super::utils;
 use super::EmuState;
 
 use std::collections::BTreeMap;
@@ -18,9 +19,9 @@ impl DisasmWindow {
         dw
     }
 
-    // If there is alread an instruction decoded at address `from`,
-    // do nothing. Otherwise, fetch the instruction at from, invalidate
-    // all the overlapping decoded instructions and update the view.
+    // If there is alread an instruction decoded at address `from`, do nothing.
+    // Otherwise, fetch the instruction at from, invalidate all the overlapping
+    // instructions and update the disassembly. Do this until it's aligned again.
     fn realign_disasm(&mut self, state: &EmuState, mut from: u16) {
         let cpu = state.gb.cpu();
         let bus = state.gb.bus();
@@ -45,7 +46,7 @@ impl DisasmWindow {
                     if let Some(imm) = instr.imm {
                         format!("{:04X}", imm)
                     } else {
-                        "    ".to_string()
+                        String::new()
                     },
                     instr.mnemonic
                 ),
@@ -57,19 +58,31 @@ impl DisasmWindow {
     pub fn draw(&mut self, ui: &Ui, state: &mut EmuState) {
         let pc = state.gb.cpu().pc;
 
+        // 99% of the time this does nothing, so it's cool
+        // to have it called every rendering loop.
         self.realign_disasm(state, pc);
 
         ui.window(im_str!("ROM00 disassembly"))
             .size((300.0, 700.0), ImGuiCond::FirstUseEver)
             .position((10.0, 30.0), ImGuiCond::FirstUseEver)
             .build(|| {
-                for (addr, instr) in self.disasm.iter() {
-                    if *addr == pc {
-                        ui.with_color_var(ImGuiCol::Text, (0.0, 1.0, 0.0, 1.0), || ui.text(instr));
-                    } else {
-                        ui.text(instr);
+                utils::list_clipper(ui, self.disasm.len(), |range| {
+                    let instrs = self
+                        .disasm
+                        .iter()
+                        .skip(range.start)
+                        .take(range.end - range.start);
+
+                    for (addr, instr) in instrs {
+                        if *addr == pc {
+                            ui.with_color_var(ImGuiCol::Text, (0.0, 1.0, 0.0, 1.0), || {
+                                ui.text(instr)
+                            });
+                        } else {
+                            ui.text(instr);
+                        }
                     }
-                }
+                });
             });
     }
 }

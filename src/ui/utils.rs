@@ -1,5 +1,6 @@
-use imgui::{ImColor, ImGuiCol, ImStr, ImString, ImVec2, ImVec4, Ui};
+use imgui::{ImStr, ImString, Ui};
 
+use std::ops::Range;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -117,5 +118,49 @@ impl FileDialog {
                 self.click_timer = Some(Duration::from_millis(200));
             }
         }
+    }
+}
+
+/// Safe wrapper around [`ImGuiListClipper`](imgui_sys.ImGuiListClipper).
+pub fn list_clipper<F>(ui: &Ui, count: usize, f: F)
+where
+    F: Fn(Range<usize>),
+{
+    use imgui_sys::{
+        ImGuiListClipper, ImGuiListClipper_Begin, ImGuiListClipper_End,
+        ImGuiListClipper_GetDisplayEnd, ImGuiListClipper_GetDisplayStart, ImGuiListClipper_Step,
+    };
+
+    let font_height = ui.get_text_line_height_with_spacing();
+
+    let mut clipper = ImGuiListClipper {
+        start_pos_y: 0.0,
+        items_height: -1.0,
+        items_count: -1,
+        step_no: 0,
+        display_start: 0,
+        display_end: 0,
+    };
+
+    unsafe {
+        ImGuiListClipper_Begin(
+            &mut clipper as *mut ImGuiListClipper,
+            count as std::os::raw::c_int,
+            font_height as std::os::raw::c_float,
+        );
+    }
+
+    while unsafe { ImGuiListClipper_Step(&mut clipper as *mut ImGuiListClipper) } {
+        let (start, end) = unsafe {
+            (
+                ImGuiListClipper_GetDisplayStart(&mut clipper as *mut ImGuiListClipper) as usize,
+                ImGuiListClipper_GetDisplayEnd(&mut clipper as *mut ImGuiListClipper) as usize,
+            )
+        };
+        f(start..end);
+    }
+
+    unsafe {
+        ImGuiListClipper_End(&mut clipper as *mut ImGuiListClipper);
     }
 }

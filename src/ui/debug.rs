@@ -1,7 +1,6 @@
-use super::utils;
 use super::EmuState;
 
-use imgui::{ImGuiCond, ImStr, ImString, ImVec2, Ui};
+use imgui::{ImGuiCond, ImStr, ImString, Ui};
 
 pub struct DebuggerWindow;
 
@@ -55,28 +54,4 @@ impl DebuggerWindow {
 
         ui.pop_item_width();
     }
-
-    // fn print_flags(ui: &Ui, state: &EmuState) {
-    //     let cpu = state.gb.cpu();
-    //     let bg_col = utils::text_bg_color(ui);
-
-    //     for (i, (n, f)) in [
-    //         ("Z", cpu.zf()),
-    //         ("N", cpu.sf()),
-    //         ("H", cpu.hc()),
-    //         ("C", cpu.cy()),
-    //     ]
-    //     .iter()
-    //     .enumerate()
-    //     {
-    //         let x = 100.0 + (i as f32 * 20.0);
-
-    //         utils::text_with_bg(
-    //             ui,
-    //             (x, 105.0),
-    //             ImString::new(*n),
-    //             if *f { Some(bg_col) } else { None },
-    //         );
-    //     }
-    // }
 }
