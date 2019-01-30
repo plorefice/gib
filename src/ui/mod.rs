@@ -27,8 +27,10 @@ const EMU_Y_RES: usize = 144;
 pub struct EmuState {
     gb: GameBoy,
     reset: bool,
-    running: bool,
+
+    stepping: bool,
     step_into: bool,
+    break_on_invalid: bool,
 }
 
 impl EmuState {
@@ -36,8 +38,10 @@ impl EmuState {
         EmuState {
             gb,
             reset: false,
-            running: false,
+
+            stepping: false,
             step_into: false,
+            break_on_invalid: true,
         }
     }
 }
@@ -111,9 +115,9 @@ impl EmuUi {
             last_frame = now;
 
             if let Some(ref mut emu) = self.emu {
-                if emu.step_into {
+                if emu.stepping && emu.step_into {
                     emu.gb.single_step();
-                } else if emu.running {
+                } else if !emu.stepping {
                     emu.gb.run_to_vblank();
                 }
 
