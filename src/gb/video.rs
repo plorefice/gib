@@ -1,4 +1,21 @@
 use super::bus::{MemR, MemRW, MemSize, MemW};
+use super::reg::IoReg;
+
+#[repr(usize)]
+enum Register {
+    LCDC = 0x00,
+    STAT = 0x01,
+    SCY = 0x02,
+    SCX = 0x03,
+    LY = 0x04,
+    LYC = 0x05,
+    DMA = 0x06,
+    BGP = 0x07,
+    OBP0 = 0x08,
+    OBP1 = 0x09,
+    WY = 0x0A,
+    WX = 0x0B,
+}
 
 #[derive(Default, Copy, Clone)]
 struct Tile([u8; 16]);
@@ -60,7 +77,7 @@ pub struct PPU {
     bgtm0: [u8; 1024], // Background Tile Map #0
     bgtm1: [u8; 1024], // Background Tile Map #1
 
-    regs: [u8; 48],
+    regs: [IoReg; 48],
 }
 
 impl PPU {
@@ -70,20 +87,20 @@ impl PPU {
             oam: [Sprite::default(); 40],
             bgtm0: [0; 1024],
             bgtm1: [0; 1024],
-            regs: [0; 48],
+            regs: [IoReg::default(); 48],
         }
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {
-        if (self.lcdc() & 0x80) == 0 {
+        if !self.lcdc().bit(7) {
             for b in vbuf.iter_mut() {
                 *b = 0xFF;
             }
         } else {
             for py in 0usize..144 {
                 for px in 0usize..160 {
-                    let y = (py + usize::from(self.scroll_y())) % 256;
-                    let x = (px + usize::from(self.scroll_x())) % 256;
+                    let y = (py + usize::from(self.scroll_y().0)) % 256;
+                    let x = (px + usize::from(self.scroll_x().0)) % 256;
 
                     let pid = (py * (160 * 4)) + (px * 4);
 
@@ -100,35 +117,38 @@ impl PPU {
     }
 
     pub fn hsync(&mut self) {
-        self.regs[0x04] = (self.regs[0x04] + 1) % 154;
+        let IoReg(ref mut ly) = self.regs[Register::LY as usize];
+        *ly = (*ly + 1) % 154;
     }
 
     fn io_read<T: MemSize>(&self, idx: u16) -> T {
-        T::read_le(&self.regs[usize::from(idx)..])
+        T::read_le(&[self.regs[usize::from(idx)].0])
     }
 
     fn io_write<T: MemSize>(&mut self, idx: u16, v: T) {
-        T::write_le(&mut self.regs[usize::from(idx)..], v);
+        let mut scratch = [0u8];
+        T::write_le(&mut scratch, v);
+        self.regs[usize::from(idx)].0 = scratch[0];
     }
 
-    fn lcdc(&self) -> u8 {
-        self.regs[0x00]
+    fn lcdc(&self) -> IoReg {
+        self.regs[Register::LCDC as usize]
     }
 
-    fn bgp(&self) -> u8 {
-        self.regs[0x07]
+    fn bgp(&self) -> IoReg {
+        self.regs[Register::BGP as usize]
     }
 
-    fn scroll_x(&self) -> u8 {
-        self.regs[0x03]
+    fn scroll_x(&self) -> IoReg {
+        self.regs[Register::SCX as usize]
     }
 
-    fn scroll_y(&self) -> u8 {
-        self.regs[0x02]
+    fn scroll_y(&self) -> IoReg {
+        self.regs[Register::SCY as usize]
     }
 
     fn shade(&self, color: u8) -> u8 {
-        match (self.bgp() >> (color * 2)) & 0x3 {
+        match (self.bgp().0 >> (color * 2)) & 0x3 {
             0 => 0xFF,
             1 => 0xAA,
             2 => 0x55,
@@ -138,16 +158,16 @@ impl PPU {
     }
 
     fn bg_tile(&self, id: usize) -> &Tile {
-        let tile_id = if (self.lcdc() & 0x08) == 0 {
-            self.bgtm0[id]
-        } else {
+        let tile_id = if self.lcdc().bit(3) {
             self.bgtm1[id]
+        } else {
+            self.bgtm0[id]
         };
 
-        if (self.lcdc() & 0x10) == 0 {
-            &self.tdt[(128 + i32::from(tile_id as i8)) as usize]
-        } else {
+        if self.lcdc().bit(4) {
             &self.tdt[usize::from(tile_id)]
+        } else {
+            &self.tdt[(128 + i32::from(tile_id as i8)) as usize]
         }
     }
 }
