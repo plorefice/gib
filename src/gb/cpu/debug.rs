@@ -1,4 +1,4 @@
-use super::bus::MemR;
+use super::mem::MemR;
 use super::CPU;
 
 const OPCODE_SIZES: [u8; 256] = [

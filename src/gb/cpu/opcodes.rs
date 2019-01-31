@@ -1,4 +1,4 @@
-use super::bus::MemRW;
+use super::mem::MemRW;
 use super::CPU;
 
 macro_rules! pop {
@@ -996,7 +996,7 @@ impl CPU {
 
 #[cfg(test)]
 mod test {
-    use super::super::bus::{MemR, MemSize, MemW};
+    use super::super::mem::{MemR, MemSize, MemW};
     use super::*;
 
     impl<'a> MemR for &'a mut [u8] {

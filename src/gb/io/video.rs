@@ -1,5 +1,4 @@
-use super::bus::{MemR, MemRW, MemSize, MemW};
-use super::reg::IoReg;
+use super::{IoReg, MemR, MemRW, MemSize, MemW};
 
 #[repr(usize)]
 enum Register {

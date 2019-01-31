@@ -1,10 +1,8 @@
 mod bus;
 mod cpu;
 mod gameboy;
-mod memory;
-mod reg;
-mod sound;
-mod video;
+mod io;
+mod mem;
 
 pub use cpu::*;
 pub use gameboy::*;

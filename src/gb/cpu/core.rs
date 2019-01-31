@@ -1,4 +1,4 @@
-use super::bus::{MemRW, MemSize};
+use super::mem::{MemRW, MemSize};
 
 pub struct CPU {
     pub af: u16,

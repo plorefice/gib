@@ -1,4 +1,4 @@
-use super::bus::{MemR, MemSize, MemW};
+use super::{MemR, MemSize, MemW};
 
 pub struct APU;
 
