@@ -1013,7 +1013,7 @@ mod test {
 
     impl<'a> MemRW for &'a mut [u8] {}
 
-    fn check_opcode(cpu: Option<CPU>, opcode: u8, exp_pc: u16, exp_clk: u128) {
+    fn check_opcode(cpu: Option<CPU>, opcode: u8, exp_pc: u16, exp_clk: u64) {
         let mut cpu = cpu.unwrap_or_else(CPU::new);
         cpu.exec(&mut (&mut [opcode; 0x10000][..]));
 

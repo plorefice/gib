@@ -12,7 +12,7 @@ pub struct CPU {
 
     pub intr_enabled: bool,
     pub halted: bool,
-    pub clk: u128,
+    pub clk: u64,
 }
 
 impl CPU {
@@ -48,13 +48,13 @@ impl CPU {
 
     pub fn fetch<T: MemSize>(&mut self, bus: &mut impl MemRW, addr: u16) -> T {
         let v = bus.read::<T>(addr);
-        self.clk += u128::from(T::byte_size() * 4);
+        self.clk += u64::from(T::byte_size() * 4);
         v
     }
 
     pub fn store<T: MemSize>(&mut self, bus: &mut impl MemRW, addr: u16, val: T) {
         bus.write::<T>(addr, val);
-        self.clk += u128::from(T::byte_size() * 4);
+        self.clk += u64::from(T::byte_size() * 4);
     }
 }
 

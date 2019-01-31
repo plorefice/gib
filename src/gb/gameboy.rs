@@ -27,7 +27,7 @@ impl GameBoy {
 
     pub fn run_to_vblank(&mut self) {
         for _ in 0..154 {
-            let until_clk = self.cpu.clk + u128::from(CYCLES_PER_HSYNC);
+            let until_clk = self.cpu.clk + CYCLES_PER_HSYNC;
 
             while self.cpu.clk < until_clk && !self.cpu.halted {
                 self.cpu.exec(&mut self.bus);
