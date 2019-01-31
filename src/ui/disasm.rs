@@ -7,7 +7,6 @@ use imgui::{ImGuiCol, ImGuiCond, ImString, Ui};
 
 pub struct DisasmWindow {
     disasm: BTreeMap<u16, String>,
-    goto_pc: bool,
     goto_addr: ImString,
 }
 
@@ -15,7 +14,6 @@ impl DisasmWindow {
     pub fn new(state: &EmuState) -> DisasmWindow {
         let mut dw = DisasmWindow {
             disasm: BTreeMap::new(),
-            goto_pc: false,
             goto_addr: ImString::with_capacity(4),
         };
 
@@ -73,16 +71,40 @@ impl DisasmWindow {
             .size((300.0, 650.0), ImGuiCond::FirstUseEver)
             .position((10.0, 30.0), ImGuiCond::FirstUseEver)
             .build(|| {
+                let goto_pc;
+                let goto_addr;
+
+                /*
+                 * GOTO logic
+                 */
+                ui.push_item_width(35.0);
+                ui.input_text(im_str!(""), &mut self.goto_addr)
+                    .chars_hexadecimal(true)
+                    .chars_noblank(true)
+                    .chars_uppercase(true)
+                    .auto_select_all(true)
+                    .build();
+                ui.pop_item_width();
+                ui.same_line(0.0);
+
+                goto_addr = ui.button(im_str!("Goto"), (0.0, 0.0));
+                ui.same_line(0.0);
+
+                goto_pc = ui.button(im_str!("Goto PC"), (0.0, 0.0));
+                ui.separator();
+
                 /*
                  * Disassembly listing
                  */
-                ui.child_frame(im_str!("listing"), (285.0, 585.0))
+                let (_, h) = ui.get_content_region_avail();
+
+                ui.child_frame(im_str!("listing"), (285.0, h))
                     .always_show_vertical_scroll_bar(true)
                     .show_borders(false)
                     .build(|| {
-                        if self.goto_pc {
+                        let goto = |dest: u16| {
                             for (i, addr) in self.disasm.keys().enumerate() {
-                                if *addr == pc {
+                                if *addr == dest {
                                     unsafe {
                                         imgui_sys::igSetScrollY(
                                             ui.get_text_line_height_with_spacing() * i as f32,
@@ -91,6 +113,13 @@ impl DisasmWindow {
                                     break;
                                 }
                             }
+                        };
+
+                        if goto_pc {
+                            goto(pc);
+                        } else if goto_addr {
+                            let addr = u16::from_str_radix(self.goto_addr.to_str(), 16).unwrap();
+                            goto(addr);
                         }
 
                         utils::list_clipper(ui, self.disasm.len(), |range| {
@@ -111,24 +140,6 @@ impl DisasmWindow {
                             }
                         });
                     });
-
-                ui.separator();
-
-                /*
-                 * GOTO logic
-                 */
-                ui.push_item_width(35.0);
-                ui.input_text(im_str!("Goto"), &mut self.goto_addr)
-                    .chars_hexadecimal(true)
-                    .chars_noblank(true)
-                    .chars_uppercase(true)
-                    .auto_select_all(true)
-                    .build();
-                ui.pop_item_width();
-
-                ui.same_line(230.0);
-
-                self.goto_pc = ui.button(im_str!("Goto PC"), (0.0, 0.0));
             });
     }
 }
