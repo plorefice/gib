@@ -19,20 +19,26 @@ impl GameBoy {
         }
     }
 
-    pub fn single_step(&mut self) {
-        if !self.cpu.halted {
-            self.cpu.exec(&mut self.bus);
-        }
+    pub fn step(&mut self) {
+        let elapsed = {
+            let clk = self.cpu.clk;
+
+            if !self.cpu.halted {
+                self.cpu.exec(&mut self.bus);
+            } else {
+                self.cpu.clk += 4;
+            }
+            self.cpu.clk - clk
+        };
+
+        self.bus.ppu.tick(elapsed);
     }
 
-    pub fn run_to_vblank(&mut self) {
-        for _ in 0..154 {
-            let until_clk = self.cpu.clk + CYCLES_PER_HSYNC;
+    pub fn run_for_vblank(&mut self) {
+        let until_clk = self.cpu.clk + CYCLES_PER_HSYNC * 154;
 
-            while self.cpu.clk < until_clk && !self.cpu.halted {
-                self.cpu.exec(&mut self.bus);
-            }
-            self.bus.ppu.hsync();
+        while self.cpu.clk < until_clk {
+            self.step();
         }
     }
 

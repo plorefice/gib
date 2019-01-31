@@ -78,6 +78,7 @@ pub struct PPU {
     bgtm1: [u8; 1024], // Background Tile Map #1
 
     regs: [IoReg; 48],
+    tstate: u64,
 }
 
 impl PPU {
@@ -87,7 +88,9 @@ impl PPU {
             oam: [Sprite::default(); 40],
             bgtm0: [0; 1024],
             bgtm1: [0; 1024],
+
             regs: [IoReg::default(); 48],
+            tstate: 0,
         }
     }
 
@@ -116,9 +119,28 @@ impl PPU {
         }
     }
 
-    pub fn hsync(&mut self) {
-        let IoReg(ref mut ly) = self.regs[Register::LY as usize];
-        *ly = (*ly + 1) % 154;
+    pub fn tick(&mut self, elapsed: u64) {
+        self.tstate = (self.tstate + elapsed) % 70224;
+        let v_line = self.tstate / 456;
+
+        let mode = if v_line < 144 {
+            match self.tstate % 456 {
+                0..=79 => 2,   // Mode 2
+                80..=279 => 3, // Mode 3
+                _ => 0,        // Mode 0
+            }
+        } else {
+            1
+        };
+
+        {
+            let IoReg(ref mut stat) = self.regs[Register::STAT as usize];
+            *stat = (*stat & (!0x3)) | mode;
+        }
+        {
+            let IoReg(ref mut ly) = self.regs[Register::LY as usize];
+            *ly = v_line as u8;
+        }
     }
 
     fn io_read<T: MemSize>(&self, idx: u16) -> T {

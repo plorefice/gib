@@ -116,9 +116,9 @@ impl EmuUi {
 
             if let Some(ref mut emu) = self.emu {
                 if emu.stepping && emu.step_into {
-                    emu.gb.single_step();
+                    emu.gb.step();
                 } else if !emu.stepping {
-                    emu.gb.run_to_vblank();
+                    emu.gb.run_for_vblank();
                 }
 
                 emu.gb.rasterize(&mut vbuf[..]);
