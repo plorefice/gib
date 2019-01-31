@@ -11,10 +11,14 @@ impl DebuggerWindow {
 
     pub fn draw(&self, ui: &Ui, state: &mut EmuState) {
         ui.window(im_str!("Debugger"))
-            .size((360.0, 140.0), ImGuiCond::FirstUseEver)
+            .size((250.0, 150.0), ImGuiCond::FirstUseEver)
             .position((320.0, 30.0), ImGuiCond::FirstUseEver)
             .build(|| {
                 let cpu = state.gb.cpu();
+
+                ui.text(format!("Clock cycle: {:12}", cpu.clk));
+
+                ui.separator();
 
                 DebuggerWindow::draw_reg(ui, "AF", cpu.af);
                 ui.same_line(0.0);
