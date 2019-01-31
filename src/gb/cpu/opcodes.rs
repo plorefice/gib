@@ -1,9 +1,10 @@
+use super::dbg;
 use super::mem::MemRW;
 use super::CPU;
 
 macro_rules! pop {
     ($cpu:ident, $bus:ident, $reg:ident) => {{
-        $cpu.$reg = $cpu.fetch($bus, $cpu.sp);
+        $cpu.$reg = $cpu.fetch($bus, $cpu.sp)?;
         $cpu.sp += 2;
     }};
 }
@@ -12,7 +13,7 @@ macro_rules! push {
     ($cpu:ident, $bus:ident, $reg:ident) => {{
         $cpu.sp -= 2;
         $cpu.clk += 4;
-        $cpu.store($bus, $cpu.sp, $cpu.$reg);
+        $cpu.store($bus, $cpu.sp, $cpu.$reg)?;
     }};
 }
 
@@ -222,7 +223,7 @@ macro_rules! set {
 impl CPU {
     #[rustfmt::skip]
     #[allow(clippy::cyclomatic_complexity)]
-    pub fn op(&mut self, bus: &mut impl MemRW, opcode: u8) {
+    pub fn op(&mut self, bus: &mut impl MemRW, opcode: u8) -> Result<(), dbg::TraceEvent> {
         match opcode {
             /*
              * Misc/control instructions
@@ -234,32 +235,32 @@ impl CPU {
             0xFB => self.intr_enabled = true,
 
             0xCB => {
-                let cb: u8 = self.fetch_pc(bus);
-                self.op_cb(bus, cb);
+                let cb: u8 = self.fetch_pc(bus)?;
+                self.op_cb(bus, cb)?;
             }
 
             /*
              * Jump/calls
              */
-            0x20 => { let off: i8 = self.fetch_pc(bus); jr!(self, !self.zf(), off); }
-            0x30 => { let off: i8 = self.fetch_pc(bus); jr!(self, !self.cy(), off); }
-            0x28 => { let off: i8 = self.fetch_pc(bus); jr!(self, self.zf(),  off); }
-            0x38 => { let off: i8 = self.fetch_pc(bus); jr!(self, self.cy(),  off); }
-            0x18 => { let off: i8 = self.fetch_pc(bus); jr!(self, true,       off); }
+            0x20 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, !self.zf(), off); }
+            0x30 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, !self.cy(), off); }
+            0x28 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, self.zf(),  off); }
+            0x38 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, self.cy(),  off); }
+            0x18 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, true,       off); }
 
-            0xC2 => { let abs: u16 = self.fetch_pc(bus); jp!(self, !self.zf(), abs); }
-            0xD2 => { let abs: u16 = self.fetch_pc(bus); jp!(self, !self.cy(), abs); }
-            0xCA => { let abs: u16 = self.fetch_pc(bus); jp!(self, self.zf(),  abs); }
-            0xDA => { let abs: u16 = self.fetch_pc(bus); jp!(self, self.cy(),  abs); }
-            0xC3 => { let abs: u16 = self.fetch_pc(bus); jp!(self, true,       abs); }
+            0xC2 => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, !self.zf(), abs); }
+            0xD2 => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, !self.cy(), abs); }
+            0xCA => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, self.zf(),  abs); }
+            0xDA => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, self.cy(),  abs); }
+            0xC3 => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, true,       abs); }
 
             0xE9 => { jp!(self, true, self.hl); self.clk -= 4; }
 
-            0xC4 => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, !self.zf(), abs); }
-            0xD4 => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, !self.cy(), abs); }
-            0xCC => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, self.zf(),  abs); }
-            0xDC => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, self.cy(),  abs); }
-            0xCD => { let abs: u16 = self.fetch_pc(bus); call!(self, bus, true,       abs); }
+            0xC4 => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, !self.zf(), abs); }
+            0xD4 => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, !self.cy(), abs); }
+            0xCC => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, self.zf(),  abs); }
+            0xDC => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, self.cy(),  abs); }
+            0xCD => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, true,       abs); }
 
             0xC0 => ret!(self, bus, !self.zf()),
             0xD0 => ret!(self, bus, !self.cy()),
@@ -281,26 +282,26 @@ impl CPU {
             /*
              * 8bit load/store/move instructions
              */
-            0x02 => self.store(bus, self.bc, self.a()),
-            0x12 => self.store(bus, self.de, self.a()),
+            0x02 => self.store(bus, self.bc, self.a())?,
+            0x12 => self.store(bus, self.de, self.a())?,
 
-            0x22 => { self.store(bus, self.hl, self.a()); self.hl += 1; }
-            0x32 => { self.store(bus, self.hl, self.a()); self.hl -= 1; }
+            0x22 => { self.store(bus, self.hl, self.a())?; self.hl += 1; }
+            0x32 => { self.store(bus, self.hl, self.a())?; self.hl -= 1; }
 
-            0x0A => { let d8: u8 = self.fetch(bus, self.bc); self.set_a(d8); }
-            0x1A => { let d8: u8 = self.fetch(bus, self.de); self.set_a(d8); }
+            0x0A => { let d8: u8 = self.fetch(bus, self.bc)?; self.set_a(d8); }
+            0x1A => { let d8: u8 = self.fetch(bus, self.de)?; self.set_a(d8); }
 
-            0x2A => { let d8: u8 = self.fetch(bus, self.hl); self.set_a(d8); self.hl += 1; }
-            0x3A => { let d8: u8 = self.fetch(bus, self.hl); self.set_a(d8); self.hl -= 1; }
+            0x2A => { let d8: u8 = self.fetch(bus, self.hl)?; self.set_a(d8); self.hl += 1; }
+            0x3A => { let d8: u8 = self.fetch(bus, self.hl)?; self.set_a(d8); self.hl -= 1; }
 
-            0x06 => { let d8: u8 = self.fetch_pc(bus); self.set_b(d8);               }
-            0x16 => { let d8: u8 = self.fetch_pc(bus); self.set_d(d8);               }
-            0x26 => { let d8: u8 = self.fetch_pc(bus); self.set_d(d8);               }
-            0x36 => { let d8: u8 = self.fetch_pc(bus); self.store(bus, self.hl, d8); }
-            0x0E => { let d8: u8 = self.fetch_pc(bus); self.set_c(d8);               }
-            0x1E => { let d8: u8 = self.fetch_pc(bus); self.set_e(d8);               }
-            0x2E => { let d8: u8 = self.fetch_pc(bus); self.set_l(d8);               }
-            0x3E => { let d8: u8 = self.fetch_pc(bus); self.set_a(d8);               }
+            0x06 => { let d8: u8 = self.fetch_pc(bus)?; self.set_b(d8);                }
+            0x16 => { let d8: u8 = self.fetch_pc(bus)?; self.set_d(d8);                }
+            0x26 => { let d8: u8 = self.fetch_pc(bus)?; self.set_d(d8);                }
+            0x36 => { let d8: u8 = self.fetch_pc(bus)?; self.store(bus, self.hl, d8)?; }
+            0x0E => { let d8: u8 = self.fetch_pc(bus)?; self.set_c(d8);                }
+            0x1E => { let d8: u8 = self.fetch_pc(bus)?; self.set_e(d8);                }
+            0x2E => { let d8: u8 = self.fetch_pc(bus)?; self.set_l(d8);                }
+            0x3E => { let d8: u8 = self.fetch_pc(bus)?; self.set_a(d8);                }
 
             0x40 => self.set_b(self.b()),
             0x41 => self.set_b(self.c()),
@@ -308,7 +309,7 @@ impl CPU {
             0x43 => self.set_b(self.e()),
             0x44 => self.set_b(self.h()),
             0x45 => self.set_b(self.l()),
-            0x46 => { let b = self.fetch(bus, self.hl); self.set_b(b); }
+            0x46 => { let b = self.fetch(bus, self.hl)?; self.set_b(b); }
             0x47 => self.set_b(self.a()),
             0x48 => self.set_c(self.b()),
             0x49 => self.set_c(self.c()),
@@ -316,7 +317,7 @@ impl CPU {
             0x4B => self.set_c(self.e()),
             0x4C => self.set_c(self.h()),
             0x4D => self.set_c(self.l()),
-            0x4E => { let d8 = self.fetch(bus, self.hl); self.set_c(d8); }
+            0x4E => { let d8 = self.fetch(bus, self.hl)?; self.set_c(d8); }
             0x4F => self.set_c(self.a()),
             0x50 => self.set_d(self.b()),
             0x51 => self.set_d(self.c()),
@@ -324,7 +325,7 @@ impl CPU {
             0x53 => self.set_d(self.e()),
             0x54 => self.set_d(self.h()),
             0x55 => self.set_d(self.l()),
-            0x56 => { let d8 = self.fetch(bus, self.hl); self.set_d(d8); }
+            0x56 => { let d8 = self.fetch(bus, self.hl)?; self.set_d(d8); }
             0x57 => self.set_d(self.a()),
             0x58 => self.set_e(self.b()),
             0x59 => self.set_e(self.c()),
@@ -332,7 +333,7 @@ impl CPU {
             0x5B => self.set_e(self.e()),
             0x5C => self.set_e(self.h()),
             0x5D => self.set_e(self.l()),
-            0x5E => { let d8 = self.fetch(bus, self.hl); self.set_e(d8); }
+            0x5E => { let d8 = self.fetch(bus, self.hl)?; self.set_e(d8); }
             0x5F => self.set_e(self.a()),
             0x60 => self.set_h(self.b()),
             0x61 => self.set_h(self.c()),
@@ -340,7 +341,7 @@ impl CPU {
             0x63 => self.set_h(self.e()),
             0x64 => self.set_h(self.h()),
             0x65 => self.set_h(self.l()),
-            0x66 => { let d8 = self.fetch(bus, self.hl); self.set_h(d8); }
+            0x66 => { let d8 = self.fetch(bus, self.hl)?; self.set_h(d8); }
             0x67 => self.set_h(self.a()),
             0x68 => self.set_l(self.b()),
             0x69 => self.set_l(self.c()),
@@ -348,7 +349,7 @@ impl CPU {
             0x6B => self.set_l(self.e()),
             0x6C => self.set_l(self.h()),
             0x6D => self.set_l(self.l()),
-            0x6E => { let d8 = self.fetch(bus, self.hl); self.set_l(d8); }
+            0x6E => { let d8 = self.fetch(bus, self.hl)?; self.set_l(d8); }
             0x6F => self.set_l(self.a()),
             0x78 => self.set_a(self.b()),
             0x79 => self.set_a(self.c()),
@@ -356,47 +357,47 @@ impl CPU {
             0x7B => self.set_a(self.e()),
             0x7C => self.set_a(self.h()),
             0x7D => self.set_a(self.l()),
-            0x7E => { let d8 = self.fetch(bus, self.hl); self.set_a(d8); }
+            0x7E => { let d8 = self.fetch(bus, self.hl)?; self.set_a(d8); }
             0x7F => self.set_a(self.a()),
 
-            0x70 => self.store(bus, self.hl, self.b()),
-            0x71 => self.store(bus, self.hl, self.c()),
-            0x72 => self.store(bus, self.hl, self.d()),
-            0x73 => self.store(bus, self.hl, self.e()),
-            0x74 => self.store(bus, self.hl, self.h()),
-            0x75 => self.store(bus, self.hl, self.l()),
-            0x77 => self.store(bus, self.hl, self.a()),
+            0x70 => self.store(bus, self.hl, self.b())?,
+            0x71 => self.store(bus, self.hl, self.c())?,
+            0x72 => self.store(bus, self.hl, self.d())?,
+            0x73 => self.store(bus, self.hl, self.e())?,
+            0x74 => self.store(bus, self.hl, self.h())?,
+            0x75 => self.store(bus, self.hl, self.l())?,
+            0x77 => self.store(bus, self.hl, self.a())?,
 
             0xE0 => {
-                let d8: u8 = self.fetch_pc(bus);
-                self.store(bus, 0xFF00 + u16::from(d8), self.a());
+                let d8: u8 = self.fetch_pc(bus)?;
+                self.store(bus, 0xFF00 + u16::from(d8), self.a())?;
             }
             0xF0 => {
-                let d8: u8 = self.fetch_pc(bus);
-                let a: u8 = self.fetch(bus, 0xFF00 + u16::from(d8));
+                let d8: u8 = self.fetch_pc(bus)?;
+                let a: u8 = self.fetch(bus, 0xFF00 + u16::from(d8))?;
                 self.set_a(a);
             }
 
-            0xE2 => self.store(bus, 0xFF00 + u16::from(self.c()), self.a()),
+            0xE2 => self.store(bus, 0xFF00 + u16::from(self.c()), self.a())?,
             0xF2 => {
-                let d8: u8 = self.fetch(bus, 0xFF00 + u16::from(self.c()));
+                let d8: u8 = self.fetch(bus, 0xFF00 + u16::from(self.c()))?;
                 self.set_a(d8);
             }
 
-            0xEA => { let d16: u16 = self.fetch_pc(bus); self.store(bus, d16, self.a()); }
+            0xEA => { let d16: u16 = self.fetch_pc(bus)?; self.store(bus, d16, self.a())?; }
             0xFA => {
-                let d16: u16 = self.fetch_pc(bus);
-                let a: u8 = self.fetch(bus, d16);
+                let d16: u16 = self.fetch_pc(bus)?;
+                let a: u8 = self.fetch(bus, d16)?;
                 self.set_a(a);
             }
 
             /*
              * 16bit load/store/move instructions
              */
-            0x01 => self.bc = self.fetch_pc(bus),
-            0x11 => self.de = self.fetch_pc(bus),
-            0x21 => self.hl = self.fetch_pc(bus),
-            0x31 => self.sp = self.fetch_pc(bus),
+            0x01 => self.bc = self.fetch_pc(bus)?,
+            0x11 => self.de = self.fetch_pc(bus)?,
+            0x21 => self.hl = self.fetch_pc(bus)?,
+            0x31 => self.sp = self.fetch_pc(bus)?,
 
             0xC1 => pop!(self, bus, bc),
             0xD1 => pop!(self, bus, de),
@@ -408,11 +409,11 @@ impl CPU {
             0xE5 => push!(self, bus, hl),
             0xF5 => push!(self, bus, af),
 
-            0x08 => { let a16: u16 = self.fetch_pc(bus); self.store(bus, a16, self.sp); }
+            0x08 => { let a16: u16 = self.fetch_pc(bus)?; self.store(bus, a16, self.sp)?; }
             0xF9 => { self.sp = self.hl; self.clk += 4; }
 
             0xF8 => {
-                let d8: u8 = self.fetch_pc(bus);
+                let d8: u8 = self.fetch_pc(bus)?;
                 add16!(self, self.hl, self.sp + u16::from(d8));
                 self.set_zf(false);
             }
@@ -428,8 +429,8 @@ impl CPU {
             0x2C => { let v = inc!(self, self.l()); self.set_l(v); }
             0x3C => { let v = inc!(self, self.a()); self.set_a(v); }
             0x34 => {
-                let v = inc!(self, bus.read::<u8>(self.hl));
-                bus.write(self.hl, v);
+                let v = inc!(self, bus.read::<u8>(self.hl)?);
+                bus.write(self.hl, v)?;
             }
 
             0x05 => { let v = dec!(self, self.b()); self.set_b(v); }
@@ -440,8 +441,8 @@ impl CPU {
             0x2D => { let v = dec!(self, self.l()); self.set_l(v); }
             0x3D => { let v = dec!(self, self.a()); self.set_a(v); }
             0x35 => {
-                let v = dec!(self, bus.read::<u8>(self.hl));
-                bus.write(self.hl, v);
+                let v = dec!(self, bus.read::<u8>(self.hl)?);
+                bus.write(self.hl, v)?;
             }
 
             0x80 => add!(self, self.b()),
@@ -451,8 +452,8 @@ impl CPU {
             0x84 => add!(self, self.h()),
             0x85 => add!(self, self.l()),
             0x87 => add!(self, self.a()),
-            0x86 => { let d8: u8 = self.fetch(bus, self.hl); add!(self, d8); }
-            0xC6 => { let d8: u8 = self.fetch_pc(bus); add!(self, d8); }
+            0x86 => { let d8: u8 = self.fetch(bus, self.hl)?; add!(self, d8); }
+            0xC6 => { let d8: u8 = self.fetch_pc(bus)?; add!(self, d8); }
 
             0x88 => add!(self, self.b() + u8::from(self.cy())),
             0x89 => add!(self, self.c() + u8::from(self.cy())),
@@ -461,8 +462,8 @@ impl CPU {
             0x8C => add!(self, self.h() + u8::from(self.cy())),
             0x8D => add!(self, self.l() + u8::from(self.cy())),
             0x8F => add!(self, self.a() + u8::from(self.cy())),
-            0x8E => { let d8: u8 = self.fetch(bus, self.hl); add!(self, d8 + u8::from(self.cy())); }
-            0xCE => { let d8: u8 = self.fetch_pc(bus); add!(self, d8 + u8::from(self.cy())); }
+            0x8E => { let d8: u8 = self.fetch(bus, self.hl)?; add!(self, d8 + u8::from(self.cy())); }
+            0xCE => { let d8: u8 = self.fetch_pc(bus)?; add!(self, d8 + u8::from(self.cy())); }
 
             0x90 => sub!(self, self.b()),
             0x91 => sub!(self, self.c()),
@@ -471,8 +472,8 @@ impl CPU {
             0x94 => sub!(self, self.h()),
             0x95 => sub!(self, self.l()),
             0x97 => sub!(self, self.a()),
-            0x96 => { let d8: u8 = self.fetch(bus, self.hl); sub!(self, d8); }
-            0xD6 => { let d8: u8 = self.fetch_pc(bus); sub!(self, d8); }
+            0x96 => { let d8: u8 = self.fetch(bus, self.hl)?; sub!(self, d8); }
+            0xD6 => { let d8: u8 = self.fetch_pc(bus)?; sub!(self, d8); }
 
             0x98 => sub!(self, self.b() + u8::from(self.cy())),
             0x99 => sub!(self, self.c() + u8::from(self.cy())),
@@ -481,8 +482,8 @@ impl CPU {
             0x9C => sub!(self, self.h() + u8::from(self.cy())),
             0x9D => sub!(self, self.l() + u8::from(self.cy())),
             0x9F => sub!(self, self.a() + u8::from(self.cy())),
-            0x9E => { let d8: u8 = self.fetch(bus, self.hl); sub!(self, d8 + u8::from(self.cy())); }
-            0xDE => { let d8: u8 = self.fetch_pc(bus); sub!(self, d8 + u8::from(self.cy())); }
+            0x9E => { let d8: u8 = self.fetch(bus, self.hl)?; sub!(self, d8 + u8::from(self.cy())); }
+            0xDE => { let d8: u8 = self.fetch_pc(bus)?; sub!(self, d8 + u8::from(self.cy())); }
 
             0xA0 => and!(self, self.b()),
             0xA1 => and!(self, self.c()),
@@ -491,8 +492,8 @@ impl CPU {
             0xA4 => and!(self, self.h()),
             0xA5 => and!(self, self.l()),
             0xA7 => and!(self, self.a()),
-            0xA6 => { let d8: u8 = self.fetch(bus, self.hl); and!(self, d8); }
-            0xE6 => { let d8: u8 = self.fetch_pc(bus); and!(self, d8); }
+            0xA6 => { let d8: u8 = self.fetch(bus, self.hl)?; and!(self, d8); }
+            0xE6 => { let d8: u8 = self.fetch_pc(bus)?; and!(self, d8); }
 
             0xA8 => xor!(self, self.b()),
             0xA9 => xor!(self, self.c()),
@@ -501,8 +502,8 @@ impl CPU {
             0xAC => xor!(self, self.h()),
             0xAD => xor!(self, self.l()),
             0xAF => xor!(self, self.a()),
-            0xAE => { let d8: u8 = self.fetch(bus, self.hl); xor!(self, d8); }
-            0xEE => { let d8: u8 = self.fetch_pc(bus); xor!(self, d8); }
+            0xAE => { let d8: u8 = self.fetch(bus, self.hl)?; xor!(self, d8); }
+            0xEE => { let d8: u8 = self.fetch_pc(bus)?; xor!(self, d8); }
 
             0xB0 => or!(self, self.b()),
             0xB1 => or!(self, self.c()),
@@ -511,8 +512,8 @@ impl CPU {
             0xB4 => or!(self, self.h()),
             0xB5 => or!(self, self.l()),
             0xB7 => or!(self, self.a()),
-            0xB6 => { let d8: u8 = self.fetch(bus, self.hl); or!(self, d8); }
-            0xF6 => { let d8: u8 = self.fetch_pc(bus); or!(self, d8); }
+            0xB6 => { let d8: u8 = self.fetch(bus, self.hl)?; or!(self, d8); }
+            0xF6 => { let d8: u8 = self.fetch_pc(bus)?; or!(self, d8); }
 
             0xB8 => cmp!(self, self.a(), self.b()),
             0xB9 => cmp!(self, self.a(), self.c()),
@@ -521,8 +522,8 @@ impl CPU {
             0xBC => cmp!(self, self.a(), self.h()),
             0xBD => cmp!(self, self.a(), self.l()),
             0xBF => cmp!(self, self.a(), self.a()),
-            0xBE => { let d8: u8 = self.fetch(bus, self.hl); cmp!(self, self.a(), d8); }
-            0xFE => { let d8: u8 = self.fetch_pc(bus); cmp!(self, self.a(), d8); }
+            0xBE => { let d8: u8 = self.fetch(bus, self.hl)?; cmp!(self, self.a(), d8); }
+            0xFE => { let d8: u8 = self.fetch_pc(bus)?; cmp!(self, self.a(), d8); }
 
             0x2F => { self.set_a(!self.a()); self.set_sf(true); self.set_hc(true); }
             0x37 => { self.set_sf(false); self.set_hc(false); self.set_cy(true); }
@@ -548,7 +549,7 @@ impl CPU {
             0x29 => add16!(self, self.hl, self.hl),
             0x39 => add16!(self, self.hl, self.sp),
             0xE8 => {
-                let d8: u8 = self.fetch_pc(bus);
+                let d8: u8 = self.fetch_pc(bus)?;
                 add16!(self, self.sp, u16::from(d8));
                 self.set_zf(false);
                 self.clk += 4;
@@ -566,14 +567,16 @@ impl CPU {
              * Invalid opcodes
              */
             0xD3 | 0xDB | 0xDD | 0xE3 | 0xE4 | 0xEB | 0xEC | 0xED | 0xF4 | 0xFC | 0xFD => {
-                panic!("unexpected opcode at {:04X}: 0x{:02X}", self.pc, opcode);
+                return Err(dbg::TraceEvent::IllegalInstructionFault(opcode));
             }
-        }
+        };
+
+        Ok(())
     }
 
     #[rustfmt::skip]
     #[allow(clippy::cyclomatic_complexity)]
-    fn op_cb(&mut self, bus: &mut impl MemRW, opcode: u8) {
+    fn op_cb(&mut self, bus: &mut impl MemRW, opcode: u8) -> Result<(), dbg::TraceEvent> {
         match opcode {
             0x00 => { let v = rl!(self, true, self.b()); self.set_b(v); }
             0x01 => { let v = rl!(self, true, self.c()); self.set_c(v); }
@@ -583,9 +586,9 @@ impl CPU {
             0x05 => { let v = rl!(self, true, self.l()); self.set_l(v); }
             0x07 => { let v = rl!(self, true, self.a()); self.set_a(v); }
             0x06 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = rl!(self, true, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x08 => { let v = rr!(self, true, self.b()); self.set_b(v); }
@@ -596,9 +599,9 @@ impl CPU {
             0x0D => { let v = rr!(self, true, self.l()); self.set_l(v); }
             0x0F => { let v = rr!(self, true, self.a()); self.set_a(v); }
             0x0E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = rr!(self, true, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x10 => { let v = rl!(self, false, self.b()); self.set_b(v); }
@@ -609,9 +612,9 @@ impl CPU {
             0x15 => { let v = rl!(self, false, self.l()); self.set_l(v); }
             0x17 => { let v = rl!(self, false, self.a()); self.set_a(v); }
             0x16 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = rl!(self, false, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x18 => { let v = rr!(self, false, self.b()); self.set_b(v); }
@@ -622,9 +625,9 @@ impl CPU {
             0x1D => { let v = rr!(self, false, self.l()); self.set_l(v); }
             0x1F => { let v = rr!(self, false, self.a()); self.set_a(v); }
             0x1E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = rr!(self, false, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x20 => { let v = sla!(self, self.b()); self.set_b(v); }
@@ -635,9 +638,9 @@ impl CPU {
             0x25 => { let v = sla!(self, self.l()); self.set_l(v); }
             0x27 => { let v = sla!(self, self.a()); self.set_a(v); }
             0x26 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = sla!(self, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x28 => { let v = sra!(self, self.b()); self.set_b(v); }
@@ -648,9 +651,9 @@ impl CPU {
             0x2D => { let v = sra!(self, self.l()); self.set_l(v); }
             0x2F => { let v = sra!(self, self.a()); self.set_a(v); }
             0x2E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = sra!(self, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x30 => { let v = swap!(self, self.b()); self.set_b(v); }
@@ -661,9 +664,9 @@ impl CPU {
             0x35 => { let v = swap!(self, self.l()); self.set_l(v); }
             0x37 => { let v = swap!(self, self.a()); self.set_a(v); }
             0x36 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = swap!(self, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x38 => { let v = srl!(self, self.b()); self.set_b(v); }
@@ -674,9 +677,9 @@ impl CPU {
             0x3D => { let v = srl!(self, self.l()); self.set_l(v); }
             0x3F => { let v = srl!(self, self.a()); self.set_a(v); }
             0x3E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = srl!(self, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x40 => bit!(self, 0, self.b()),
@@ -687,7 +690,7 @@ impl CPU {
             0x45 => bit!(self, 0, self.l()),
             0x47 => bit!(self, 0, self.a()),
             0x46 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 0, d8);
                 self.clk += 4;
             }
@@ -700,7 +703,7 @@ impl CPU {
             0x4D => bit!(self, 1, self.l()),
             0x4F => bit!(self, 1, self.a()),
             0x4E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 1, d8);
                 self.clk += 4;
             }
@@ -713,7 +716,7 @@ impl CPU {
             0x55 => bit!(self, 2, self.l()),
             0x57 => bit!(self, 2, self.a()),
             0x56 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 2, d8);
                 self.clk += 4;
             }
@@ -726,7 +729,7 @@ impl CPU {
             0x5D => bit!(self, 3, self.l()),
             0x5F => bit!(self, 3, self.a()),
             0x5E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 3, d8);
                 self.clk += 4;
             }
@@ -739,7 +742,7 @@ impl CPU {
             0x65 => bit!(self, 4, self.l()),
             0x67 => bit!(self, 4, self.a()),
             0x66 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 4, d8);
                 self.clk += 4;
             }
@@ -752,7 +755,7 @@ impl CPU {
             0x6D => bit!(self, 5, self.l()),
             0x6F => bit!(self, 5, self.a()),
             0x6E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 5, d8);
                 self.clk += 4;
             }
@@ -765,7 +768,7 @@ impl CPU {
             0x75 => bit!(self, 6, self.l()),
             0x77 => bit!(self, 6, self.a()),
             0x76 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 6, d8);
                 self.clk += 4;
             }
@@ -778,7 +781,7 @@ impl CPU {
             0x7D => bit!(self, 7, self.l()),
             0x7F => bit!(self, 7, self.a()),
             0x7E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 7, d8);
                 self.clk += 4;
             }
@@ -791,9 +794,9 @@ impl CPU {
             0x85 => self.set_l(res!(0, self.l())),
             0x87 => self.set_a(res!(0, self.a())),
             0x86 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = res!(0, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x88 => self.set_b(res!(1, self.b())),
@@ -804,9 +807,9 @@ impl CPU {
             0x8D => self.set_l(res!(1, self.l())),
             0x8F => self.set_a(res!(1, self.a())),
             0x8E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = res!(1, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x90 => self.set_b(res!(2, self.b())),
@@ -817,9 +820,9 @@ impl CPU {
             0x95 => self.set_l(res!(2, self.l())),
             0x97 => self.set_a(res!(2, self.a())),
             0x96 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = res!(2, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0x98 => self.set_b(res!(3, self.b())),
@@ -830,9 +833,9 @@ impl CPU {
             0x9D => self.set_l(res!(3, self.l())),
             0x9F => self.set_a(res!(3, self.a())),
             0x9E => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = res!(3, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xA0 => self.set_b(res!(4, self.b())),
@@ -843,9 +846,9 @@ impl CPU {
             0xA5 => self.set_l(res!(4, self.l())),
             0xA7 => self.set_a(res!(4, self.a())),
             0xA6 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = res!(4, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xA8 => self.set_b(res!(5, self.b())),
@@ -856,9 +859,9 @@ impl CPU {
             0xAD => self.set_l(res!(5, self.l())),
             0xAF => self.set_a(res!(5, self.a())),
             0xAE => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = res!(5, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xB0 => self.set_b(res!(6, self.b())),
@@ -869,9 +872,9 @@ impl CPU {
             0xB5 => self.set_l(res!(6, self.l())),
             0xB7 => self.set_a(res!(6, self.a())),
             0xB6 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = res!(6, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xB8 => self.set_b(res!(7, self.b())),
@@ -882,9 +885,9 @@ impl CPU {
             0xBD => self.set_l(res!(7, self.l())),
             0xBF => self.set_a(res!(7, self.a())),
             0xBE => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = res!(7, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xC0 => self.set_b(set!(0, self.b())),
@@ -895,9 +898,9 @@ impl CPU {
             0xC5 => self.set_l(set!(0, self.l())),
             0xC7 => self.set_a(set!(0, self.a())),
             0xC6 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = set!(0, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xC8 => self.set_b(set!(1, self.b())),
@@ -908,9 +911,9 @@ impl CPU {
             0xCD => self.set_l(set!(1, self.l())),
             0xCF => self.set_a(set!(1, self.a())),
             0xCE => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = set!(1, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xD0 => self.set_b(set!(2, self.b())),
@@ -921,9 +924,9 @@ impl CPU {
             0xD5 => self.set_l(set!(2, self.l())),
             0xD7 => self.set_a(set!(2, self.a())),
             0xD6 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = set!(2, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xD8 => self.set_b(set!(3, self.b())),
@@ -934,9 +937,9 @@ impl CPU {
             0xDD => self.set_l(set!(3, self.l())),
             0xDF => self.set_a(set!(3, self.a())),
             0xDE => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = set!(3, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xE0 => self.set_b(set!(4, self.b())),
@@ -947,9 +950,9 @@ impl CPU {
             0xE5 => self.set_l(set!(4, self.l())),
             0xE7 => self.set_a(set!(4, self.a())),
             0xE6 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = set!(4, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xE8 => self.set_b(set!(5, self.b())),
@@ -960,9 +963,9 @@ impl CPU {
             0xED => self.set_l(set!(5, self.l())),
             0xEF => self.set_a(set!(5, self.a())),
             0xEE => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = set!(5, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xF0 => self.set_b(set!(6, self.b())),
@@ -973,9 +976,9 @@ impl CPU {
             0xF5 => self.set_l(set!(6, self.l())),
             0xF7 => self.set_a(set!(6, self.a())),
             0xF6 => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = set!(6, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
 
             0xF8 => self.set_b(set!(7, self.b())),
@@ -986,28 +989,32 @@ impl CPU {
             0xFD => self.set_l(set!(7, self.l())),
             0xFF => self.set_a(set!(7, self.a())),
             0xFE => {
-                let d8: u8 = self.fetch(bus, self.hl);
+                let d8: u8 = self.fetch(bus, self.hl)?;
                 let v = set!(7, d8);
-                self.store(bus, self.hl, v);
+                self.store(bus, self.hl, v)?;
             }
-        }
+        };
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod test {
+    use super::super::dbg;
     use super::super::mem::{MemR, MemSize, MemW};
     use super::*;
 
     impl<'a> MemR for &'a mut [u8] {
-        fn read<T: MemSize>(&self, addr: u16) -> T {
-            T::read_le(&self[addr as usize..])
+        fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+            Ok(T::read_le(&self[addr as usize..]))
         }
     }
 
     impl<'a> MemW for &'a mut [u8] {
-        fn write<T: MemSize>(&mut self, addr: u16, val: T) {
+        fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
             T::write_le(&mut self[addr as usize..], val);
+            Ok(())
         }
     }
 
@@ -1015,7 +1022,8 @@ mod test {
 
     fn check_opcode(cpu: Option<CPU>, opcode: u8, exp_pc: u16, exp_clk: u64) {
         let mut cpu = cpu.unwrap_or_else(CPU::new);
-        cpu.exec(&mut (&mut [opcode; 0x10000][..]));
+        cpu.exec(&mut (&mut [opcode; 0x10000][..]))
+            .expect("unexpected trace event");
 
         assert!(
             cpu.pc == exp_pc,
@@ -1198,7 +1206,8 @@ mod test {
     fn opcode_bitwise8_timings() {
         let check_cb_opcode = |opcode, exp_pc, exp_clk| {
             let mut cpu = CPU::new();
-            cpu.exec(&mut (&mut [0xCBu8, opcode][..]));
+            cpu.exec(&mut (&mut [0xCBu8, opcode][..]))
+                .expect("unexpected trace event");
 
             assert!(
                 cpu.pc == exp_pc,

@@ -1,3 +1,5 @@
+use super::dbg;
+
 pub trait MemSize: Default {
     fn byte_size() -> u8;
 
@@ -49,11 +51,11 @@ impl MemSize for u16 {
 }
 
 pub trait MemR {
-    fn read<T: MemSize>(&self, addr: u16) -> T;
+    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent>;
 }
 
 pub trait MemW {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T);
+    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent>;
 }
 
 pub trait MemRW: MemR + MemW {}

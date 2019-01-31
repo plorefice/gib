@@ -1,3 +1,4 @@
+use super::dbg;
 use super::io::{APU, PPU};
 use super::mem::{MemR, MemRW, MemSize, MemW, Memory};
 
@@ -35,7 +36,7 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new(rom: &[u8]) -> Bus {
+    pub fn new(rom: &[u8]) -> Result<Bus, dbg::TraceEvent> {
         let mut bus = Bus {
             rom_00: Memory::new(0x4000),
             rom_nn: Memory::new(0x4000),
@@ -50,40 +51,43 @@ impl Bus {
             ppu: PPU::new(),
         };
 
-        bus.load_rom(rom);
-        bus.enable_bootrom();
+        bus.load_rom(rom)?;
+        bus.enable_bootrom()?;
 
-        bus
+        Ok(bus)
     }
 
-    fn load_rom(&mut self, rom: &[u8]) {
+    fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
         let mut chunks = rom.chunks(0x4000);
 
         if let Some(chunk) = chunks.nth(0) {
             for (i, b) in chunk.iter().enumerate() {
-                self.rom_00.write(i as u16, *b);
+                self.rom_00.write(i as u16, *b)?;
             }
         }
 
         // TODO: rom_nn is actually multiple rom banks
         for chunk in chunks {
             for (i, b) in chunk.iter().enumerate() {
-                self.rom_nn.write(i as u16, *b);
+                self.rom_nn.write(i as u16, *b)?;
             }
         }
+        Ok(())
     }
 
-    fn enable_bootrom(&mut self) {
+    fn enable_bootrom(&mut self) -> Result<(), dbg::TraceEvent> {
         for i in 0u16..256 {
-            self.rom_backup[usize::from(i)] = self.rom_00.read(i);
-            self.rom_00.write(i, BOOT_ROM[usize::from(i)]);
+            self.rom_backup[usize::from(i)] = self.rom_00.read(i)?;
+            self.rom_00.write(i, BOOT_ROM[usize::from(i)])?;
         }
+        Ok(())
     }
 
-    fn disable_bootrom(&mut self) {
+    fn disable_bootrom(&mut self) -> Result<(), dbg::TraceEvent> {
         for i in 0u16..256 {
-            self.rom_00.write(i, self.rom_backup[usize::from(i)]);
+            self.rom_00.write(i, self.rom_backup[usize::from(i)])?;
         }
+        Ok(())
     }
 
     pub fn rom_size(&self) -> u16 {
@@ -92,7 +96,7 @@ impl Bus {
 }
 
 impl MemR for Bus {
-    fn read<T: MemSize>(&self, addr: u16) -> T {
+    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
         match addr {
             0x0000..=0x3FFF => self.rom_00.read(addr),
             0x4000..=0x7FFF => self.rom_nn.read(addr - 0x4000),
@@ -105,16 +109,15 @@ impl MemR for Bus {
             0xFE00..=0xFE9F => self.ppu.read(addr),
             0xFF10..=0xFF3F => self.apu.read(addr - 0xFF10),
             0xFF40..=0xFF4F => self.ppu.read(addr),
-            0xFF50 => unreachable!(),
             0xFF51..=0xFF6F => self.ppu.read(addr),
             0xFF80..=0xFFFE => self.hram.read(addr - 0xFF80),
-            _ => panic!("invalid memory address: 0x{:04X}", addr),
+            _ => Err(dbg::TraceEvent::BusFault(addr)),
         }
     }
 }
 
 impl MemW for Bus {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T) {
+    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
         match addr {
             0x0000..=0x3FFF => self.rom_00.write(addr, val),
             0x4000..=0x7FFF => self.rom_nn.write(addr - 0x4000, val),
@@ -127,10 +130,10 @@ impl MemW for Bus {
             0xFE00..=0xFE9F => self.ppu.write(addr, val),
             0xFF10..=0xFF3F => self.apu.write(addr - 0xFF10, val),
             0xFF40..=0xFF4F => self.ppu.write(addr, val),
-            0xFF50 => self.disable_bootrom(),
             0xFF51..=0xFF6F => self.ppu.write(addr, val),
             0xFF80..=0xFFFE => self.hram.write(addr - 0xFF80, val),
-            _ => panic!("invalid memory address: 0x{:04X}", addr),
+            0xFF50 => self.disable_bootrom(),
+            _ => Err(dbg::TraceEvent::BusFault(addr)),
         }
     }
 }

@@ -16,7 +16,10 @@ fn main() {
 
     if let Some(ref fname) = env::args().nth(1) {
         if let Ok(rom) = fs::read(fname) {
-            emu.load_rom(&rom[..]);
+            if let Err(evt) = emu.load_rom(&rom[..]) {
+                println!("Error loading ROM: {:?}", evt);
+                std::process::exit(1);
+            }
         };
     };
 

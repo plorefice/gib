@@ -1,3 +1,4 @@
+use super::dbg;
 use super::mem::{MemRW, MemSize};
 
 pub struct CPU {
@@ -33,28 +34,38 @@ impl CPU {
         }
     }
 
-    pub fn exec(&mut self, bus: &mut impl MemRW) {
+    pub fn exec(&mut self, bus: &mut impl MemRW) -> Result<(), dbg::TraceEvent> {
         self.prev_pc = self.pc;
 
-        let opc = self.fetch_pc(bus);
-        self.op(bus, opc);
+        let opc = self.fetch_pc(bus)?;
+        self.op(bus, opc)
     }
 
-    pub fn fetch_pc<T: MemSize>(&mut self, bus: &mut impl MemRW) -> T {
-        let v = self.fetch(bus, self.pc);
+    pub fn fetch_pc<T: MemSize>(&mut self, bus: &mut impl MemRW) -> Result<T, dbg::TraceEvent> {
+        let v = self.fetch(bus, self.pc)?;
         self.pc += u16::from(T::byte_size());
-        v
+        Ok(v)
     }
 
-    pub fn fetch<T: MemSize>(&mut self, bus: &mut impl MemRW, addr: u16) -> T {
-        let v = bus.read::<T>(addr);
+    pub fn fetch<T: MemSize>(
+        &mut self,
+        bus: &mut impl MemRW,
+        addr: u16,
+    ) -> Result<T, dbg::TraceEvent> {
+        let v = bus.read::<T>(addr)?;
         self.clk += u64::from(T::byte_size() * 4);
-        v
+        Ok(v)
     }
 
-    pub fn store<T: MemSize>(&mut self, bus: &mut impl MemRW, addr: u16, val: T) {
-        bus.write::<T>(addr, val);
+    pub fn store<T: MemSize>(
+        &mut self,
+        bus: &mut impl MemRW,
+        addr: u16,
+        val: T,
+    ) -> Result<(), dbg::TraceEvent> {
+        bus.write::<T>(addr, val)?;
         self.clk += u64::from(T::byte_size() * 4);
+        Ok(())
     }
 }
 

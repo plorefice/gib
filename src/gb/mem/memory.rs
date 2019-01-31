@@ -1,3 +1,4 @@
+use super::dbg;
 use super::{MemR, MemSize, MemW};
 
 pub struct Memory {
@@ -13,13 +14,22 @@ impl Memory {
 }
 
 impl MemR for Memory {
-    fn read<T: MemSize>(&self, addr: u16) -> T {
-        T::read_le(&self.data[usize::from(addr)..])
+    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+        if usize::from(addr) < self.data.len() {
+            Ok(T::read_le(&self.data[usize::from(addr)..]))
+        } else {
+            Err(dbg::TraceEvent::MemFault(addr))
+        }
     }
 }
 
 impl MemW for Memory {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T) {
-        T::write_le(&mut self.data[usize::from(addr)..], val)
+    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
+        if usize::from(addr) < self.data.len() {
+            T::write_le(&mut self.data[usize::from(addr)..], val);
+            Ok(())
+        } else {
+            Err(dbg::TraceEvent::MemFault(addr))
+        }
     }
 }

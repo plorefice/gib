@@ -287,13 +287,13 @@ pub struct Instruction {
 
 impl CPU {
     pub fn disasm(&self, mem: &impl MemR, addr: u16) -> Instruction {
-        let opcode = mem.read::<u8>(addr);
+        let opcode = mem.read::<u8>(addr).unwrap();
         let size = OPCODE_SIZES[opcode as usize];
 
         let imm: Option<Immediate> = match size {
             1 => None,
-            2 => Some(Immediate::Imm8(mem.read::<u8>(addr + 1))),
-            3 => Some(Immediate::Imm16(mem.read::<u16>(addr + 1))),
+            2 => Some(Immediate::Imm8(mem.read::<u8>(addr + 1).unwrap())),
+            3 => Some(Immediate::Imm16(mem.read::<u16>(addr + 1).unwrap())),
             _ => unreachable!(),
         };
 

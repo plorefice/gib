@@ -1,3 +1,4 @@
+use super::dbg;
 use super::{MemR, MemSize, MemW};
 
 pub struct APU;
@@ -9,19 +10,15 @@ impl APU {
 }
 
 impl MemR for APU {
-    fn read<T: MemSize>(&self, addr: u16) -> T {
+    fn read<T: MemSize>(&self, _addr: u16) -> Result<T, dbg::TraceEvent> {
         // TODO: it's gonna be a while before sound is implemented :)
-        match addr {
-            _ => T::default(),
-        }
+        Ok(T::default())
     }
 }
 
 impl MemW for APU {
-    fn write<T: MemSize>(&mut self, addr: u16, _val: T) {
+    fn write<T: MemSize>(&mut self, _addr: u16, _val: T) -> Result<(), dbg::TraceEvent> {
         // TODO: it's gonna be a while before sound is implemented :)
-        match addr {
-            _ => (),
-        }
+        Ok(())
     }
 }

@@ -81,8 +81,8 @@ impl EmuUi {
         }
     }
 
-    pub fn load_rom(&mut self, rom: &[u8]) {
-        self.emu = Some(EmuState::with(GameBoy::with_cartridge(rom)));
+    pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
+        self.emu = Some(EmuState::with(GameBoy::with_cartridge(rom)?));
 
         if self.gui.debug {
             let emu = match self.emu {
@@ -93,6 +93,7 @@ impl EmuUi {
             self.disasm = Some(DisasmWindow::new(emu));
             self.debugger = Some(DebuggerWindow::new());
         }
+        Ok(())
     }
 
     pub fn run(&mut self) {
@@ -116,9 +117,9 @@ impl EmuUi {
 
             if let Some(ref mut emu) = self.emu {
                 if emu.stepping && emu.step_into {
-                    emu.gb.step();
+                    emu.gb.step().expect("error while stepping");
                 } else if !emu.stepping {
-                    emu.gb.run_for_vblank();
+                    emu.gb.run_for_vblank().expect("error while running");
                 }
 
                 emu.gb.rasterize(&mut vbuf[..]);
@@ -238,7 +239,13 @@ impl EmuUi {
 
         if let Some(rom_file) = fd_chosen {
             let rom = fs::read(rom_file).unwrap();
-            self.load_rom(&rom[..]);
+
+            if let Err(evt) = self.load_rom(&rom[..]) {
+                ui.popup_modal(im_str!("Error loading ROM")).build(|| {
+                    ui.text(format!("{:?}", evt));
+                });
+                ui.open_popup(im_str!("Error loading ROM"));
+            }
         }
     }
 
