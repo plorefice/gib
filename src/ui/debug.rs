@@ -27,6 +27,15 @@ impl DebuggerWindow {
                 DebuggerWindow::draw_reg(ui, "SP", cpu.sp);
                 ui.same_line(0.0);
                 DebuggerWindow::draw_reg(ui, "PC", cpu.pc);
+                ui.same_line_spacing(0.0, 20.0);
+
+                ui.text(format!(
+                    "Flags: {}{}{}{}",
+                    if cpu.zf() { 'Z' } else { '-' },
+                    if cpu.sf() { 'N' } else { '-' },
+                    if cpu.hc() { 'H' } else { '-' },
+                    if cpu.cy() { 'C' } else { '-' },
+                ));
 
                 ui.separator();
 
