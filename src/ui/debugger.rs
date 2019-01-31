@@ -12,7 +12,7 @@ impl DebuggerWindow {
 
     pub fn draw(&self, ui: &Ui, state: &mut EmuState) {
         ui.window(im_str!("Debugger"))
-            .size((380.0, 120.0), ImGuiCond::FirstUseEver)
+            .size((390.0, 120.0), ImGuiCond::FirstUseEver)
             .position((320.0, 30.0), ImGuiCond::FirstUseEver)
             .build(|| {
                 let cpu = state.gb.cpu();
@@ -34,7 +34,7 @@ impl DebuggerWindow {
                 DebuggerWindow::draw_reg(ui, "PC", cpu.pc);
 
                 ui.text(format!(
-                    " Flags: {} {} {} {}",
+                    "Flags: {} {} {} {}",
                     if cpu.zf() { 'Z' } else { '-' },
                     if cpu.sf() { 'N' } else { '-' },
                     if cpu.hc() { 'H' } else { '-' },
@@ -67,7 +67,7 @@ impl DebuggerWindow {
     fn draw_reg(ui: &Ui, s: &str, val: u16) {
         let mut val = ImString::from(format!("{:04X}", val));
 
-        ui.push_item_width(35.0);
+        ui.push_item_width(37.0);
 
         ui.input_text(ImStr::new(&ImString::from(String::from(s))), &mut val)
             .read_only(true)

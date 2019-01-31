@@ -79,7 +79,7 @@ impl DisasmWindow {
                 /*
                  * GOTO logic
                  */
-                ui.push_item_width(35.0);
+                ui.push_item_width(37.0);
                 ui.input_text(im_str!(""), &mut self.goto_addr)
                     .chars_hexadecimal(true)
                     .chars_noblank(true)

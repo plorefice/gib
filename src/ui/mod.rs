@@ -1,13 +1,15 @@
 use super::gb::*;
 
 mod ctx;
-mod debug;
+mod debugger;
 mod disasm;
+mod memedit;
 mod utils;
 
 use ctx::UiContext;
-use debug::DebuggerWindow;
+use debugger::DebuggerWindow;
 use disasm::DisasmWindow;
+use memedit::MemoryEditor;
 
 use glium::{
     backend::Facade,
@@ -64,6 +66,7 @@ pub struct EmuUi {
 
     disasm: Option<DisasmWindow>,
     debugger: Option<DebuggerWindow>,
+    memedit: Option<MemoryEditor>,
 }
 
 impl EmuUi {
@@ -80,6 +83,7 @@ impl EmuUi {
 
             disasm: None,
             debugger: None,
+            memedit: None,
         }
     }
 
@@ -94,6 +98,7 @@ impl EmuUi {
 
             self.disasm = Some(DisasmWindow::new(emu));
             self.debugger = Some(DebuggerWindow::new());
+            self.memedit = Some(MemoryEditor::new());
         }
         Ok(())
     }
@@ -171,6 +176,10 @@ impl EmuUi {
             }
 
             if let Some(ref mut view) = self.debugger {
+                view.draw(ui, emu);
+            }
+
+            if let Some(ref mut view) = self.memedit {
                 view.draw(ui, emu);
             }
         }
@@ -267,7 +276,7 @@ impl EmuUi {
                 (EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0),
                 ImGuiCond::FirstUseEver,
             )
-            .position((430.0, 300.0), ImGuiCond::FirstUseEver)
+            .position((720.0, 30.0), ImGuiCond::FirstUseEver)
             .resizable(false)
             .build(|| {
                 if let Some(texture) = self.vpu_texture {
