@@ -5,8 +5,12 @@ use std::collections::BTreeMap;
 
 use imgui::{ImGuiCol, ImGuiCond, ImString, Ui};
 
+const DARK_GREY: [f32; 4] = [0.6, 0.6, 0.6, 1.0];
+const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
+
 pub struct DisasmWindow {
     disasm: BTreeMap<u16, String>,
+    follow_pc: bool,
     goto_addr: ImString,
 }
 
@@ -14,6 +18,7 @@ impl DisasmWindow {
     pub fn new(state: &EmuState) -> DisasmWindow {
         let mut dw = DisasmWindow {
             disasm: BTreeMap::new(),
+            follow_pc: false,
             goto_addr: ImString::with_capacity(4),
         };
 
@@ -91,6 +96,10 @@ impl DisasmWindow {
                 ui.same_line(0.0);
 
                 goto_pc = ui.button(im_str!("Goto PC"), (0.0, 0.0));
+                ui.same_line(0.0);
+
+                ui.checkbox(im_str!("Follow"), &mut self.follow_pc);
+
                 ui.separator();
 
                 /*
@@ -115,7 +124,7 @@ impl DisasmWindow {
                             }
                         };
 
-                        if goto_pc {
+                        if self.follow_pc || goto_pc {
                             goto(pc);
                         } else if goto_addr {
                             let addr = u16::from_str_radix(self.goto_addr.to_str(), 16).unwrap();
@@ -130,10 +139,10 @@ impl DisasmWindow {
                                 .take(range.end - range.start);
 
                             for (addr, instr) in instrs {
-                                if *addr == pc {
-                                    ui.with_color_var(ImGuiCol::Text, (0.0, 1.0, 0.0, 1.0), || {
-                                        ui.text(instr)
-                                    });
+                                if *addr < pc {
+                                    ui.with_color_var(ImGuiCol::Text, DARK_GREY, || ui.text(instr));
+                                } else if *addr == pc {
+                                    ui.with_color_var(ImGuiCol::Text, GREEN, || ui.text(instr));
                                 } else {
                                     ui.text(instr);
                                 }
