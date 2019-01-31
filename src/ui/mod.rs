@@ -242,7 +242,7 @@ impl EmuUi {
 
             if let Err(evt) = self.load_rom(&rom[..]) {
                 ui.popup_modal(im_str!("Error loading ROM")).build(|| {
-                    ui.text(format!("{:?}", evt));
+                    ui.text(format!("{}", evt));
                 });
                 ui.open_popup(im_str!("Error loading ROM"));
             }

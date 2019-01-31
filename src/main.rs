@@ -2,6 +2,8 @@
 #![feature(duration_float)]
 
 #[macro_use]
+extern crate failure;
+#[macro_use]
 extern crate imgui;
 extern crate imgui_sys;
 
@@ -17,7 +19,7 @@ fn main() {
     if let Some(ref fname) = env::args().nth(1) {
         if let Ok(rom) = fs::read(fname) {
             if let Err(evt) = emu.load_rom(&rom[..]) {
-                println!("Error loading ROM: {:?}", evt);
+                println!("Error loading ROM: {}", evt);
                 std::process::exit(1);
             }
         };

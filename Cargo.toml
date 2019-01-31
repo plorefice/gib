@@ -10,6 +10,7 @@ glutin = "0.18"
 imgui = "0.0.21"
 imgui-sys = "0.0.21"
 imgui-glium-renderer = "0.0.21"
+failure = "0.1.5"
 
 [profile.dev]
 overflow-checks = false

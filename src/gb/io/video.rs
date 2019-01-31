@@ -1,4 +1,4 @@
-use super::dbg;
+use super::dbg::{self, Peripheral};
 use super::{IoReg, MemR, MemRW, MemSize, MemW};
 
 #[repr(usize)]
@@ -148,7 +148,7 @@ impl PPU {
         if usize::from(idx) < self.regs.len() {
             Ok(T::read_le(&[self.regs[usize::from(idx)].0]))
         } else {
-            Err(dbg::TraceEvent::IoFault(0xFF40 + idx))
+            Err(dbg::TraceEvent::IoFault(Peripheral::VPU, idx))
         }
     }
 
@@ -159,7 +159,7 @@ impl PPU {
             self.regs[usize::from(idx)].0 = scratch[0];
             Ok(())
         } else {
-            Err(dbg::TraceEvent::IoFault(0xFF40 + idx))
+            Err(dbg::TraceEvent::IoFault(Peripheral::VPU, idx))
         }
     }
 
@@ -217,7 +217,13 @@ impl MemR for PPU {
             0x9C00..=0x9FFF => Ok(T::read_le(&self.bgtm1[usize::from(addr - 0x9C00)..])),
             0xFE00..=0xFE9F => (&self.oam[..]).read(addr - 0xFE00),
             0xFF40..=0xFF6F => self.io_read(addr - 0xFF40),
-            _ => Err(dbg::TraceEvent::IoFault(addr)),
+            _ => {
+                if addr >= 0xFF00 {
+                    Err(dbg::TraceEvent::IoFault(Peripheral::VPU, addr - 0xFF00))
+                } else {
+                    Err(dbg::TraceEvent::MemFault(addr))
+                }
+            }
         }
     }
 }
@@ -242,7 +248,13 @@ impl MemW for PPU {
             }
             0xFE00..=0xFE9F => (&mut self.oam[..]).write(addr - 0xFE00, val),
             0xFF40..=0xFF6F => self.io_write(addr - 0xFF40, val),
-            _ => Err(dbg::TraceEvent::IoFault(addr)),
+            _ => {
+                if addr >= 0xFF00 {
+                    Err(dbg::TraceEvent::IoFault(Peripheral::VPU, addr - 0xFF00))
+                } else {
+                    Err(dbg::TraceEvent::MemFault(addr))
+                }
+            }
         }
     }
 }
