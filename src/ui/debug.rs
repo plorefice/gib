@@ -1,6 +1,7 @@
+use super::utils;
 use super::EmuState;
 
-use imgui::{ImGuiCond, ImStr, ImString, Ui};
+use imgui::{ImGuiCol, ImGuiCond, ImStr, ImString, Ui};
 
 pub struct DebuggerWindow;
 
@@ -11,7 +12,7 @@ impl DebuggerWindow {
 
     pub fn draw(&self, ui: &Ui, state: &mut EmuState) {
         ui.window(im_str!("Debugger"))
-            .size((250.0, 150.0), ImGuiCond::FirstUseEver)
+            .size((380.0, 120.0), ImGuiCond::FirstUseEver)
             .position((320.0, 30.0), ImGuiCond::FirstUseEver)
             .build(|| {
                 let cpu = state.gb.cpu();
@@ -27,19 +28,28 @@ impl DebuggerWindow {
                 DebuggerWindow::draw_reg(ui, "DE", cpu.de);
                 ui.same_line(0.0);
                 DebuggerWindow::draw_reg(ui, "HL", cpu.hl);
-
+                ui.same_line(0.0);
                 DebuggerWindow::draw_reg(ui, "SP", cpu.sp);
                 ui.same_line(0.0);
                 DebuggerWindow::draw_reg(ui, "PC", cpu.pc);
-                ui.same_line_spacing(0.0, 20.0);
 
                 ui.text(format!(
-                    "Flags: {}{}{}{}",
+                    " Flags: {} {} {} {}",
                     if cpu.zf() { 'Z' } else { '-' },
                     if cpu.sf() { 'N' } else { '-' },
                     if cpu.hc() { 'H' } else { '-' },
                     if cpu.cy() { 'C' } else { '-' },
                 ));
+
+                ui.same_line(150.0);
+
+                if let Some(ref evt) = state.trace_event {
+                    ui.with_color_var(ImGuiCol::Text, utils::RED, || {
+                        ui.text(evt.to_string());
+                    });
+                } else {
+                    ui.text("");
+                }
 
                 ui.separator();
 
@@ -49,10 +59,8 @@ impl DebuggerWindow {
                 if state.step_into {
                     state.stepping = true;
                 }
-                ui.checkbox(
-                    im_str!("Break on invalid opcode"),
-                    &mut state.break_on_invalid,
-                );
+                ui.same_line_spacing(0.0, 110.0);
+                ui.checkbox(im_str!("Break on exception"), &mut state.break_on_exception);
             });
     }
 

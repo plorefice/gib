@@ -30,7 +30,8 @@ pub struct EmuState {
 
     stepping: bool,
     step_into: bool,
-    break_on_invalid: bool,
+    trace_event: Option<dbg::TraceEvent>,
+    break_on_exception: bool,
 }
 
 impl EmuState {
@@ -41,7 +42,8 @@ impl EmuState {
 
             stepping: false,
             step_into: false,
-            break_on_invalid: true,
+            trace_event: None,
+            break_on_exception: true,
         }
     }
 }
@@ -116,10 +118,20 @@ impl EmuUi {
             last_frame = now;
 
             if let Some(ref mut emu) = self.emu {
-                if emu.stepping && emu.step_into {
-                    emu.gb.step().expect("error while stepping");
+                let res = if emu.stepping && emu.step_into {
+                    emu.gb.step()
                 } else if !emu.stepping {
-                    emu.gb.run_for_vblank().expect("error while running");
+                    emu.gb.run_for_vblank()
+                } else {
+                    Ok(())
+                };
+
+                if let Err(evt) = res {
+                    emu.trace_event = Some(evt);
+
+                    if emu.break_on_exception {
+                        emu.stepping = true;
+                    }
                 }
 
                 emu.gb.rasterize(&mut vbuf[..]);

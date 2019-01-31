@@ -5,9 +5,6 @@ use std::collections::BTreeMap;
 
 use imgui::{ImGuiCol, ImGuiCond, ImString, Ui};
 
-const DARK_GREY: [f32; 4] = [0.6, 0.6, 0.6, 1.0];
-const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
-
 pub struct DisasmWindow {
     disasm: BTreeMap<u16, String>,
     follow_pc: bool,
@@ -139,13 +136,17 @@ impl DisasmWindow {
                                 .take(range.end - range.start);
 
                             for (addr, instr) in instrs {
-                                if *addr < pc {
-                                    ui.with_color_var(ImGuiCol::Text, DARK_GREY, || ui.text(instr));
-                                } else if *addr == pc {
-                                    ui.with_color_var(ImGuiCol::Text, GREEN, || ui.text(instr));
-                                } else {
-                                    ui.text(instr);
-                                }
+                                ui.with_color_var(
+                                    ImGuiCol::Text,
+                                    if *addr < pc {
+                                        utils::DARK_GREY
+                                    } else if *addr == pc {
+                                        utils::GREEN
+                                    } else {
+                                        utils::WHITE
+                                    },
+                                    || ui.text(instr),
+                                );
                             }
                         });
                     });
