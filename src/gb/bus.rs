@@ -36,8 +36,8 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new(rom: &[u8]) -> Result<Bus, dbg::TraceEvent> {
-        let mut bus = Bus {
+    pub fn new() -> Bus {
+        Bus {
             rom_00: Memory::new(0x4000),
             rom_nn: Memory::new(0x4000),
             rom_backup: [0; 256],
@@ -49,15 +49,10 @@ impl Bus {
 
             apu: APU::new(),
             ppu: PPU::new(),
-        };
-
-        bus.load_rom(rom)?;
-        bus.enable_bootrom()?;
-
-        Ok(bus)
+        }
     }
 
-    fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
+    pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
         let mut chunks = rom.chunks(0x4000);
 
         if let Some(chunk) = chunks.nth(0) {
@@ -72,7 +67,8 @@ impl Bus {
                 self.rom_nn.write(i as u16, *b)?;
             }
         }
-        Ok(())
+
+        self.enable_bootrom()
     }
 
     fn enable_bootrom(&mut self) -> Result<(), dbg::TraceEvent> {

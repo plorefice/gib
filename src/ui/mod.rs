@@ -11,6 +11,8 @@ use debugger::DebuggerWindow;
 use disasm::DisasmWindow;
 use memedit::MemoryEditor;
 
+use failure::Error;
+
 use glium::{
     backend::Facade,
     texture::{ClientFormat, RawImage2d},
@@ -20,6 +22,7 @@ use imgui::{ImGuiCond, Ui};
 
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -28,7 +31,7 @@ const EMU_Y_RES: usize = 144;
 
 pub struct EmuState {
     gb: GameBoy,
-    reset: bool,
+    rom_file: PathBuf,
 
     stepping: bool,
     step_into: bool,
@@ -37,16 +40,26 @@ pub struct EmuState {
 }
 
 impl EmuState {
-    fn with(gb: GameBoy) -> EmuState {
-        EmuState {
+    fn new<P: AsRef<Path>>(rom: P) -> Result<EmuState, Error> {
+        let mut gb = GameBoy::new();
+        let rom_buf = std::fs::read(rom.as_ref())?;
+
+        gb.load_rom(&rom_buf[..])?;
+
+        Ok(EmuState {
             gb,
-            reset: false,
+            rom_file: rom.as_ref().to_path_buf(),
 
             stepping: false,
             step_into: false,
             trace_event: None,
             break_on_exception: true,
-        }
+        })
+    }
+
+    fn reset(&mut self) -> Result<(), Error> {
+        *self = EmuState::new(&self.rom_file)?;
+        Ok(())
     }
 }
 
@@ -87,13 +100,13 @@ impl EmuUi {
         }
     }
 
-    pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
-        self.emu = Some(EmuState::with(GameBoy::with_cartridge(rom)?));
+    pub fn load_rom<P: AsRef<Path>>(&mut self, rom: P) -> Result<(), Error> {
+        self.emu = Some(EmuState::new(rom)?);
 
         if self.gui.debug {
             let emu = match self.emu {
                 Some(ref emu) => emu,
-                None => panic!("initialized above"),
+                None => unreachable!(),
             };
 
             self.disasm = Some(DisasmWindow::new(emu));
@@ -103,7 +116,7 @@ impl EmuUi {
         Ok(())
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), Error> {
         let mut last_frame = Instant::now();
         let mut vbuf = vec![0; EMU_X_RES * EMU_Y_RES * 4];
 
@@ -114,7 +127,7 @@ impl EmuUi {
             ctx.poll_events();
 
             if self.gui.should_quit || ctx.should_quit() {
-                break;
+                return Ok(());
             }
 
             let now = Instant::now();
@@ -200,7 +213,7 @@ impl EmuUi {
 
                 if ui.menu_item(im_str!("Reset")).enabled(emu_running).build() {
                     if let Some(ref mut emu) = self.emu {
-                        emu.reset = true;
+                        emu.reset().expect("error during reset");
                     }
                 }
 
@@ -243,8 +256,6 @@ impl EmuUi {
     }
 
     fn draw_file_dialog(&mut self, delta_s: f32, ui: &Ui) {
-        use std::fs;
-
         let mut fd_closed = false;
         let mut fd_chosen = None;
 
@@ -258,10 +269,8 @@ impl EmuUi {
             self.gui.file_dialog = None;
         }
 
-        if let Some(rom_file) = fd_chosen {
-            let rom = fs::read(rom_file).unwrap();
-
-            if let Err(evt) = self.load_rom(&rom[..]) {
+        if let Some(ref rom_file) = fd_chosen {
+            if let Err(evt) = self.load_rom(rom_file) {
                 ui.popup_modal(im_str!("Error loading ROM")).build(|| {
                     ui.text(format!("{}", evt));
                 });

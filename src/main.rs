@@ -12,18 +12,12 @@ mod ui;
 
 fn main() {
     use std::env;
-    use std::fs;
 
     let mut emu = ui::EmuUi::new(true);
 
     if let Some(ref fname) = env::args().nth(1) {
-        if let Ok(rom) = fs::read(fname) {
-            if let Err(evt) = emu.load_rom(&rom[..]) {
-                println!("Error loading ROM: {}", evt);
-                std::process::exit(1);
-            }
-        };
-    };
+        emu.load_rom(fname).expect("error loading rom");
+    }
 
     emu.run();
 }

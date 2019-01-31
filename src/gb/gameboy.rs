@@ -13,11 +13,15 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
-    pub fn with_cartridge(rom: &[u8]) -> Result<GameBoy, dbg::TraceEvent> {
-        Ok(GameBoy {
+    pub fn new() -> GameBoy {
+        GameBoy {
             cpu: CPU::new(),
-            bus: Bus::new(rom)?,
-        })
+            bus: Bus::new(),
+        }
+    }
+
+    pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
+        self.bus.load_rom(rom)
     }
 
     pub fn step(&mut self) -> Result<(), dbg::TraceEvent> {
