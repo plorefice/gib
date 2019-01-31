@@ -1,4 +1,5 @@
 #![feature(pattern)]
+#![feature(box_syntax)]
 #![feature(duration_float)]
 
 #[macro_use]
@@ -19,5 +20,5 @@ fn main() {
         emu.load_rom(fname).expect("error loading rom");
     }
 
-    emu.run();
+    emu.run().expect("while running emulator");
 }

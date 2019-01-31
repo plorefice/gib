@@ -1,19 +1,20 @@
 use super::utils;
+use super::WindowView;
 use super::{EmuState, Immediate};
 
 use std::collections::BTreeMap;
 
 use imgui::{ImGuiCol, ImGuiCond, ImString, Ui};
 
-pub struct DisasmWindow {
+pub struct DisassemblyView {
     disasm: BTreeMap<u16, String>,
     follow_pc: bool,
     goto_addr: ImString,
 }
 
-impl DisasmWindow {
-    pub fn new(state: &EmuState) -> DisasmWindow {
-        let mut dw = DisasmWindow {
+impl DisassemblyView {
+    pub fn new(state: &EmuState) -> DisassemblyView {
+        let mut dw = DisassemblyView {
             disasm: BTreeMap::new(),
             follow_pc: false,
             goto_addr: ImString::with_capacity(4),
@@ -61,17 +62,21 @@ impl DisasmWindow {
             from = next;
         }
     }
+}
 
-    pub fn draw(&mut self, ui: &Ui, state: &mut EmuState) {
-        let pc = state.gb.cpu().pc;
+impl WindowView for DisassemblyView {
+    fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
+        let mut open = true;
 
         // 99% of the time this does nothing, so it's cool
         // to have it called every rendering loop.
+        let pc = state.gb.cpu().pc;
         self.realign_disasm(state, pc);
 
         ui.window(im_str!("ROM00 disassembly"))
             .size((300.0, 650.0), ImGuiCond::FirstUseEver)
             .position((10.0, 30.0), ImGuiCond::FirstUseEver)
+            .opened(&mut open)
             .build(|| {
                 let goto_pc;
                 let goto_addr;
@@ -151,5 +156,7 @@ impl DisasmWindow {
                         });
                     });
             });
+
+        open
     }
 }

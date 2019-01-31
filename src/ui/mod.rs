@@ -1,15 +1,11 @@
 use super::gb::*;
 
 mod ctx;
-mod debugger;
-mod disasm;
-mod memedit;
 mod utils;
+mod views;
 
 use ctx::UiContext;
-use debugger::DebuggerWindow;
-use disasm::DisasmWindow;
-use memedit::MemoryEditor;
+use views::{DebuggerView, DisassemblyView, MemEditView, View, WindowView};
 
 use failure::Error;
 
@@ -22,6 +18,7 @@ use imgui::{ImGuiCond, Ui};
 
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Instant;
@@ -63,23 +60,30 @@ impl EmuState {
     }
 }
 
-#[derive(Default)]
 pub struct GuiState {
     debug: bool,
     should_quit: bool,
     file_dialog: Option<utils::FileDialog>,
+    views: HashMap<View, Box<WindowView>>,
+}
+
+impl Default for GuiState {
+    fn default() -> GuiState {
+        GuiState {
+            debug: false,
+            should_quit: false,
+            file_dialog: None,
+            views: HashMap::new(),
+        }
+    }
 }
 
 pub struct EmuUi {
     ctx: Rc<RefCell<UiContext>>,
-    emu: Option<EmuState>,
     gui: GuiState,
 
+    emu: Option<EmuState>,
     vpu_texture: Option<imgui::ImTexture>,
-
-    disasm: Option<DisasmWindow>,
-    debugger: Option<DebuggerWindow>,
-    memedit: Option<MemoryEditor>,
 }
 
 impl EmuUi {
@@ -89,14 +93,10 @@ impl EmuUi {
 
         EmuUi {
             ctx: Rc::from(RefCell::new(UiContext::new())),
+            gui,
 
             emu: None,
-            gui,
             vpu_texture: None,
-
-            disasm: None,
-            debugger: None,
-            memedit: None,
         }
     }
 
@@ -109,9 +109,10 @@ impl EmuUi {
                 None => unreachable!(),
             };
 
-            self.disasm = Some(DisasmWindow::new(emu));
-            self.debugger = Some(DebuggerWindow::new());
-            self.memedit = Some(MemoryEditor::new());
+            let views = &mut self.gui.views;
+            views.insert(View::Disassembly, box DisassemblyView::new(emu));
+            views.insert(View::Debugger, box DebuggerView::new());
+            views.insert(View::MemEditor, box MemEditView::new());
         }
         Ok(())
     }
@@ -184,17 +185,7 @@ impl EmuUi {
         }
 
         if let Some(ref mut emu) = self.emu {
-            if let Some(ref mut view) = self.disasm {
-                view.draw(ui, emu);
-            }
-
-            if let Some(ref mut view) = self.debugger {
-                view.draw(ui, emu);
-            }
-
-            if let Some(ref mut view) = self.memedit {
-                view.draw(ui, emu);
-            }
+            self.gui.views.retain(|_, view| view.draw(ui, emu));
         }
     }
 
@@ -232,25 +223,36 @@ impl EmuUi {
                     .menu_item(im_str!("Debugger"))
                     .enabled(emu_running)
                     .build()
-                    && self.debugger.is_none()
                 {
-                    self.debugger = Some(DebuggerWindow::new());
+                    self.gui
+                        .views
+                        .entry(View::Debugger)
+                        .or_insert_with(|| Box::new(DebuggerView::new()));
                 }
 
                 if ui
                     .menu_item(im_str!("Disassembler"))
                     .enabled(emu_running)
                     .build()
-                    && self.disasm.is_none()
                 {
                     if let Some(ref emu) = self.emu {
-                        self.disasm = Some(DisasmWindow::new(emu));
+                        self.gui
+                            .views
+                            .entry(View::Disassembly)
+                            .or_insert_with(|| Box::new(DisassemblyView::new(emu)));
                     }
                 }
 
-                ui.menu_item(im_str!("Memory Editor"))
+                if ui
+                    .menu_item(im_str!("Memory Editor"))
                     .enabled(emu_running)
-                    .build();
+                    .build()
+                {
+                    self.gui
+                        .views
+                        .entry(View::MemEditor)
+                        .or_insert_with(|| Box::new(MemEditView::new()));
+                }
             })
         });
     }

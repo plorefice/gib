@@ -1,19 +1,37 @@
 use super::utils;
 use super::EmuState;
+use super::WindowView;
 
 use imgui::{ImGuiCol, ImGuiCond, ImStr, ImString, Ui};
 
-pub struct DebuggerWindow;
+pub struct DebuggerView;
 
-impl DebuggerWindow {
-    pub fn new() -> DebuggerWindow {
-        DebuggerWindow {}
+impl DebuggerView {
+    pub fn new() -> DebuggerView {
+        DebuggerView
     }
 
-    pub fn draw(&self, ui: &Ui, state: &mut EmuState) {
+    fn draw_reg(ui: &Ui, s: &str, val: u16) {
+        let mut val = ImString::from(format!("{:04X}", val));
+
+        ui.push_item_width(37.0);
+
+        ui.input_text(ImStr::new(&ImString::from(String::from(s))), &mut val)
+            .read_only(true)
+            .build();
+
+        ui.pop_item_width();
+    }
+}
+
+impl WindowView for DebuggerView {
+    fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
+        let mut open = true;
+
         ui.window(im_str!("Debugger"))
             .size((390.0, 120.0), ImGuiCond::FirstUseEver)
             .position((320.0, 30.0), ImGuiCond::FirstUseEver)
+            .opened(&mut open)
             .build(|| {
                 let cpu = state.gb.cpu();
 
@@ -21,17 +39,17 @@ impl DebuggerWindow {
 
                 ui.separator();
 
-                DebuggerWindow::draw_reg(ui, "AF", cpu.af);
+                DebuggerView::draw_reg(ui, "AF", cpu.af);
                 ui.same_line(0.0);
-                DebuggerWindow::draw_reg(ui, "BC", cpu.bc);
+                DebuggerView::draw_reg(ui, "BC", cpu.bc);
                 ui.same_line(0.0);
-                DebuggerWindow::draw_reg(ui, "DE", cpu.de);
+                DebuggerView::draw_reg(ui, "DE", cpu.de);
                 ui.same_line(0.0);
-                DebuggerWindow::draw_reg(ui, "HL", cpu.hl);
+                DebuggerView::draw_reg(ui, "HL", cpu.hl);
                 ui.same_line(0.0);
-                DebuggerWindow::draw_reg(ui, "SP", cpu.sp);
+                DebuggerView::draw_reg(ui, "SP", cpu.sp);
                 ui.same_line(0.0);
-                DebuggerWindow::draw_reg(ui, "PC", cpu.pc);
+                DebuggerView::draw_reg(ui, "PC", cpu.pc);
 
                 ui.text(format!(
                     "Flags: {} {} {} {}",
@@ -62,17 +80,7 @@ impl DebuggerWindow {
                 ui.same_line_spacing(0.0, 110.0);
                 ui.checkbox(im_str!("Break on exception"), &mut state.break_on_exception);
             });
-    }
 
-    fn draw_reg(ui: &Ui, s: &str, val: u16) {
-        let mut val = ImString::from(format!("{:04X}", val));
-
-        ui.push_item_width(37.0);
-
-        ui.input_text(ImStr::new(&ImString::from(String::from(s))), &mut val)
-            .read_only(true)
-            .build();
-
-        ui.pop_item_width();
+        open
     }
 }
