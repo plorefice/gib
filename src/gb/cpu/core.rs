@@ -1,14 +1,13 @@
 use super::dbg;
 use super::mem::{MemRW, MemSize};
 
+#[derive(Default, Clone)]
 pub struct CPU {
     pub af: u16,
     pub bc: u16,
     pub de: u16,
     pub hl: u16,
     pub sp: u16,
-
-    pub prev_pc: u16,
     pub pc: u16,
 
     pub intr_enabled: bool,
@@ -18,27 +17,19 @@ pub struct CPU {
 
 impl CPU {
     pub fn new() -> CPU {
-        CPU {
-            af: 0x00,
-            bc: 0x00,
-            de: 0x00,
-            hl: 0x00,
-            sp: 0x00,
-
-            prev_pc: 0x00,
-            pc: 0x00,
-
-            intr_enabled: false,
-            halted: false,
-            clk: 0,
-        }
+        CPU::default()
     }
 
     pub fn exec(&mut self, bus: &mut impl MemRW) -> Result<(), dbg::TraceEvent> {
-        self.prev_pc = self.pc;
+        let saved_ctx = self.clone();
 
         let opc = self.fetch_pc(bus)?;
-        self.op(bus, opc)
+        let res = self.op(bus, opc);
+
+        if res.is_err() {
+            *self = saved_ctx;
+        }
+        res
     }
 
     pub fn fetch_pc<T: MemSize>(&mut self, bus: &mut impl MemRW) -> Result<T, dbg::TraceEvent> {
