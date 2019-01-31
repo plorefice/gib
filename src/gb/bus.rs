@@ -119,8 +119,6 @@ impl MemR for Bus {
 impl MemW for Bus {
     fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
         match addr {
-            0x0000..=0x3FFF => self.rom_00.write(addr, val),
-            0x4000..=0x7FFF => self.rom_nn.write(addr - 0x4000, val),
             0x8000..=0x9FFF => self.ppu.write(addr, val),
             0xA000..=0xBFFF => self.eram.write(addr - 0xA000, val),
             0xC000..=0xCFFF => self.wram_00.write(addr - 0xC000, val),
