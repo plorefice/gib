@@ -169,3 +169,23 @@ where
         ImGuiListClipper_End(&mut clipper as *mut ImGuiListClipper);
     }
 }
+
+pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
+    let mut buf = if let Some(v) = val {
+        ImString::from(format!("{:04X}", v))
+    } else {
+        ImString::with_capacity(4)
+    };
+
+    ui.push_item_width(37.0);
+    ui.input_text(ImStr::new(&ImString::from(String::from(name))), &mut buf)
+        .chars_hexadecimal(true)
+        .chars_noblank(true)
+        .chars_uppercase(true)
+        .auto_select_all(true)
+        .read_only(!editable)
+        .build();
+    ui.pop_item_width();
+
+    *val = u16::from_str_radix(buf.to_str(), 16).ok();
+}

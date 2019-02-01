@@ -4,12 +4,12 @@ use super::{EmuState, Immediate};
 
 use std::collections::BTreeMap;
 
-use imgui::{ImGuiCol, ImGuiCond, ImString, Ui};
+use imgui::{ImGuiCol, ImGuiCond, Ui};
 
 pub struct DisassemblyView {
     disasm: BTreeMap<u16, String>,
     follow_pc: bool,
-    goto_addr: ImString,
+    goto_addr: Option<u16>,
 }
 
 impl DisassemblyView {
@@ -17,10 +17,9 @@ impl DisassemblyView {
         let mut dw = DisassemblyView {
             disasm: BTreeMap::new(),
             follow_pc: false,
-            goto_addr: ImString::with_capacity(4),
+            goto_addr: Some(0),
         };
 
-        dw.goto_addr.push_str("0000");
         dw.realign_disasm(state, 0);
         dw
     }
@@ -84,14 +83,7 @@ impl WindowView for DisassemblyView {
                 /*
                  * GOTO logic
                  */
-                ui.push_item_width(37.0);
-                ui.input_text(im_str!(""), &mut self.goto_addr)
-                    .chars_hexadecimal(true)
-                    .chars_noblank(true)
-                    .chars_uppercase(true)
-                    .auto_select_all(true)
-                    .build();
-                ui.pop_item_width();
+                utils::input_addr(ui, "", &mut self.goto_addr, true);
                 ui.same_line(0.0);
 
                 goto_addr = ui.button(im_str!("Goto"), (0.0, 0.0));
@@ -128,9 +120,8 @@ impl WindowView for DisassemblyView {
 
                         if self.follow_pc || goto_pc {
                             goto(pc);
-                        } else if goto_addr {
-                            let addr = u16::from_str_radix(self.goto_addr.to_str(), 16).unwrap();
-                            goto(addr);
+                        } else if goto_addr && self.goto_addr.is_some() {
+                            goto(self.goto_addr.unwrap());
                         }
 
                         utils::list_clipper(ui, self.disasm.len(), |range| {

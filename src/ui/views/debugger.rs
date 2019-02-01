@@ -2,25 +2,13 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
-use imgui::{ImGuiCol, ImGuiCond, ImStr, ImString, Ui};
+use imgui::{ImGuiCol, ImGuiCond, Ui};
 
 pub struct DebuggerView;
 
 impl DebuggerView {
     pub fn new() -> DebuggerView {
         DebuggerView
-    }
-
-    fn draw_reg(ui: &Ui, s: &str, val: u16) {
-        let mut val = ImString::from(format!("{:04X}", val));
-
-        ui.push_item_width(37.0);
-
-        ui.input_text(ImStr::new(&ImString::from(String::from(s))), &mut val)
-            .read_only(true)
-            .build();
-
-        ui.pop_item_width();
     }
 }
 
@@ -39,17 +27,17 @@ impl WindowView for DebuggerView {
 
                 ui.separator();
 
-                DebuggerView::draw_reg(ui, "AF", cpu.af);
+                utils::input_addr(ui, "AF", &mut Some(cpu.af), false);
                 ui.same_line(0.0);
-                DebuggerView::draw_reg(ui, "BC", cpu.bc);
+                utils::input_addr(ui, "BC", &mut Some(cpu.bc), false);
                 ui.same_line(0.0);
-                DebuggerView::draw_reg(ui, "DE", cpu.de);
+                utils::input_addr(ui, "DE", &mut Some(cpu.de), false);
                 ui.same_line(0.0);
-                DebuggerView::draw_reg(ui, "HL", cpu.hl);
+                utils::input_addr(ui, "HL", &mut Some(cpu.hl), false);
                 ui.same_line(0.0);
-                DebuggerView::draw_reg(ui, "SP", cpu.sp);
+                utils::input_addr(ui, "SP", &mut Some(cpu.sp), false);
                 ui.same_line(0.0);
-                DebuggerView::draw_reg(ui, "PC", cpu.pc);
+                utils::input_addr(ui, "PC", &mut Some(cpu.pc), false);
 
                 ui.text(format!(
                     "Flags: {} {} {} {}",
@@ -73,12 +61,11 @@ impl WindowView for DebuggerView {
 
                 ui.checkbox(im_str!("Break"), &mut state.stepping);
                 ui.same_line(0.0);
+
                 state.step_into = ui.button(im_str!("Step"), (0.0, 0.0));
                 if state.step_into {
                     state.stepping = true;
                 }
-                ui.same_line_spacing(0.0, 110.0);
-                ui.checkbox(im_str!("Break on exception"), &mut state.break_on_exception);
             });
 
         open
