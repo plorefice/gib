@@ -21,7 +21,7 @@ impl WindowView for DebuggerView {
             .position((320.0, 30.0), ImGuiCond::FirstUseEver)
             .opened(&mut open)
             .build(|| {
-                let cpu = state.gb.cpu_mut();
+                let cpu = state.cpu();
 
                 ui.text(format!("Clock cycle: {:12}", cpu.clk));
 
@@ -49,7 +49,7 @@ impl WindowView for DebuggerView {
 
                 ui.same_line(150.0);
 
-                if let Some(ref evt) = state.trace_event {
+                if let Some(ref evt) = state.last_event() {
                     ui.with_color_var(ImGuiCol::Text, utils::RED, || {
                         ui.text(evt.to_string());
                     });
@@ -60,7 +60,7 @@ impl WindowView for DebuggerView {
                 ui.separator();
 
                 if ui.button(im_str!("Run"), (0.0, 0.0)) {
-                    state.resume();
+                    state.set_running();
                 }
                 ui.same_line(0.0);
 
@@ -70,7 +70,7 @@ impl WindowView for DebuggerView {
                 ui.same_line(0.0);
 
                 if ui.button(im_str!("Step"), (0.0, 0.0)) {
-                    state.single_step();
+                    state.set_single_step();
                 }
                 ui.same_line(0.0);
             });

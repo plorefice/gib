@@ -28,8 +28,8 @@ impl DisassemblyView {
     /// Otherwise, fetch the instruction at from, invalidate all the overlapping
     /// instructions and update the disassembly. Do this until it's aligned again.
     fn realign_disasm(&mut self, state: &EmuState, mut from: u16) {
-        let cpu = state.gb.cpu();
-        let bus = state.gb.bus();
+        let cpu = state.cpu();
+        let bus = state.bus();
 
         while from < bus.rom_size() {
             let instr = cpu.disasm(bus, from);
@@ -81,7 +81,7 @@ impl DisassemblyView {
     }
 
     fn draw_disasm_view(&mut self, ui: &Ui, state: &mut EmuState, goto_addr: bool, goto_pc: bool) {
-        let pc = state.gb.cpu().pc;
+        let pc = state.cpu().pc;
 
         let (_, h) = ui.get_content_region_avail();
 
@@ -116,7 +116,7 @@ impl DisassemblyView {
                         .skip(range.start)
                         .take(range.end - range.start);
 
-                    let cpu = state.gb.cpu_mut();
+                    let cpu = state.cpu_mut();
 
                     let style = &[StyleVar::FrameRounding(15.0)];
 
@@ -156,7 +156,7 @@ impl WindowView for DisassemblyView {
 
         // 99.9% of the time this does nothing, so it's cool
         // to have it called every draw loop.
-        let pc = state.gb.cpu().pc;
+        let pc = state.cpu().pc;
         self.realign_disasm(state, pc);
 
         ui.window(im_str!("ROM00 disassembly"))

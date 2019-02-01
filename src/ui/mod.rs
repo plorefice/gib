@@ -1,10 +1,12 @@
 use super::gb::*;
 
 mod ctx;
+mod state;
 mod utils;
 mod views;
 
 use ctx::UiContext;
+use state::EmuState;
 use views::{DebuggerView, DisassemblyView, MemEditView, View, WindowView};
 
 use failure::Error;
@@ -19,62 +21,12 @@ use imgui::{ImGuiCond, Ui};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::rc::Rc;
 use std::time::Instant;
 
 const EMU_X_RES: usize = 160;
 const EMU_Y_RES: usize = 144;
-
-pub struct EmuState {
-    gb: GameBoy,
-    rom_file: PathBuf,
-
-    step_to_next: bool,
-    run_to_breakpoint: bool,
-    trace_event: Option<dbg::TraceEvent>,
-}
-
-impl EmuState {
-    fn new<P: AsRef<Path>>(rom: P) -> Result<EmuState, Error> {
-        let mut gb = GameBoy::new();
-        let rom_buf = std::fs::read(rom.as_ref())?;
-
-        gb.load_rom(&rom_buf[..])?;
-
-        Ok(EmuState {
-            gb,
-            rom_file: rom.as_ref().to_path_buf(),
-
-            step_to_next: false,
-            run_to_breakpoint: false,
-            trace_event: None,
-        })
-    }
-
-    fn pause(&mut self) {
-        self.step_to_next = false;
-        self.run_to_breakpoint = false;
-        self.gb.cpu_mut().pause();
-    }
-
-    fn single_step(&mut self) {
-        self.step_to_next = true;
-    }
-
-    fn resume(&mut self) {
-        self.run_to_breakpoint = true;
-    }
-
-    fn paused(&mut self) -> bool {
-        self.gb.cpu().paused() && !(self.step_to_next || self.run_to_breakpoint)
-    }
-
-    fn reset(&mut self) -> Result<(), Error> {
-        *self = EmuState::new(&self.rom_file)?;
-        Ok(())
-    }
-}
 
 pub struct GuiState {
     debug: bool,
@@ -153,51 +105,28 @@ impl EmuUi {
             let delta_s = delta.as_secs() as f32 + delta.subsec_nanos() as f32 / 1_000_000_000.0;
             last_frame = now;
 
-            self.step_emu();
+            if let Some(ref mut emu) = self.emu {
+                emu.do_step(&mut self.vpu_buffer[..]);
 
-            let new_screen = Texture2d::new(
-                ctx.display.get_context(),
-                RawImage2d {
-                    data: Cow::Borrowed(&self.vpu_buffer[..]),
-                    width: EMU_X_RES as u32,
-                    height: EMU_Y_RES as u32,
-                    format: ClientFormat::U8U8U8U8,
-                },
-            )
-            .unwrap();
+                let new_screen = Texture2d::new(
+                    ctx.display.get_context(),
+                    RawImage2d {
+                        data: Cow::Borrowed(&self.vpu_buffer[..]),
+                        width: EMU_X_RES as u32,
+                        height: EMU_Y_RES as u32,
+                        format: ClientFormat::U8U8U8U8,
+                    },
+                )
+                .unwrap();
 
-            if let Some(texture) = self.vpu_texture {
-                ctx.renderer.textures().replace(texture, new_screen);
-            } else {
-                self.vpu_texture = Some(ctx.renderer.textures().insert(new_screen));
+                if let Some(texture) = self.vpu_texture {
+                    ctx.renderer.textures().replace(texture, new_screen);
+                } else {
+                    self.vpu_texture = Some(ctx.renderer.textures().insert(new_screen));
+                }
             }
 
             ctx.render(delta_s, |ui| self.draw(delta_s, ui));
-        }
-    }
-
-    fn step_emu(&mut self) {
-        if let Some(ref mut emu) = self.emu {
-            if emu.paused() {
-                return;
-            }
-
-            let res = if emu.step_to_next {
-                let r = emu.gb.step();
-                emu.pause();
-                r
-            } else if emu.run_to_breakpoint {
-                emu.gb.run_for_vblank()
-            } else {
-                Ok(())
-            };
-
-            if let Err(ref evt) = res {
-                emu.trace_event = Some(*evt);
-                emu.pause();
-            }
-
-            emu.gb.rasterize(&mut self.vpu_buffer[..]);
         }
     }
 
