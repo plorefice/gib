@@ -116,6 +116,8 @@ impl DisassemblyView {
                         .skip(range.start)
                         .take(range.end - range.start);
 
+                    let cpu = state.gb.cpu_mut();
+
                     let style = &[StyleVar::FrameRounding(15.0)];
 
                     for (addr, instr) in instrs {
@@ -132,13 +134,13 @@ impl DisassemblyView {
 
                         // Render breakpoing and instruction
                         ui.with_style_and_color_vars(style, color, || {
-                            let mut bk = state.breakpoints.contains(addr);
+                            let mut bk = cpu.breakpoint_at(*addr);
 
                             if ui.checkbox(ImStr::new(instr), &mut bk) {
                                 if bk {
-                                    state.breakpoints.insert(*addr);
+                                    cpu.set_breakpoint(*addr);
                                 } else {
-                                    state.breakpoints.remove(addr);
+                                    cpu.clear_breakpoint(*addr);
                                 }
                             }
                         });

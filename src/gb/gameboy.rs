@@ -59,6 +59,10 @@ impl GameBoy {
         &self.cpu
     }
 
+    pub fn cpu_mut(&mut self) -> &mut CPU {
+        &mut self.cpu
+    }
+
     pub fn bus(&self) -> &Bus {
         &self.bus
     }

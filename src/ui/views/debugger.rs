@@ -21,7 +21,7 @@ impl WindowView for DebuggerView {
             .position((320.0, 30.0), ImGuiCond::FirstUseEver)
             .opened(&mut open)
             .build(|| {
-                let cpu = state.gb.cpu();
+                let cpu = state.gb.cpu_mut();
 
                 ui.text(format!("Clock cycle: {:12}", cpu.clk));
 
@@ -59,13 +59,20 @@ impl WindowView for DebuggerView {
 
                 ui.separator();
 
-                ui.checkbox(im_str!("Break"), &mut state.stepping);
+                if ui.button(im_str!("Run"), (0.0, 0.0)) {
+                    state.resume();
+                }
                 ui.same_line(0.0);
 
-                state.step_into = ui.button(im_str!("Step"), (0.0, 0.0));
-                if state.step_into {
-                    state.stepping = true;
+                if ui.button(im_str!("Pause"), (0.0, 0.0)) {
+                    state.pause();
                 }
+                ui.same_line(0.0);
+
+                if ui.button(im_str!("Step"), (0.0, 0.0)) {
+                    state.single_step();
+                }
+                ui.same_line(0.0);
             });
 
         open

@@ -18,7 +18,7 @@ use imgui::{ImGuiCond, Ui};
 
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Instant;
@@ -30,11 +30,9 @@ pub struct EmuState {
     gb: GameBoy,
     rom_file: PathBuf,
 
-    stepping: bool,
-    step_into: bool,
+    step_to_next: bool,
+    run_to_breakpoint: bool,
     trace_event: Option<dbg::TraceEvent>,
-    breakpoints: HashSet<u16>,
-    break_on_exception: bool,
 }
 
 impl EmuState {
@@ -48,12 +46,28 @@ impl EmuState {
             gb,
             rom_file: rom.as_ref().to_path_buf(),
 
-            stepping: false,
-            step_into: false,
+            step_to_next: false,
+            run_to_breakpoint: false,
             trace_event: None,
-            breakpoints: HashSet::new(),
-            break_on_exception: true,
         })
+    }
+
+    fn pause(&mut self) {
+        self.step_to_next = false;
+        self.run_to_breakpoint = false;
+        self.gb.cpu_mut().pause();
+    }
+
+    fn single_step(&mut self) {
+        self.step_to_next = true;
+    }
+
+    fn resume(&mut self) {
+        self.run_to_breakpoint = true;
+    }
+
+    fn paused(&mut self) -> bool {
+        self.gb.cpu().paused() && !(self.step_to_next || self.run_to_breakpoint)
     }
 
     fn reset(&mut self) -> Result<(), Error> {
@@ -85,6 +99,7 @@ pub struct EmuUi {
     gui: GuiState,
 
     emu: Option<EmuState>,
+    vpu_buffer: Vec<u8>,
     vpu_texture: Option<imgui::ImTexture>,
 }
 
@@ -98,6 +113,7 @@ impl EmuUi {
             gui,
 
             emu: None,
+            vpu_buffer: vec![0; EMU_X_RES * EMU_Y_RES * 4],
             vpu_texture: None,
         }
     }
@@ -121,7 +137,6 @@ impl EmuUi {
 
     pub fn run(&mut self) -> Result<(), Error> {
         let mut last_frame = Instant::now();
-        let mut vbuf = vec![0; EMU_X_RES * EMU_Y_RES * 4];
 
         loop {
             let ctx = self.ctx.clone();
@@ -138,44 +153,51 @@ impl EmuUi {
             let delta_s = delta.as_secs() as f32 + delta.subsec_nanos() as f32 / 1_000_000_000.0;
             last_frame = now;
 
-            if let Some(ref mut emu) = self.emu {
-                let res = if emu.stepping && emu.step_into {
-                    emu.gb.step()
-                } else if !emu.stepping {
-                    emu.gb.run_for_vblank()
-                } else {
-                    Ok(())
-                };
+            self.step_emu();
 
-                if let Err(evt) = res {
-                    emu.trace_event = Some(evt);
+            let new_screen = Texture2d::new(
+                ctx.display.get_context(),
+                RawImage2d {
+                    data: Cow::Borrowed(&self.vpu_buffer[..]),
+                    width: EMU_X_RES as u32,
+                    height: EMU_Y_RES as u32,
+                    format: ClientFormat::U8U8U8U8,
+                },
+            )
+            .unwrap();
 
-                    if emu.break_on_exception {
-                        emu.stepping = true;
-                    }
-                }
-
-                emu.gb.rasterize(&mut vbuf[..]);
-
-                let new_screen = Texture2d::new(
-                    ctx.display.get_context(),
-                    RawImage2d {
-                        data: Cow::Borrowed(&vbuf[..]),
-                        width: EMU_X_RES as u32,
-                        height: EMU_Y_RES as u32,
-                        format: ClientFormat::U8U8U8U8,
-                    },
-                )
-                .unwrap();
-
-                if let Some(texture) = self.vpu_texture {
-                    ctx.renderer.textures().replace(texture, new_screen);
-                } else {
-                    self.vpu_texture = Some(ctx.renderer.textures().insert(new_screen));
-                }
+            if let Some(texture) = self.vpu_texture {
+                ctx.renderer.textures().replace(texture, new_screen);
+            } else {
+                self.vpu_texture = Some(ctx.renderer.textures().insert(new_screen));
             }
 
             ctx.render(delta_s, |ui| self.draw(delta_s, ui));
+        }
+    }
+
+    fn step_emu(&mut self) {
+        if let Some(ref mut emu) = self.emu {
+            if emu.paused() {
+                return;
+            }
+
+            let res = if emu.step_to_next {
+                let r = emu.gb.step();
+                emu.pause();
+                r
+            } else if emu.run_to_breakpoint {
+                emu.gb.run_for_vblank()
+            } else {
+                Ok(())
+            };
+
+            if let Err(ref evt) = res {
+                emu.trace_event = Some(*evt);
+                emu.pause();
+            }
+
+            emu.gb.rasterize(&mut self.vpu_buffer[..]);
         }
     }
 

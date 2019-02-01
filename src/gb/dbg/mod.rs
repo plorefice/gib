@@ -1,10 +1,12 @@
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Peripheral {
     VPU,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Fail, Clone, Copy)]
 pub enum TraceEvent {
+    #[fail(display = "Breakpoint reached: 0x{:04X}", _0)]
+    Breakpoint(u16),
     #[fail(display = "Illegal opcode: {:02X}", _0)]
     IllegalInstructionFault(u8),
     #[fail(display = "Bus fault accessing 0x{:04X}", _0)]
@@ -13,4 +15,14 @@ pub enum TraceEvent {
     MemFault(u16),
     #[fail(display = "IO fault accessing {:?}@{:04X}", _0, _1)]
     IoFault(Peripheral, u16),
+}
+
+impl TraceEvent {
+    pub fn is_breakpoint(&self) -> bool {
+        if let TraceEvent::Breakpoint(_) = self {
+            true
+        } else {
+            false
+        }
+    }
 }

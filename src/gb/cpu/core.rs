@@ -1,6 +1,8 @@
 use super::dbg;
 use super::mem::{MemRW, MemSize};
 
+use std::collections::HashSet;
+
 #[derive(Default, Clone)]
 pub struct CPU {
     pub af: u16,
@@ -13,6 +15,9 @@ pub struct CPU {
     pub intr_enabled: bool,
     pub halted: bool,
     pub clk: u64,
+
+    paused: bool,
+    breakpoints: HashSet<u16>,
 }
 
 impl CPU {
@@ -21,6 +26,13 @@ impl CPU {
     }
 
     pub fn exec(&mut self, bus: &mut impl MemRW) -> Result<(), dbg::TraceEvent> {
+        if !self.paused() && self.breakpoints.contains(&self.pc) {
+            self.pause();
+            return Err(dbg::TraceEvent::Breakpoint(self.pc));
+        } else {
+            self.resume();
+        }
+
         let saved_ctx = self.clone();
 
         let opc = self.fetch_pc(bus)?;
@@ -57,6 +69,30 @@ impl CPU {
         bus.write::<T>(addr, val)?;
         self.clk += u64::from(T::byte_size() * 4);
         Ok(())
+    }
+
+    fn resume(&mut self) {
+        self.paused = false;
+    }
+
+    pub fn pause(&mut self) {
+        self.paused = true;
+    }
+
+    pub fn paused(&self) -> bool {
+        self.paused
+    }
+
+    pub fn set_breakpoint(&mut self, addr: u16) {
+        self.breakpoints.insert(addr);
+    }
+
+    pub fn clear_breakpoint(&mut self, addr: u16) {
+        self.breakpoints.remove(&addr);
+    }
+
+    pub fn breakpoint_at(&mut self, addr: u16) -> bool {
+        self.breakpoints.contains(&addr)
     }
 }
 
