@@ -110,7 +110,8 @@ impl WindowView for DisassemblyView {
                                 if *addr == dest {
                                     unsafe {
                                         imgui_sys::igSetScrollY(
-                                            ui.get_text_line_height_with_spacing() * i as f32,
+                                            ui.get_text_line_height_with_spacing() * i as f32
+                                                - h / 2.0,
                                         );
                                     }
                                     break;
