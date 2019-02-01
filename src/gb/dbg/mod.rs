@@ -16,13 +16,3 @@ pub enum TraceEvent {
     #[fail(display = "IO fault accessing {:?}@{:04X}", _0, _1)]
     IoFault(Peripheral, u16),
 }
-
-impl TraceEvent {
-    pub fn is_breakpoint(&self) -> bool {
-        if let TraceEvent::Breakpoint(_) = self {
-            true
-        } else {
-            false
-        }
-    }
-}
