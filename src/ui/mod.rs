@@ -18,7 +18,7 @@ use imgui::{ImGuiCond, Ui};
 
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Instant;
@@ -33,6 +33,7 @@ pub struct EmuState {
     stepping: bool,
     step_into: bool,
     trace_event: Option<dbg::TraceEvent>,
+    breakpoints: HashSet<u16>,
     break_on_exception: bool,
 }
 
@@ -50,6 +51,7 @@ impl EmuState {
             stepping: false,
             step_into: false,
             trace_event: None,
+            breakpoints: HashSet::new(),
             break_on_exception: true,
         })
     }

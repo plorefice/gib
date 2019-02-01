@@ -127,9 +127,9 @@ impl FileDialog {
 }
 
 /// Safe wrapper around [`ImGuiListClipper`](imgui_sys.ImGuiListClipper).
-pub fn list_clipper<F>(ui: &Ui, count: usize, f: F)
+pub fn list_clipper<F>(ui: &Ui, count: usize, mut f: F)
 where
-    F: Fn(Range<usize>),
+    F: FnMut(Range<usize>),
 {
     use imgui_sys::{
         ImGuiListClipper, ImGuiListClipper_Begin, ImGuiListClipper_End,
