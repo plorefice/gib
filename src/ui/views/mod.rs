@@ -6,6 +6,7 @@ pub use debugger::*;
 pub use disassembly::*;
 pub use memedit::*;
 
+use super::dbg;
 use super::utils;
 use super::{EmuState, Immediate};
 

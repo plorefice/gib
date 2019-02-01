@@ -85,10 +85,6 @@ impl Bus {
         }
         Ok(())
     }
-
-    pub fn rom_size(&self) -> u16 {
-        0x4000
-    }
 }
 
 impl MemR for Bus {

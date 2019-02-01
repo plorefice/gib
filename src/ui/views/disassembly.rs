@@ -1,3 +1,4 @@
+use super::dbg;
 use super::utils;
 use super::WindowView;
 use super::{EmuState, Immediate};
@@ -7,6 +8,7 @@ use std::collections::BTreeMap;
 use imgui::{ImGuiCol, ImGuiCond, ImStr, ImString, StyleVar, Ui};
 
 pub struct DisassemblyView {
+    section: dbg::MemoryType,
     disasm: BTreeMap<u16, ImString>,
     follow_pc: bool,
     goto_addr: Option<u16>,
@@ -15,6 +17,7 @@ pub struct DisassemblyView {
 impl DisassemblyView {
     pub fn new(state: &EmuState) -> DisassemblyView {
         let mut dw = DisassemblyView {
+            section: dbg::MemoryType::RomBank(0),
             disasm: BTreeMap::new(),
             follow_pc: false,
             goto_addr: Some(0),
@@ -27,11 +30,22 @@ impl DisassemblyView {
     /// If there is alread an instruction decoded at address `from`, do nothing.
     /// Otherwise, fetch the instruction at from, invalidate all the overlapping
     /// instructions and update the disassembly. Do this until it's aligned again.
+    /// If `from` is outside the current memory space, swap it and reload disasm.
     fn realign_disasm(&mut self, state: &EmuState, mut from: u16) {
         let cpu = state.cpu();
         let bus = state.bus();
 
-        while from < bus.rom_size() {
+        let mut mem_range = self.section.range();
+
+        if !mem_range.contains(&from) {
+            self.section = dbg::MemoryType::at(from);
+            self.disasm.clear();
+
+            mem_range = self.section.range();
+            from = *mem_range.start();
+        }
+
+        while from < *mem_range.end() {
             let instr = cpu.disasm(bus, from);
             let next = from + u16::from(instr.size);
 
@@ -159,17 +173,20 @@ impl WindowView for DisassemblyView {
         let pc = state.cpu().pc;
         self.realign_disasm(state, pc);
 
-        ui.window(im_str!("ROM00 disassembly"))
-            .size((300.0, 650.0), ImGuiCond::FirstUseEver)
-            .position((10.0, 30.0), ImGuiCond::FirstUseEver)
-            .opened(&mut open)
-            .build(|| {
-                let (goto_addr, goto_pc) = self.draw_goto_bar(ui);
+        ui.window(ImStr::new(&ImString::from(format!(
+            "{} disassembly",
+            self.section
+        ))))
+        .size((300.0, 650.0), ImGuiCond::FirstUseEver)
+        .position((10.0, 30.0), ImGuiCond::FirstUseEver)
+        .opened(&mut open)
+        .build(|| {
+            let (goto_addr, goto_pc) = self.draw_goto_bar(ui);
 
-                ui.separator();
+            ui.separator();
 
-                self.draw_disasm_view(ui, state, goto_addr, goto_pc);
-            });
+            self.draw_disasm_view(ui, state, goto_addr, goto_pc);
+        });
 
         open
     }
