@@ -80,6 +80,10 @@ impl EmuUi {
             views.insert(View::Debugger, box DebuggerView::new());
             views.insert(View::MemEditor, box MemEditView::new());
             views.insert(View::MemMap, box MemMapView::new());
+
+            if let Some(ref mut emu) = self.emu {
+                emu.set_running();
+            }
         }
         Ok(())
     }
