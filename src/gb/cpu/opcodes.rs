@@ -106,10 +106,12 @@ macro_rules! add {
 
 macro_rules! sub {
     ($cpu:ident, $v:expr) => {{
-        let old = $cpu.a();
-        $cpu.set_a(old - $v);
+        let x = $cpu.a();
+        let y = $v;
 
-        cmp!($cpu, old, $v);
+        $cpu.set_a(x - y);
+
+        cmp!($cpu, x, y);
     }};
 }
 
