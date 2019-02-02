@@ -121,6 +121,22 @@ macro_rules! add16 {
     }};
 }
 
+macro_rules! addi16 {
+    ($cpu:ident, $a:expr, $b:expr) => {{
+        let b = u16::from($b as u8);
+        let n = (i32::from($a) + i32::from($b)) as u16;
+        let r = ($a & 0xFF) + b;
+
+        $cpu.set_zf(false);
+        $cpu.set_sf(false);
+        $cpu.set_hc(($a & 0xF) + (b & 0xF) >= 0x10);
+        $cpu.set_cy(r > 0xFF);
+        $cpu.clk += 4;
+
+        n
+    }};
+}
+
 macro_rules! cmp {
     ($cpu:ident, $a:expr, $b:expr) => {{
         $cpu.set_zf($a == $b);
@@ -416,9 +432,8 @@ impl CPU {
             0xF9 => { self.sp = self.hl; self.clk += 4; }
 
             0xF8 => {
-                let d8: u8 = self.fetch_pc(bus)?;
-                add16!(self, self.hl, self.sp + u16::from(d8));
-                self.set_zf(false);
+                let d8: i8 = self.fetch_pc(bus)?;
+                self.hl = addi16!(self, self.sp, d8);
             }
 
             /*
@@ -552,9 +567,8 @@ impl CPU {
             0x29 => add16!(self, self.hl, self.hl),
             0x39 => add16!(self, self.hl, self.sp),
             0xE8 => {
-                let d8: u8 = self.fetch_pc(bus)?;
-                add16!(self, self.sp, u16::from(d8));
-                self.set_zf(false);
+                let d8: i8 = self.fetch_pc(bus)?;
+                self.sp = addi16!(self, self.sp, d8);
                 self.clk += 4;
             }
 
