@@ -28,7 +28,7 @@ impl DisassemblyView {
     /// Otherwise, fetch the instruction at from, invalidate all the overlapping
     /// instructions and update the disassembly. Do this until it's aligned again.
     /// If `from` is outside the current memory space, swap it and reload disasm.
-    fn realign_disasm(&mut self, state: &mut EmuState, mut from: u16) {
+    fn realign_disasm(&mut self, state: &EmuState, mut from: u16) {
         let cpu = state.cpu();
         let bus = state.bus();
 
@@ -45,10 +45,13 @@ impl DisassemblyView {
         while from < *mem_range.end() {
             let instr = match cpu.disasm(bus, from) {
                 Ok(instr) => instr,
-                Err(evt) => {
-                    state.fault(evt);
+                Err(dbg::TraceEvent::AccessFault) => {
+                    // This usually happens when disassembling unaligned bytecode
+                    // located at the end of the memory space. Just stop disassembling.
+                    // It should be one of the last instructions anyway.
                     return;
                 }
+                Err(evt) => panic!("unexpected trace event during disassembly: {}", evt),
             };
 
             let next = from + u16::from(instr.size);

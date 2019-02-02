@@ -132,4 +132,6 @@ pub enum TraceEvent {
     MemFault(u16),
     #[fail(display = "IO fault accessing {:?}@{:04X}", _0, _1)]
     IoFault(Peripheral, u16),
+    #[fail(display = "Access size fault")]
+    AccessFault,
 }
