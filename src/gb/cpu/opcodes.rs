@@ -296,7 +296,7 @@ impl CPU {
 
             0x06 => { let d8: u8 = self.fetch_pc(bus)?; self.set_b(d8);                }
             0x16 => { let d8: u8 = self.fetch_pc(bus)?; self.set_d(d8);                }
-            0x26 => { let d8: u8 = self.fetch_pc(bus)?; self.set_d(d8);                }
+            0x26 => { let d8: u8 = self.fetch_pc(bus)?; self.set_h(d8);                }
             0x36 => { let d8: u8 = self.fetch_pc(bus)?; self.store(bus, self.hl, d8)?; }
             0x0E => { let d8: u8 = self.fetch_pc(bus)?; self.set_c(d8);                }
             0x1E => { let d8: u8 = self.fetch_pc(bus)?; self.set_e(d8);                }
