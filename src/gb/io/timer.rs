@@ -11,10 +11,10 @@ const TIMA_00_RATE: u64 = 1024;
 
 #[derive(Default)]
 pub struct Timer {
-    div: IoReg,
-    tima: IoReg,
-    tma: IoReg,
-    tac: IoReg,
+    pub div: IoReg,
+    pub tima: IoReg,
+    pub tma: IoReg,
+    pub tac: IoReg,
 
     div_elapsed_clks: u64,
     tima_elapsed_clks: u64,
@@ -59,6 +59,12 @@ impl Timer {
             // TODO: an interrupt needs to be generated in this occasion
         }
     }
+
+    fn reset_div(&mut self) {
+        self.div.0 = 0;
+        self.div_elapsed_clks = 0;
+        self.tima_elapsed_clks = 0;
+    }
 }
 
 impl MemR for Timer {
@@ -86,7 +92,7 @@ impl MemW for Timer {
         } else {
             // Any write to DIV resets it to 0
             if addr == 0xFF04 {
-                self.div.0 = 0;
+                self.reset_div();
                 return Ok(());
             }
 
@@ -107,3 +113,64 @@ impl MemW for Timer {
 }
 
 impl MemRW for Timer {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn div_tick() {
+        let mut timer = Timer::default();
+
+        for _ in 0..64 {
+            timer.tick(4);
+        }
+        assert_eq!(timer.div.0, 1);
+
+        for _ in 0..128 {
+            timer.tick(4);
+        }
+        assert_eq!(timer.div.0, 3);
+    }
+
+    #[test]
+    fn div_reset() {
+        let mut timer = Timer::default();
+
+        for _ in 0..63 {
+            timer.tick(4);
+        }
+        assert_eq!(timer.div.0, 0);
+
+        timer.reset_div();
+        assert_eq!(timer.div.0, 0);
+
+        for _ in 0..63 {
+            timer.tick(4);
+        }
+        assert_eq!(timer.div.0, 0);
+
+        timer.tick(4);
+        assert_eq!(timer.div.0, 1);
+    }
+
+    #[test]
+    fn tima_tick() {
+        let mut timer = Timer::default();
+        timer.tac.0 = 0x07;
+
+        for _ in 0..63 {
+            timer.tick(4);
+        }
+        assert_eq!(timer.tima.0, 0);
+
+        timer.tick(4);
+        assert_eq!(timer.tima.0, 1);
+
+        let mut timer = Timer::default();
+        timer.tac.0 = 0x05;
+
+        timer.tick(64);
+        assert_eq!(timer.tima.0, 4);
+    }
+}
