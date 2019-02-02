@@ -7,7 +7,9 @@ mod views;
 
 use ctx::UiContext;
 use state::EmuState;
-use views::{DebuggerView, DisassemblyView, MemEditView, MemMapView, View, WindowView};
+use views::{
+    DebuggerView, DisassemblyView, MemEditView, MemMapView, PeripheralView, View, WindowView,
+};
 
 use failure::Error;
 
@@ -96,6 +98,7 @@ impl EmuUi {
             views.insert(View::Debugger, box DebuggerView::new());
             views.insert(View::MemEditor, box MemEditView::new());
             views.insert(View::MemMap, box MemMapView::new());
+            views.insert(View::Peripherals, box PeripheralView::new());
 
             if let Some(ref mut emu) = self.emu {
                 emu.set_running();
@@ -191,10 +194,16 @@ impl EmuUi {
                         .or_insert_with(|| box MemMapView::new());
                 }
 
-                ui.menu_item(im_str!("VPU")).enabled(emu_running).build();
-                ui.menu_item(im_str!("APU")).enabled(emu_running).build();
-                ui.menu_item(im_str!("TIM")).enabled(emu_running).build();
-                ui.menu_item(im_str!("ITR")).enabled(emu_running).build();
+                if ui
+                    .menu_item(im_str!("Peripherals"))
+                    .enabled(emu_running)
+                    .build()
+                {
+                    self.gui
+                        .views
+                        .entry(View::Peripherals)
+                        .or_insert_with(|| box PeripheralView::new());
+                }
             });
 
             ui.menu(im_str!("Debugging")).build(|| {
@@ -264,7 +273,7 @@ impl EmuUi {
                 (EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0),
                 ImGuiCond::FirstUseEver,
             )
-            .position((720.0, 30.0), ImGuiCond::FirstUseEver)
+            .position((745.0, 30.0), ImGuiCond::FirstUseEver)
             .resizable(false)
             .build(|| {
                 ui.image(self.vpu_texture, (EMU_X_RES as f32, EMU_Y_RES as f32))
