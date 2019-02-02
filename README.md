@@ -74,3 +74,11 @@ are shown below.
 | halt_bug       | -        | Not tested yet             |
 | oam_bug        | -        | Not tested yet             |
 | dmg_sound      | -        | Not tested yet             |
+
+## Resources
+
+- [Pastraiser's Gameboy CPU (LR35902) instruction set](http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
+- [GameBoy Opcode Summary](http://www.devrs.com/gb/files/opcodes.html)
+- [gbz80](https://rednex.github.io/rgbds/gbz80.7.html)
+
+... and any other brave soul posting any kind of GB info on the Internet :pray:
