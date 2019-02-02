@@ -6,7 +6,7 @@ pub enum Peripheral {
     VPU,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryType {
     RomBank(u8),
     VideoRam,
@@ -19,7 +19,49 @@ pub enum MemoryType {
     NotUsable,
 }
 
+impl Default for MemoryType {
+    fn default() -> Self {
+        MemoryType::RomBank(0)
+    }
+}
+
+pub struct Iter(Option<MemoryType>);
+
+impl Iterator for Iter {
+    type Item = MemoryType;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use MemoryType::*;
+
+        let ret = self.0;
+
+        self.0 = match self.0 {
+            None => Some(RomBank(0)),
+            Some(m) => match m {
+                RomBank(0) => Some(RomBank(1)),
+                RomBank(_) => Some(VideoRam),
+                VideoRam => Some(ExternalRam),
+                ExternalRam => Some(WorkRamBank(0)),
+                WorkRamBank(0) => Some(WorkRamBank(1)),
+                WorkRamBank(_) => Some(EchoRam(0)),
+                EchoRam(0) => Some(EchoRam(1)),
+                EchoRam(_) => Some(SpriteMemory),
+                SpriteMemory => Some(NotUsable),
+                NotUsable => Some(IoSpace),
+                IoSpace => Some(HighRam),
+                HighRam => None,
+            },
+        };
+
+        ret
+    }
+}
+
 impl MemoryType {
+    pub fn iter(self) -> Iter {
+        Iter(Some(self))
+    }
+
     pub fn range(self) -> RangeInclusive<u16> {
         use MemoryType::*;
 

@@ -1,10 +1,12 @@
 mod debugger;
 mod disassembly;
 mod memedit;
+mod memmap;
 
 pub use debugger::*;
 pub use disassembly::*;
 pub use memedit::*;
+pub use memmap::*;
 
 use super::dbg;
 use super::utils;
@@ -17,6 +19,7 @@ pub enum View {
     Debugger,
     Disassembly,
     MemEditor,
+    MemMap,
 }
 
 pub trait WindowView {

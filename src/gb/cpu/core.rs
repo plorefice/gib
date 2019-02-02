@@ -91,8 +91,12 @@ impl CPU {
         self.breakpoints.remove(&addr);
     }
 
-    pub fn breakpoint_at(&mut self, addr: u16) -> bool {
+    pub fn breakpoint_at(&self, addr: u16) -> bool {
         self.breakpoints.contains(&addr)
+    }
+
+    pub fn breakpoints(&self) -> &HashSet<u16> {
+        &self.breakpoints
     }
 }
 

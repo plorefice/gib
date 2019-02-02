@@ -7,7 +7,7 @@ mod views;
 
 use ctx::UiContext;
 use state::EmuState;
-use views::{DebuggerView, DisassemblyView, MemEditView, View, WindowView};
+use views::{DebuggerView, DisassemblyView, MemEditView, MemMapView, View, WindowView};
 
 use failure::Error;
 
@@ -83,6 +83,7 @@ impl EmuUi {
             views.insert(View::Disassembly, box DisassemblyView::new(emu));
             views.insert(View::Debugger, box DebuggerView::new());
             views.insert(View::MemEditor, box MemEditView::new());
+            views.insert(View::MemMap, box MemMapView::new());
         }
         Ok(())
     }
@@ -165,6 +166,17 @@ impl EmuUi {
             });
 
             ui.menu(im_str!("Hardware")).build(|| {
+                if ui
+                    .menu_item(im_str!("Memory Map"))
+                    .enabled(emu_running)
+                    .build()
+                {
+                    self.gui
+                        .views
+                        .entry(View::MemMap)
+                        .or_insert_with(|| box MemMapView::new());
+                }
+
                 ui.menu_item(im_str!("VPU")).enabled(emu_running).build();
                 ui.menu_item(im_str!("APU")).enabled(emu_running).build();
                 ui.menu_item(im_str!("TIM")).enabled(emu_running).build();
@@ -180,7 +192,7 @@ impl EmuUi {
                     self.gui
                         .views
                         .entry(View::Debugger)
-                        .or_insert_with(|| Box::new(DebuggerView::new()));
+                        .or_insert_with(|| box DebuggerView::new());
                 }
 
                 if ui
@@ -192,7 +204,7 @@ impl EmuUi {
                         self.gui
                             .views
                             .entry(View::Disassembly)
-                            .or_insert_with(|| Box::new(DisassemblyView::new(emu)));
+                            .or_insert_with(|| box DisassemblyView::new(emu));
                     }
                 }
 
@@ -204,7 +216,7 @@ impl EmuUi {
                     self.gui
                         .views
                         .entry(View::MemEditor)
-                        .or_insert_with(|| Box::new(MemEditView::new()));
+                        .or_insert_with(|| box MemEditView::new());
                 }
             })
         });
