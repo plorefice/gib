@@ -5,6 +5,7 @@ pub trait MemSize: Default {
 
     fn read_le(buf: &[u8]) -> Result<Self, dbg::TraceEvent>;
     fn write_le(buf: &mut [u8], v: Self) -> Result<(), dbg::TraceEvent>;
+    fn write_mut_le(buf: &mut [&mut u8], v: Self) -> Result<(), dbg::TraceEvent>;
 }
 
 impl MemSize for u8 {
@@ -20,6 +21,11 @@ impl MemSize for u8 {
         buf[0] = v;
         Ok(())
     }
+
+    fn write_mut_le(buf: &mut [&mut u8], v: u8) -> Result<(), dbg::TraceEvent> {
+        *buf[0] = v;
+        Ok(())
+    }
 }
 
 impl MemSize for i8 {
@@ -33,6 +39,11 @@ impl MemSize for i8 {
 
     fn write_le(buf: &mut [u8], v: i8) -> Result<(), dbg::TraceEvent> {
         buf[0] = v as u8;
+        Ok(())
+    }
+
+    fn write_mut_le(buf: &mut [&mut u8], v: i8) -> Result<(), dbg::TraceEvent> {
+        *buf[0] = v as u8;
         Ok(())
     }
 }
@@ -56,6 +67,16 @@ impl MemSize for u16 {
         } else {
             buf[0] = (v & 0xFF) as u8;
             buf[1] = (v >> 8) as u8;
+            Ok(())
+        }
+    }
+
+    fn write_mut_le(buf: &mut [&mut u8], v: u16) -> Result<(), dbg::TraceEvent> {
+        if buf.len() < u16::byte_size() as usize {
+            Err(dbg::TraceEvent::AccessFault)
+        } else {
+            *buf[0] = (v & 0xFF) as u8;
+            *buf[1] = (v >> 8) as u8;
             Ok(())
         }
     }

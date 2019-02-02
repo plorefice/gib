@@ -15,20 +15,12 @@ impl Memory {
 
 impl MemR for Memory {
     fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
-        if usize::from(addr) < self.data.len() {
-            T::read_le(&self.data[usize::from(addr)..])
-        } else {
-            Err(dbg::TraceEvent::MemFault(addr))
-        }
+        T::read_le(&self.data[usize::from(addr)..])
     }
 }
 
 impl MemW for Memory {
     fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
-        if usize::from(addr) < self.data.len() {
-            T::write_le(&mut self.data[usize::from(addr)..], val)
-        } else {
-            Err(dbg::TraceEvent::MemFault(addr))
-        }
+        T::write_le(&mut self.data[usize::from(addr)..], val)
     }
 }

@@ -69,45 +69,28 @@ impl Timer {
 
 impl MemR for Timer {
     fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
-        if T::byte_size() != 1 {
-            // Only single-byte access is supported
-            Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr))
-        } else {
-            match addr {
-                0xFF04 => T::read_le(&[self.div.0]),
-                0xFF05 => T::read_le(&[self.tima.0]),
-                0xFF06 => T::read_le(&[self.tma.0]),
-                0xFF07 => T::read_le(&[self.tac.0]),
-                _ => Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr)),
-            }
+        match addr {
+            0xFF04 => T::read_le(&[self.div.0]),
+            0xFF05 => T::read_le(&[self.tima.0]),
+            0xFF06 => T::read_le(&[self.tma.0]),
+            0xFF07 => T::read_le(&[self.tac.0]),
+            _ => Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr)),
         }
     }
 }
 
 impl MemW for Timer {
     fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
-        if T::byte_size() != 1 {
-            // Only single-byte access is supported
-            Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr))
-        } else {
-            // Any write to DIV resets it to 0
-            if addr == 0xFF04 {
-                self.reset_div();
-                return Ok(());
-            }
-
-            let dest = match addr {
-                0xFF05 => &mut self.tima.0,
-                0xFF06 => &mut self.tma.0,
-                0xFF07 => &mut self.tac.0,
-                _ => return Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr)),
-            };
-
-            let mut scratch = [*dest];
-            T::write_le(&mut scratch[..], val)?;
-            *dest = scratch[0];
-
+        if addr == 0xFF04 {
+            self.reset_div();
             Ok(())
+        } else {
+            match addr {
+                0xFF05 => T::write_mut_le(&mut [&mut self.tima.0], val),
+                0xFF06 => T::write_mut_le(&mut [&mut self.tma.0], val),
+                0xFF07 => T::write_mut_le(&mut [&mut self.tac.0], val),
+                _ => Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr)),
+            }
         }
     }
 }
