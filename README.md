@@ -64,16 +64,16 @@ are shown below.
 
 **NOTE**: soon there will be an automated test suite to run and check these.
 
-| Test ROM       | Progress | Notes                      |
-| -------------- | -------- | -------------------------- |
-| cpu_instrs     | 45%      | 03, 06, 07, 08, 10 passing |
-| instr_timing   | -        | Not tested yet             |
-| interrupt_time | -        | Not tested yet             |
-| mem_timing-2   | -        | Not tested yet             |
-| mem_timing     | -        | Not tested yet             |
-| halt_bug       | -        | Not tested yet             |
-| oam_bug        | -        | Not tested yet             |
-| dmg_sound      | -        | Not tested yet             |
+| Test ROM       | Progress | Notes                          |
+| -------------- | -------- | ------------------------------ |
+| cpu_instrs     | 55%      | 03, 05, 06, 07, 08, 10 passing |
+| instr_timing   | -        | Not tested yet                 |
+| interrupt_time | -        | Not tested yet                 |
+| mem_timing-2   | -        | Not tested yet                 |
+| mem_timing     | -        | Not tested yet                 |
+| halt_bug       | -        | Not tested yet                 |
+| oam_bug        | -        | Not tested yet                 |
+| dmg_sound      | -        | Not tested yet                 |
 
 ## Resources
 
