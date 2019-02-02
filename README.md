@@ -49,7 +49,7 @@ are shown below.
 
 | Peripheral | Progress | Notes                               |
 | ---------- | -------- | ----------------------------------- |
-| CPU        | 95%      | DAA missing, more testing required  |
+| CPU        | 100%     | More testing required               |
 | Video      | 10%      | BG support and screen blanking only |
 | Sound      | 0%       | Not implemented yet                 |
 | Joypad     | 0%       | Not implemented yet                 |
@@ -64,16 +64,16 @@ are shown below.
 
 **NOTE**: soon there will be an automated test suite to run and check these.
 
-| Test ROM       | Progress | Notes                 |
-| -------------- | -------- | --------------------- |
-| cpu_instrs     | 75%      | 01, 02 and 11 failing |
-| instr_timing   | -        | Not tested yet        |
-| interrupt_time | -        | Not tested yet        |
-| mem_timing-2   | -        | Not tested yet        |
-| mem_timing     | -        | Not tested yet        |
-| halt_bug       | -        | Not tested yet        |
-| oam_bug        | -        | Not tested yet        |
-| dmg_sound      | -        | Not tested yet        |
+| Test ROM       | Progress | Notes          |
+| -------------- | -------- | -------------- |
+| cpu_instrs     | 90%      | 02 failing     |
+| instr_timing   | -        | Not tested yet |
+| interrupt_time | -        | Not tested yet |
+| mem_timing-2   | -        | Not tested yet |
+| mem_timing     | -        | Not tested yet |
+| halt_bug       | -        | Not tested yet |
+| oam_bug        | -        | Not tested yet |
+| dmg_sound      | -        | Not tested yet |
 
 ## Resources
 
