@@ -181,10 +181,10 @@ impl PPU {
 
     fn shade(&self, color: u8) -> u8 {
         match (self.bgp().0 >> (color * 2)) & 0x3 {
-            0 => 0xFF,
-            1 => 0xAA,
-            2 => 0x55,
-            3 => 0x00,
+            0b00 => 0xFF,
+            0b01 => 0xAA,
+            0b10 => 0x55,
+            0b11 => 0x00,
             _ => unreachable!(),
         }
     }

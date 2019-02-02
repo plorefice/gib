@@ -37,6 +37,7 @@ impl GameBoy {
         };
 
         self.bus.ppu.tick(elapsed);
+        self.bus.tim.tick(elapsed);
 
         Ok(())
     }
