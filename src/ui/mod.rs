@@ -52,7 +52,7 @@ pub struct EmuUi {
 
     emu: Option<EmuState>,
     vpu_buffer: Vec<u8>,
-    vpu_texture: Option<imgui::ImTexture>,
+    vpu_texture: imgui::ImTexture,
 }
 
 impl EmuUi {
@@ -60,13 +60,29 @@ impl EmuUi {
         let mut gui = GuiState::default();
         gui.debug = debug;
 
+        let mut ctx = UiContext::new();
+
+        let vpu_buffer = vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4];
+        let vpu_texture = ctx.renderer.textures().insert(
+            Texture2d::new(
+                ctx.display.get_context(),
+                RawImage2d {
+                    data: Cow::Borrowed(&vpu_buffer[..]),
+                    width: EMU_X_RES as u32,
+                    height: EMU_Y_RES as u32,
+                    format: ClientFormat::U8U8U8U8,
+                },
+            )
+            .unwrap(),
+        );
+
         EmuUi {
-            ctx: Rc::from(RefCell::new(UiContext::new())),
+            ctx: Rc::from(RefCell::from(ctx)),
             gui,
 
             emu: None,
-            vpu_buffer: vec![0; EMU_X_RES * EMU_Y_RES * 4],
-            vpu_texture: None,
+            vpu_buffer,
+            vpu_texture,
         }
     }
 
@@ -120,11 +136,9 @@ impl EmuUi {
                 )
                 .unwrap();
 
-                if let Some(texture) = self.vpu_texture {
-                    ctx.renderer.textures().replace(texture, new_screen);
-                } else {
-                    self.vpu_texture = Some(ctx.renderer.textures().insert(new_screen));
-                }
+                ctx.renderer
+                    .textures()
+                    .replace(self.vpu_texture, new_screen);
             }
 
             ctx.render(delta_s, |ui| self.draw(delta_s, ui));
@@ -253,10 +267,8 @@ impl EmuUi {
             .position((720.0, 30.0), ImGuiCond::FirstUseEver)
             .resizable(false)
             .build(|| {
-                if let Some(texture) = self.vpu_texture {
-                    ui.image(texture, (EMU_X_RES as f32, EMU_Y_RES as f32))
-                        .build();
-                }
+                ui.image(self.vpu_texture, (EMU_X_RES as f32, EMU_Y_RES as f32))
+                    .build();
             });
     }
 }
