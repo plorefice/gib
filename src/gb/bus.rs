@@ -1,5 +1,5 @@
 use super::dbg;
-use super::io::{Timer, APU, PPU};
+use super::io::{Serial, Timer, APU, PPU};
 use super::mem::{MemR, MemRW, MemSize, MemW, Memory};
 
 const BOOT_ROM: [u8; 256] = [
@@ -34,6 +34,7 @@ pub struct Bus {
     pub apu: APU,
     pub ppu: PPU,
     pub tim: Timer,
+    pub sdt: Serial,
 }
 
 impl Bus {
@@ -51,6 +52,7 @@ impl Bus {
             apu: APU::new(),
             ppu: PPU::new(),
             tim: Timer::new(),
+            sdt: Serial::new(),
         }
     }
 
@@ -101,6 +103,7 @@ impl MemR for Bus {
             0xE000..=0xEFFF => self.wram_00.read(addr - 0xE000),
             0xF000..=0xFDFF => self.wram_nn.read(addr - 0xF000),
             0xFE00..=0xFE9F => self.ppu.read(addr),
+            0xFF01..=0xFF02 => self.sdt.read(addr),
             0xFF04..=0xFF07 => self.tim.read(addr),
             0xFF10..=0xFF3F => self.apu.read(addr),
             0xFF40..=0xFF4F => self.ppu.read(addr),
@@ -122,6 +125,7 @@ impl MemW for Bus {
             0xE000..=0xEFFF => self.wram_00.write(addr - 0xE000, val),
             0xF000..=0xFDFF => self.wram_nn.write(addr - 0xF000, val),
             0xFE00..=0xFE9F => self.ppu.write(addr, val),
+            0xFF01..=0xFF02 => self.sdt.write(addr, val),
             0xFF04..=0xFF07 => self.tim.write(addr, val),
             0xFF10..=0xFF3F => self.apu.write(addr, val),
             0xFF40..=0xFF4F => self.ppu.write(addr, val),
