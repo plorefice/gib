@@ -1,5 +1,7 @@
 # gb-rs
 
+[![License: MIT/Apache-2.0](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
+
 Original Gameboy (DMG) emulator written in Rust, also featuring several tools
 for ROM debugging and development.
 
