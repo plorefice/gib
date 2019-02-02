@@ -115,7 +115,7 @@ macro_rules! add16 {
         $dst += $v;
 
         $cpu.set_sf(false);
-        $cpu.set_hc((old & 0xF) + ($v & 0xF) >= 0x10);
+        $cpu.set_hc((old & 0x0FFF) + ($v & 0x0FFF) >= 0x1000);
         $cpu.set_cy($dst < old);
         $cpu.clk += 4;
     }};
