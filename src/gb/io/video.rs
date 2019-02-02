@@ -100,22 +100,34 @@ impl PPU {
             for b in vbuf.iter_mut() {
                 *b = 0xFF;
             }
-        } else {
-            for py in 0usize..144 {
-                for px in 0usize..160 {
-                    let y = (py + usize::from(self.scroll_y().0)) % 256;
-                    let x = (px + usize::from(self.scroll_x().0)) % 256;
+            return;
+        }
 
-                    let pid = (py * (160 * 4)) + (px * 4);
+        self.rasterize_bg(vbuf);
+    }
 
-                    let t = self.bg_tile(((y >> 3) << 5) + (x >> 3));
-                    let px = t.pixel((x & 0x07) as u8, (y & 0x7) as u8);
-                    let shade = self.shade(px);
+    fn rasterize_bg(&self, vbuf: &mut [u8]) {
+        if !self.lcdc().bit(0) {
+            for b in vbuf.iter_mut() {
+                *b = 0xFF;
+            }
+            return;
+        }
 
-                    vbuf[pid] = shade;
-                    vbuf[pid + 1] = shade;
-                    vbuf[pid + 2] = shade;
-                }
+        for py in 0usize..144 {
+            for px in 0usize..160 {
+                let y = (py + usize::from(self.scroll_y().0)) % 256;
+                let x = (px + usize::from(self.scroll_x().0)) % 256;
+
+                let pid = (py * (160 * 4)) + (px * 4);
+
+                let t = self.bg_tile(((y >> 3) << 5) + (x >> 3));
+                let px = t.pixel((x & 0x07) as u8, (y & 0x7) as u8);
+                let shade = self.shade(px);
+
+                vbuf[pid] = shade;
+                vbuf[pid + 1] = shade;
+                vbuf[pid + 2] = shade;
             }
         }
     }
