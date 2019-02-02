@@ -402,7 +402,10 @@ impl CPU {
             0xC1 => pop!(self, bus, bc),
             0xD1 => pop!(self, bus, de),
             0xE1 => pop!(self, bus, hl),
-            0xF1 => pop!(self, bus, af),
+            0xF1 => {
+                pop!(self, bus, af);
+                self.af &= 0xFFF0;
+            }
 
             0xC5 => push!(self, bus, bc),
             0xD5 => push!(self, bus, de),
