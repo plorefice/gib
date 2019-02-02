@@ -118,6 +118,7 @@ impl MemR for Bus {
 impl MemW for Bus {
     fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
         match addr {
+            0x0000..=0x7FFF => Ok(()), /* Writing to ROM is a no-op */
             0x8000..=0x9FFF => self.ppu.write(addr, val),
             0xA000..=0xBFFF => self.eram.write(addr - 0xA000, val),
             0xC000..=0xCFFF => self.wram_00.write(addr - 0xC000, val),
@@ -125,11 +126,13 @@ impl MemW for Bus {
             0xE000..=0xEFFF => self.wram_00.write(addr - 0xE000, val),
             0xF000..=0xFDFF => self.wram_nn.write(addr - 0xF000, val),
             0xFE00..=0xFE9F => self.ppu.write(addr, val),
+            0xFEA0..=0xFEFF => Ok(()), /* Writing to unused memory is also a no-op */
             0xFF01..=0xFF02 => self.sdt.write(addr, val),
             0xFF04..=0xFF07 => self.tim.write(addr, val),
             0xFF10..=0xFF3F => self.apu.write(addr, val),
             0xFF40..=0xFF4F => self.ppu.write(addr, val),
             0xFF51..=0xFF6F => self.ppu.write(addr, val),
+            0xFF70..=0xFF7F => Ok(()), /* Some of this space is used by CGB, but not DMG */
             0xFF80..=0xFFFE => self.hram.write(addr - 0xFF80, val),
             0xFF50 => self.disable_bootrom(),
             0xFF0F | 0xFFFF => Ok(()), /* Interrupts not implemented yet */
