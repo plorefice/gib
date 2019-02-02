@@ -105,13 +105,18 @@ macro_rules! add {
 }
 
 macro_rules! sub {
-    ($cpu:ident, $v:expr) => {{
-        let x = $cpu.a();
-        let y = $v;
+    ($cpu:ident, $v:expr, $cy:expr) => {{
+        let x = u16::from($cpu.a());
+        let y = u16::from($v);
+        let c = u16::from($cy);
 
-        $cpu.set_a(x - y);
+        let r = x - y - c;
+        $cpu.set_a(r as u8);
 
-        cmp!($cpu, x, y);
+        $cpu.set_zf($cpu.a() == 0);
+        $cpu.set_sf(true);
+        $cpu.set_hc((y & 0xF) + c > (x & 0xF));
+        $cpu.set_cy(r >= 0x100);
     }};
 }
 
@@ -489,25 +494,25 @@ impl CPU {
             0x8E => { let d8: u8 = self.fetch(bus, self.hl)?; add!(self, d8, self.cy() as u8); }
             0xCE => { let d8: u8 = self.fetch_pc(bus)?; add!(self, d8, self.cy() as u8); }
 
-            0x90 => sub!(self, self.b()),
-            0x91 => sub!(self, self.c()),
-            0x92 => sub!(self, self.d()),
-            0x93 => sub!(self, self.e()),
-            0x94 => sub!(self, self.h()),
-            0x95 => sub!(self, self.l()),
-            0x97 => sub!(self, self.a()),
-            0x96 => { let d8: u8 = self.fetch(bus, self.hl)?; sub!(self, d8); }
-            0xD6 => { let d8: u8 = self.fetch_pc(bus)?; sub!(self, d8); }
+            0x90 => sub!(self, self.b(), 0u8),
+            0x91 => sub!(self, self.c(), 0u8),
+            0x92 => sub!(self, self.d(), 0u8),
+            0x93 => sub!(self, self.e(), 0u8),
+            0x94 => sub!(self, self.h(), 0u8),
+            0x95 => sub!(self, self.l(), 0u8),
+            0x97 => sub!(self, self.a(), 0u8),
+            0x96 => { let d8: u8 = self.fetch(bus, self.hl)?; sub!(self, d8, 0u8); }
+            0xD6 => { let d8: u8 = self.fetch_pc(bus)?; sub!(self, d8, 0u8); }
 
-            0x98 => sub!(self, self.b() + u8::from(self.cy())),
-            0x99 => sub!(self, self.c() + u8::from(self.cy())),
-            0x9A => sub!(self, self.d() + u8::from(self.cy())),
-            0x9B => sub!(self, self.e() + u8::from(self.cy())),
-            0x9C => sub!(self, self.h() + u8::from(self.cy())),
-            0x9D => sub!(self, self.l() + u8::from(self.cy())),
-            0x9F => sub!(self, self.a() + u8::from(self.cy())),
-            0x9E => { let d8: u8 = self.fetch(bus, self.hl)?; sub!(self, d8 + u8::from(self.cy())); }
-            0xDE => { let d8: u8 = self.fetch_pc(bus)?; sub!(self, d8 + u8::from(self.cy())); }
+            0x98 => sub!(self, self.b(), self.cy() as u8),
+            0x99 => sub!(self, self.c(), self.cy() as u8),
+            0x9A => sub!(self, self.d(), self.cy() as u8),
+            0x9B => sub!(self, self.e(), self.cy() as u8),
+            0x9C => sub!(self, self.h(), self.cy() as u8),
+            0x9D => sub!(self, self.l(), self.cy() as u8),
+            0x9F => sub!(self, self.a(), self.cy() as u8),
+            0x9E => { let d8: u8 = self.fetch(bus, self.hl)?; sub!(self, d8, self.cy() as u8); }
+            0xDE => { let d8: u8 = self.fetch_pc(bus)?; sub!(self, d8, self.cy() as u8); }
 
             0xA0 => and!(self, self.b()),
             0xA1 => and!(self, self.c()),
