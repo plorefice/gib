@@ -1,3 +1,4 @@
+mod interrupts;
 mod joypad;
 mod reg;
 mod serial;
@@ -9,6 +10,7 @@ use super::dbg;
 use super::mem::*;
 use reg::*;
 
+pub use interrupts::*;
 pub use joypad::*;
 pub use serial::*;
 pub use sound::*;

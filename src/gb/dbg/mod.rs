@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 pub enum Peripheral {
     VPU,
     TIM,
+    ITR,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
