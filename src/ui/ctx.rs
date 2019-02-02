@@ -25,6 +25,7 @@ pub struct UiContext {
 
     mouse_state: MouseState,
     should_quit: bool,
+    focused: bool,
 }
 
 impl UiContext {
@@ -56,6 +57,7 @@ impl UiContext {
 
             mouse_state: MouseState::default(),
             should_quit: false,
+            focused: true,
         }
     }
 
@@ -66,6 +68,7 @@ impl UiContext {
         events_loop.borrow_mut().poll_events(|event| {
             if let Event::WindowEvent { event, .. } = event {
                 match event {
+                    Focused(focus) => self.focused = focus,
                     CloseRequested => {
                         self.should_quit = true;
                     }
@@ -136,6 +139,12 @@ impl UiContext {
             .render(&mut target, ui)
             .expect("Rendering failed");
         target.finish().unwrap();
+
+        if !self.focused {
+            // Throttle to 10 fps when in background, since macOS doesn't honor
+            // V-Sync settings for non-visible windows, making the CPU shoot to 100%.
+            std::thread::sleep(std::time::Duration::from_nanos(1_000_000_000 / 10));
+        }
     }
 
     fn window(&self) -> std::cell::Ref<'_, glutin::GlWindow> {
