@@ -558,7 +558,27 @@ impl CPU {
             0x37 => { self.set_sf(false); self.set_hc(false); self.set_cy(true); }
             0x3F => { self.set_sf(false); self.set_hc(false); self.set_cy(!self.cy()); }
 
-            0x27 => return Err(dbg::TraceEvent::IllegalInstructionFault(opcode)),
+            0x27 => {
+                if !self.sf() {
+                    if self.cy() || self.a() > 0x99 {
+                        self.set_a(self.a() + 0x60);
+                        self.set_cy(true);
+                    }
+                    if self.hc() || (self.a() & 0x0f) > 0x09 {
+                        self.set_a(self.a() + 0x06);
+                    }
+                } else {
+                    if self.cy() {
+                        self.set_a(self.a() - 0x60);
+                    }
+                    if self.hc() {
+                        self.set_a(self.a() - 0x06);
+                    }
+                }
+
+                self.set_zf(self.a() == 0);
+                self.set_hc(false);
+            }
 
             /*
              * 	16bit arithmetic/logical instructions
@@ -1070,7 +1090,7 @@ mod test {
 
     #[test]
     fn opcode_misc_timings() {
-        [0x00u8, 0x10, 0x76, 0xF3, 0xFB]
+        [0x00u8, 0x10, 0x27, 0x76, 0xF3, 0xFB]
             .iter()
             .for_each(|&opc| check_opcode(None, opc, 1, 4));
     }
