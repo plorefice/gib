@@ -1,5 +1,5 @@
 use super::dbg;
-use super::io::{Joypad, Serial, Timer, APU, PPU};
+use super::io::{IrqController, Joypad, Serial, Timer, APU, PPU};
 use super::mem::{MemR, MemRW, MemSize, MemW, Memory};
 
 const BOOT_ROM: [u8; 256] = [
@@ -36,6 +36,7 @@ pub struct Bus {
     pub tim: Timer,
     pub sdt: Serial,
     pub pad: Joypad,
+    pub itr: IrqController,
 }
 
 impl Bus {
@@ -55,6 +56,7 @@ impl Bus {
             tim: Timer::new(),
             sdt: Serial::new(),
             pad: Joypad::new(),
+            itr: IrqController::new(),
         }
     }
 
@@ -112,7 +114,7 @@ impl MemR for Bus {
             0xFF40..=0xFF4F => self.ppu.read(addr),
             0xFF51..=0xFF6F => self.ppu.read(addr),
             0xFF80..=0xFFFE => self.hram.read(addr - 0xFF80),
-            0xFF0F | 0xFFFF => Ok(T::default()), /* Interrupts not implemented yet */
+            0xFF0F | 0xFFFF => self.itr.read(addr),
             _ => Err(dbg::TraceEvent::BusFault(addr)),
         }
     }
@@ -138,8 +140,8 @@ impl MemW for Bus {
             0xFF51..=0xFF6F => self.ppu.write(addr, val),
             0xFF70..=0xFF7F => Ok(()), /* Some of this space is used by CGB, but not DMG */
             0xFF80..=0xFFFE => self.hram.write(addr - 0xFF80, val),
+            0xFF0F | 0xFFFF => self.itr.write(addr, val),
             0xFF50 => self.disable_bootrom(),
-            0xFF0F | 0xFFFF => Ok(()), /* Interrupts not implemented yet */
             _ => Err(dbg::TraceEvent::BusFault(addr)),
         }
     }

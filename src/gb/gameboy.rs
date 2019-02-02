@@ -25,6 +25,10 @@ impl GameBoy {
     }
 
     pub fn step(&mut self) -> Result<(), dbg::TraceEvent> {
+        if self.cpu.intr_enabled {
+            self.run_irqs()?;
+        }
+
         let elapsed = {
             let clk = self.cpu.clk;
 
@@ -37,9 +41,37 @@ impl GameBoy {
         };
 
         self.bus.ppu.tick(elapsed);
-        self.bus.tim.tick(elapsed);
+
+        if self.bus.tim.tick(elapsed) {
+            self.bus.itr.ifg.set_bit(2);
+        }
 
         Ok(())
+    }
+
+    fn run_irqs(&mut self) -> Result<(), dbg::TraceEvent> {
+        let mut req = || {
+            let itr = &mut self.bus.itr;
+
+            for req_id in 0..=4 {
+                if itr.ien.bit(req_id) && itr.ifg.bit(req_id) {
+                    // Disable interrupts when entering ISR
+                    itr.ifg.clear_bit(req_id);
+                    self.cpu.intr_enabled = false;
+
+                    // Address of the ISR to be run
+                    return Some((0x40 + 0x08 * req_id) as u8);
+                }
+            }
+            None
+        };
+
+        if let Some(r) = req() {
+            // Execute RST instruction
+            self.cpu.op(&mut self.bus, r)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn run_for_vblank(&mut self) -> Result<(), dbg::TraceEvent> {

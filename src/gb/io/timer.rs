@@ -25,9 +25,9 @@ impl Timer {
         Timer::default()
     }
 
-    pub fn tick(&mut self, elapsed: u64) {
+    pub fn tick(&mut self, elapsed: u64) -> bool {
         self.tick_div(elapsed);
-        self.tick_tima(elapsed);
+        self.tick_tima(elapsed)
     }
 
     fn tick_div(&mut self, elapsed: u64) {
@@ -35,10 +35,10 @@ impl Timer {
         self.div_elapsed_clks = (self.div_elapsed_clks + elapsed) % DIV_RATE;
     }
 
-    fn tick_tima(&mut self, elapsed: u64) {
+    fn tick_tima(&mut self, elapsed: u64) -> bool {
         // Do nothing if timer is disable
         if !self.tac.bit(2) {
-            return;
+            return false;
         }
 
         let rate = match self.tac.0 & 0x3 {
@@ -56,7 +56,9 @@ impl Timer {
         // Reload with TMA when TIMA overflows
         if old_tima > self.tima.0 {
             self.tima = self.tma;
-            // TODO: an interrupt needs to be generated in this occasion
+            true
+        } else {
+            false
         }
     }
 
