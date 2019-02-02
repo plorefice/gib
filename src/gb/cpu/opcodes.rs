@@ -532,7 +532,7 @@ impl CPU {
             0x37 => { self.set_sf(false); self.set_hc(false); self.set_cy(true); }
             0x3F => { self.set_sf(false); self.set_hc(false); self.set_cy(!self.cy()); }
 
-            0x27 => unimplemented!(),
+            0x27 => return Err(dbg::TraceEvent::IllegalInstructionFault(opcode)),
 
             /*
              * 	16bit arithmetic/logical instructions
