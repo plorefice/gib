@@ -79,7 +79,13 @@ impl EmuState {
     }
 
     pub fn reset(&mut self) -> Result<(), Error> {
+        // Save breakpoints to restore after reset
+        let bkps = self.cpu().breakpoints().clone();
+
         *self = EmuState::new(&self.rom_file)?;
+        for b in bkps.iter() {
+            self.cpu_mut().set_breakpoint(*b);
+        }
         Ok(())
     }
 
