@@ -106,6 +106,7 @@ impl MemR for Bus {
             0xFF40..=0xFF4F => self.ppu.read(addr),
             0xFF51..=0xFF6F => self.ppu.read(addr),
             0xFF80..=0xFFFE => self.hram.read(addr - 0xFF80),
+            0xFF0F | 0xFFFF => Ok(T::default()), /* Interrupts not implemented yet */
             _ => Err(dbg::TraceEvent::BusFault(addr)),
         }
     }
@@ -127,6 +128,7 @@ impl MemW for Bus {
             0xFF51..=0xFF6F => self.ppu.write(addr, val),
             0xFF80..=0xFFFE => self.hram.write(addr - 0xFF80, val),
             0xFF50 => self.disable_bootrom(),
+            0xFF0F | 0xFFFF => Ok(()), /* Interrupts not implemented yet */
             _ => Err(dbg::TraceEvent::BusFault(addr)),
         }
     }
