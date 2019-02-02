@@ -64,9 +64,7 @@ impl DisassemblyView {
                     instr.opcode,
                     match instr.imm {
                         Some(Immediate::Imm8(d8)) => format!("{:02X}", d8),
-                        Some(Immediate::Imm16(d16)) => {
-                            format!("{:02X} {:02X}", d16 & 0xFF, d16 >> 8)
-                        }
+                        Some(Immediate::Imm16(d16)) => format!("{:04X}", d16),
                         None => String::new(),
                     },
                     instr.mnemonic
@@ -108,7 +106,7 @@ impl DisassemblyView {
                         if *addr == dest {
                             unsafe {
                                 imgui_sys::igSetScrollY(
-                                    ui.get_text_line_height_with_spacing() * i as f32 - h / 2.0,
+                                    ui.get_text_line_height_with_spacing() * i as f32 - h / 3.0,
                                 );
                             }
                             break;
