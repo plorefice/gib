@@ -8,13 +8,13 @@ enum Register {
     SCY = 0x02,
     SCX = 0x03,
     LY = 0x04,
-    LYC = 0x05,
-    DMA = 0x06,
+    // LYC = 0x05,
+    // DMA = 0x06,
     BGP = 0x07,
-    OBP0 = 0x08,
-    OBP1 = 0x09,
-    WY = 0x0A,
-    WX = 0x0B,
+    // OBP0 = 0x08,
+    // OBP1 = 0x09,
+    // WY = 0x0A,
+    // WX = 0x0B,
 }
 
 #[derive(Default, Copy, Clone)]
