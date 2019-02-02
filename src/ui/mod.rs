@@ -74,13 +74,9 @@ impl EmuUi {
         self.emu = Some(EmuState::new(rom)?);
 
         if self.gui.debug {
-            let emu = match self.emu {
-                Some(ref emu) => emu,
-                None => unreachable!(),
-            };
-
             let views = &mut self.gui.views;
-            views.insert(View::Disassembly, box DisassemblyView::new(emu));
+
+            views.insert(View::Disassembly, box DisassemblyView::new());
             views.insert(View::Debugger, box DebuggerView::new());
             views.insert(View::MemEditor, box MemEditView::new());
             views.insert(View::MemMap, box MemMapView::new());
@@ -200,12 +196,10 @@ impl EmuUi {
                     .enabled(emu_running)
                     .build()
                 {
-                    if let Some(ref emu) = self.emu {
-                        self.gui
-                            .views
-                            .entry(View::Disassembly)
-                            .or_insert_with(|| box DisassemblyView::new(emu));
-                    }
+                    self.gui
+                        .views
+                        .entry(View::Disassembly)
+                        .or_insert_with(|| box DisassemblyView::new());
                 }
 
                 if ui

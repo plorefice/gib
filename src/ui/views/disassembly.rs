@@ -15,23 +15,20 @@ pub struct DisassemblyView {
 }
 
 impl DisassemblyView {
-    pub fn new(state: &EmuState) -> DisassemblyView {
-        let mut dw = DisassemblyView {
+    pub fn new() -> DisassemblyView {
+        DisassemblyView {
             section: dbg::MemoryType::RomBank(0),
             disasm: BTreeMap::new(),
             follow_pc: false,
             goto_addr: Some(0),
-        };
-
-        dw.realign_disasm(state, 0);
-        dw
+        }
     }
 
     /// If there is alread an instruction decoded at address `from`, do nothing.
     /// Otherwise, fetch the instruction at from, invalidate all the overlapping
     /// instructions and update the disassembly. Do this until it's aligned again.
     /// If `from` is outside the current memory space, swap it and reload disasm.
-    fn realign_disasm(&mut self, state: &EmuState, mut from: u16) {
+    fn realign_disasm(&mut self, state: &mut EmuState, mut from: u16) {
         let cpu = state.cpu();
         let bus = state.bus();
 
@@ -46,7 +43,14 @@ impl DisassemblyView {
         }
 
         while from < *mem_range.end() {
-            let instr = cpu.disasm(bus, from);
+            let instr = match cpu.disasm(bus, from) {
+                Ok(instr) => instr,
+                Err(evt) => {
+                    state.fault(evt);
+                    return;
+                }
+            };
+
             let next = from + u16::from(instr.size);
 
             if self.disasm.get(&from).is_some() {

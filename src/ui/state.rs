@@ -37,6 +37,11 @@ impl EmuState {
         self.gb.cpu_mut().pause();
     }
 
+    pub fn fault(&mut self, evt: dbg::TraceEvent) {
+        self.trace_event = Some(evt);
+        self.pause();
+    }
+
     pub fn do_step(&mut self, vbuf: &mut [u8]) {
         if self.paused() {
             return;

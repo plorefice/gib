@@ -1010,14 +1010,13 @@ mod test {
 
     impl<'a> MemR for &'a mut [u8] {
         fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
-            Ok(T::read_le(&self[addr as usize..]))
+            T::read_le(&self[addr as usize..])
         }
     }
 
     impl<'a> MemW for &'a mut [u8] {
         fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
-            T::write_le(&mut self[addr as usize..], val);
-            Ok(())
+            T::write_le(&mut self[addr as usize..], val)
         }
     }
 

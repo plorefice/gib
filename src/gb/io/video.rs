@@ -52,7 +52,7 @@ impl Sprite {
 impl<'a> MemR for &'a [Sprite] {
     fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
         let s = &self[usize::from(addr >> 2)];
-        Ok(T::read_le(&s.data()[usize::from(addr % 2)..]))
+        T::read_le(&s.data()[usize::from(addr % 2)..])
     }
 }
 
@@ -65,8 +65,7 @@ impl<'a> MemR for &'a mut [Sprite] {
 impl<'a> MemW for &'a mut [Sprite] {
     fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
         let s = &mut self[usize::from(addr >> 2)];
-        T::write_le(&mut s.data_mut()[usize::from(addr % 2)..], val);
-        Ok(())
+        T::write_le(&mut s.data_mut()[usize::from(addr % 2)..], val)
     }
 }
 
@@ -158,7 +157,7 @@ impl PPU {
 
     fn io_read<T: MemSize>(&self, idx: u16) -> Result<T, dbg::TraceEvent> {
         if usize::from(idx) < self.regs.len() {
-            Ok(T::read_le(&[self.regs[usize::from(idx)].0]))
+            T::read_le(&[self.regs[usize::from(idx)].0])
         } else {
             Err(dbg::TraceEvent::IoFault(Peripheral::VPU, idx))
         }
@@ -167,7 +166,7 @@ impl PPU {
     fn io_write<T: MemSize>(&mut self, idx: u16, v: T) -> Result<(), dbg::TraceEvent> {
         if usize::from(idx) < self.regs.len() {
             let mut scratch = [0u8];
-            T::write_le(&mut scratch, v);
+            T::write_le(&mut scratch, v)?;
             self.regs[usize::from(idx)].0 = scratch[0];
             Ok(())
         } else {
@@ -223,10 +222,10 @@ impl MemR for PPU {
                 let addr = addr - 0x8000;
                 let tid = usize::from(addr >> 4);
                 let bid = usize::from(addr & 0xF);
-                Ok(T::read_le(&self.tdt[tid].data()[bid..]))
+                T::read_le(&self.tdt[tid].data()[bid..])
             }
-            0x9800..=0x9BFF => Ok(T::read_le(&self.bgtm0[usize::from(addr - 0x9800)..])),
-            0x9C00..=0x9FFF => Ok(T::read_le(&self.bgtm1[usize::from(addr - 0x9C00)..])),
+            0x9800..=0x9BFF => T::read_le(&self.bgtm0[usize::from(addr - 0x9800)..]),
+            0x9C00..=0x9FFF => T::read_le(&self.bgtm1[usize::from(addr - 0x9C00)..]),
             0xFE00..=0xFE9F => (&self.oam[..]).read(addr - 0xFE00),
             0xFF40..=0xFF6F => self.io_read(addr - 0xFF40),
             _ => {
@@ -247,17 +246,10 @@ impl MemW for PPU {
                 let addr = addr - 0x8000;
                 let tid = usize::from(addr >> 4);
                 let bid = usize::from(addr & 0xF);
-                T::write_le(&mut self.tdt[tid].data_mut()[bid..], val);
-                Ok(())
+                T::write_le(&mut self.tdt[tid].data_mut()[bid..], val)
             }
-            0x9800..=0x9BFF => {
-                T::write_le(&mut self.bgtm0[usize::from(addr - 0x9800)..], val);
-                Ok(())
-            }
-            0x9C00..=0x9FFF => {
-                T::write_le(&mut self.bgtm1[usize::from(addr - 0x9C00)..], val);
-                Ok(())
-            }
+            0x9800..=0x9BFF => T::write_le(&mut self.bgtm0[usize::from(addr - 0x9800)..], val),
+            0x9C00..=0x9FFF => T::write_le(&mut self.bgtm1[usize::from(addr - 0x9C00)..], val),
             0xFE00..=0xFE9F => (&mut self.oam[..]).write(addr - 0xFE00, val),
             0xFF40..=0xFF6F => self.io_write(addr - 0xFF40, val),
             _ => {

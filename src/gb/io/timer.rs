@@ -68,10 +68,10 @@ impl MemR for Timer {
             Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr))
         } else {
             match addr {
-                0xFF04 => Ok(T::read_le(&[self.div.0])),
-                0xFF05 => Ok(T::read_le(&[self.tima.0])),
-                0xFF06 => Ok(T::read_le(&[self.tma.0])),
-                0xFF07 => Ok(T::read_le(&[self.tac.0])),
+                0xFF04 => T::read_le(&[self.div.0]),
+                0xFF05 => T::read_le(&[self.tima.0]),
+                0xFF06 => T::read_le(&[self.tma.0]),
+                0xFF07 => T::read_le(&[self.tac.0]),
                 _ => Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr)),
             }
         }
@@ -98,7 +98,7 @@ impl MemW for Timer {
             };
 
             let mut scratch = [*dest];
-            T::write_le(&mut scratch[..], val);
+            T::write_le(&mut scratch[..], val)?;
             *dest = scratch[0];
 
             Ok(())
