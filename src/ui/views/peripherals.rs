@@ -21,25 +21,30 @@ impl WindowView for PeripheralView {
             .position((955.0, 30.0), ImGuiCond::FirstUseEver)
             .opened(&mut open)
             .build(|| {
-                if ui.collapsing_header(im_str!("Video")).build() {
+                if ui.collapsing_header(im_str!("Video Display")).build() {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
-                if ui.collapsing_header(im_str!("Sound")).build() {
+
+                if ui.collapsing_header(im_str!("Sound Controller")).build() {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
+
+                if ui.collapsing_header(im_str!("Joypad Input")).build() {
+                    ui.text("NOT IMPLEMENTED YET!");
+                }
+
+                if ui.collapsing_header(im_str!("Link Cable")).build() {
+                    ui.text("NOT IMPLEMENTED YET!");
+                }
+
                 if ui
-                    .collapsing_header(im_str!("Timer"))
+                    .collapsing_header(im_str!("Timer and Divider"))
                     .default_open(true)
                     .build()
                 {
                     self.draw_timer(ui, state);
                 }
-                if ui.collapsing_header(im_str!("Joypad")).build() {
-                    ui.text("NOT IMPLEMENTED YET!");
-                }
-                if ui.collapsing_header(im_str!("Link Cable")).build() {
-                    ui.text("NOT IMPLEMENTED YET!");
-                }
+
                 if ui.collapsing_header(im_str!("Interrupts")).build() {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
