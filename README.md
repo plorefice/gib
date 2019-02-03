@@ -47,16 +47,16 @@ are shown below.
 
 ### Progress
 
-| Peripheral | Progress | Notes                               |
-| ---------- | -------- | ----------------------------------- |
-| CPU        | 100%     | More testing required               |
-| Video      | 10%      | BG support and screen blanking only |
-| Sound      | 0%       | Not implemented yet                 |
-| Joypad     | 0%       | Not implemented yet                 |
-| Link cable | 0%       | Not implemented yet                 |
-| Timers     | 80%      | INT support missing                 |
-| Interrupts | 10%      | Basic IME support                   |
-| MBC        | 0%       | Not implemented yet                 |
+| Peripheral | Progress | Notes                                  |
+| ---------- | -------- | -------------------------------------- |
+| CPU        | 100%     | More testing required                  |
+| Video      | 10%      | BG support and screen blanking only    |
+| Sound      | 0%       | Not implemented yet                    |
+| Joypad     | 0%       | Not implemented yet                    |
+| Link cable | 0%       | Not implemented yet                    |
+| Timers     | 95%      | More testing required                  |
+| Interrupts | 70%      | Interrupt handling mechanism supported |
+| MBC        | 0%       | Not implemented yet                    |
 
 ### Blargg's Test ROMs
 
@@ -64,16 +64,16 @@ are shown below.
 
 **NOTE**: soon there will be an automated test suite to run and check these.
 
-| Test ROM       | Progress | Notes          |
-| -------------- | -------- | -------------- |
-| cpu_instrs     | 90%      | 02 failing     |
-| instr_timing   | -        | Not tested yet |
-| interrupt_time | -        | Not tested yet |
-| mem_timing-2   | -        | Not tested yet |
-| mem_timing     | -        | Not tested yet |
-| halt_bug       | -        | Not tested yet |
-| oam_bug        | -        | Not tested yet |
-| dmg_sound      | -        | Not tested yet |
+| Test ROM       | Progress | Notes                         |
+| -------------- | -------- | ----------------------------- |
+| cpu_instrs     | 99%      | All individual tests passing! |
+| instr_timing   | -        | Not tested yet                |
+| interrupt_time | -        | Not tested yet                |
+| mem_timing-2   | -        | Not tested yet                |
+| mem_timing     | -        | Not tested yet                |
+| halt_bug       | -        | Not tested yet                |
+| oam_bug        | -        | Not tested yet                |
+| dmg_sound      | -        | Not tested yet                |
 
 ## Resources
 
