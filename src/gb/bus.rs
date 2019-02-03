@@ -63,8 +63,8 @@ pub struct Bus {
     mbc: MbcType,
 }
 
-impl Bus {
-    pub fn new() -> Bus {
+impl Default for Bus {
+    fn default() -> Bus {
         Bus {
             rom_banks: vec![],
 
@@ -85,6 +85,12 @@ impl Bus {
 
             mbc: MbcType::None,
         }
+    }
+}
+
+impl Bus {
+    pub fn new() -> Bus {
+        Bus::default()
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {

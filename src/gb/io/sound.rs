@@ -3,9 +3,15 @@ use super::{MemR, MemSize, MemW};
 
 pub struct APU;
 
+impl Default for APU {
+    fn default() -> APU {
+        APU
+    }
+}
+
 impl APU {
     pub fn new() -> APU {
-        APU
+        APU::default()
     }
 }
 

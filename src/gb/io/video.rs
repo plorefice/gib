@@ -81,8 +81,8 @@ pub struct PPU {
     tstate: u64,
 }
 
-impl PPU {
-    pub fn new() -> PPU {
+impl Default for PPU {
+    fn default() -> PPU {
         PPU {
             tdt: [Tile::default(); 384],
             oam: [Sprite::default(); 40],
@@ -92,6 +92,12 @@ impl PPU {
             regs: [IoReg::default(); 48],
             tstate: 0,
         }
+    }
+}
+
+impl PPU {
+    pub fn new() -> PPU {
+        PPU::default()
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {

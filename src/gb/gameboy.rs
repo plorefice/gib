@@ -12,12 +12,18 @@ pub struct GameBoy {
     bus: Bus,
 }
 
-impl GameBoy {
-    pub fn new() -> GameBoy {
+impl Default for GameBoy {
+    fn default() -> GameBoy {
         GameBoy {
             cpu: CPU::new(),
             bus: Bus::new(),
         }
+    }
+}
+
+impl GameBoy {
+    pub fn new() -> GameBoy {
+        GameBoy::default()
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
