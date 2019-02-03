@@ -459,8 +459,9 @@ impl CPU {
             0x2C => { let v = inc!(self, self.l()); self.set_l(v); }
             0x3C => { let v = inc!(self, self.a()); self.set_a(v); }
             0x34 => {
-                let v = inc!(self, bus.read::<u8>(self.hl)?);
-                bus.write(self.hl, v)?;
+                let d8: u8 = self.fetch(bus, self.hl)?;
+                let v = inc!(self, d8);
+                self.store(bus, self.hl, v)?;
             }
 
             0x05 => { let v = dec!(self, self.b()); self.set_b(v); }
@@ -471,8 +472,9 @@ impl CPU {
             0x2D => { let v = dec!(self, self.l()); self.set_l(v); }
             0x3D => { let v = dec!(self, self.a()); self.set_a(v); }
             0x35 => {
-                let v = dec!(self, bus.read::<u8>(self.hl)?);
-                bus.write(self.hl, v)?;
+                let d8: u8 = self.fetch(bus, self.hl)?;
+                let v = dec!(self, d8);
+                self.store(bus, self.hl, v)?;
             }
 
             0x80 => add!(self, self.b(), 0u8),
@@ -741,7 +743,6 @@ impl CPU {
             0x46 => {
                 let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 0, d8);
-                self.clk += 4;
             }
 
             0x48 => bit!(self, 1, self.b()),
@@ -754,7 +755,6 @@ impl CPU {
             0x4E => {
                 let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 1, d8);
-                self.clk += 4;
             }
 
             0x50 => bit!(self, 2, self.b()),
@@ -767,7 +767,6 @@ impl CPU {
             0x56 => {
                 let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 2, d8);
-                self.clk += 4;
             }
 
             0x58 => bit!(self, 3, self.b()),
@@ -780,7 +779,6 @@ impl CPU {
             0x5E => {
                 let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 3, d8);
-                self.clk += 4;
             }
 
             0x60 => bit!(self, 4, self.b()),
@@ -793,7 +791,6 @@ impl CPU {
             0x66 => {
                 let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 4, d8);
-                self.clk += 4;
             }
 
             0x68 => bit!(self, 5, self.b()),
@@ -806,7 +803,6 @@ impl CPU {
             0x6E => {
                 let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 5, d8);
-                self.clk += 4;
             }
 
             0x70 => bit!(self, 6, self.b()),
@@ -819,7 +815,6 @@ impl CPU {
             0x76 => {
                 let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 6, d8);
-                self.clk += 4;
             }
 
             0x78 => bit!(self, 7, self.b()),
@@ -832,7 +827,6 @@ impl CPU {
             0x7E => {
                 let d8: u8 = self.fetch(bus, self.hl)?;
                 bit!(self, 7, d8);
-                self.clk += 4;
             }
 
             0x80 => self.set_b(res!(0, self.b())),
@@ -1229,7 +1223,7 @@ mod test {
 
         [0x34u8, 0x35]
             .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 4));
+            .for_each(|&opc| check_opcode(None, opc, 1, 12));
 
         (0x80..=0xBF)
             .for_each(|opc| check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 }));
@@ -1277,7 +1271,19 @@ mod test {
             .iter()
             .for_each(|&opc| check_opcode(None, opc, 1, 4));
 
-        (0x00u8..=0xFF)
-            .for_each(|opc| check_cb_opcode(opc, 2, if (opc & 0x7) != 0x6 { 8 } else { 16 }));
+        (0x00u8..=0xFF).for_each(|opc| {
+            check_cb_opcode(
+                opc,
+                2,
+                if (opc & 0x7) != 0x6 {
+                    8
+                } else {
+                    match opc & 0xF0 {
+                        0x40..=0x70 => 12,
+                        _ => 16,
+                    }
+                },
+            )
+        });
     }
 }
