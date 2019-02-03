@@ -77,7 +77,7 @@ pub struct PPU {
     bgtm0: [u8; 1024], // Background Tile Map #0
     bgtm1: [u8; 1024], // Background Tile Map #1
 
-    regs: [IoReg; 48],
+    regs: [IoReg<u8>; 48],
     tstate: u64,
 }
 
@@ -161,19 +161,19 @@ impl PPU {
         }
     }
 
-    fn lcdc(&self) -> IoReg {
+    fn lcdc(&self) -> IoReg<u8> {
         self.regs[Register::LCDC as usize]
     }
 
-    fn bgp(&self) -> IoReg {
+    fn bgp(&self) -> IoReg<u8> {
         self.regs[Register::BGP as usize]
     }
 
-    fn scroll_x(&self) -> IoReg {
+    fn scroll_x(&self) -> IoReg<u8> {
         self.regs[Register::SCX as usize]
     }
 
-    fn scroll_y(&self) -> IoReg {
+    fn scroll_y(&self) -> IoReg<u8> {
         self.regs[Register::SCY as usize]
     }
 

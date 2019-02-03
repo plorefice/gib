@@ -3,8 +3,8 @@ use super::{IoReg, MemR, MemRW, MemSize, MemW};
 
 #[derive(Default)]
 pub struct IrqController {
-    pub ien: IoReg,
-    pub ifg: IoReg,
+    pub ien: IoReg<u8>,
+    pub ifg: IoReg<u8>,
 }
 
 impl IrqController {

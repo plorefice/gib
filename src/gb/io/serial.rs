@@ -1,12 +1,8 @@
 use super::dbg;
-use super::IoReg;
 use super::{MemR, MemRW, MemSize, MemW};
 
 #[derive(Default)]
-pub struct Serial {
-    _sb: IoReg,
-    _sc: IoReg,
-}
+pub struct Serial;
 
 impl Serial {
     pub fn new() -> Serial {

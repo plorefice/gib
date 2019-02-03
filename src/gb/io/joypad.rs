@@ -1,11 +1,8 @@
 use super::dbg;
-use super::IoReg;
 use super::{MemR, MemRW, MemSize, MemW};
 
 #[derive(Default)]
-pub struct Joypad {
-    _reg: IoReg,
-}
+pub struct Joypad;
 
 impl Joypad {
     pub fn new() -> Joypad {
