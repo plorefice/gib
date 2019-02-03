@@ -25,6 +25,10 @@ impl IrqController {
         None
     }
 
+    pub fn set_irq(&mut self, irq: usize) {
+        self.ifg.set_bit(irq);
+    }
+
     pub fn clear_irq(&mut self, irq: usize) {
         self.ifg.clear_bit(irq);
     }

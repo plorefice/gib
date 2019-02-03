@@ -1,6 +1,7 @@
 use super::bus::Bus;
 use super::cpu::CPU;
 use super::dbg;
+use super::io::InterruptSource;
 
 const CPU_CLOCK: u64 = 4_194_304; // Hz
 const HSYNC_CLOCK: u64 = 9_198; // Hz
@@ -58,16 +59,17 @@ impl GameBoy {
         let elapsed = self.cpu.clk - prev_clk;
 
         self.bus.ppu.tick(elapsed);
-
-        // An interrupt has occurred for the TIMER peripheral
-        if self.bus.tim.tick(elapsed) {
-            self.bus.itr.ifg.set_bit(2);
-        }
+        self.bus.tim.tick(elapsed);
 
         Ok(())
     }
 
     fn handle_irqs(&mut self) -> Result<(), dbg::TraceEvent> {
+        // Fetch interrupt requests from interrupt sources
+        if self.bus.tim.irq_pending() {
+            self.bus.itr.set_irq(2);
+        }
+
         if let Some(id) = self.bus.itr.get_pending_irq() {
             let addr = (0x40 + 0x08 * id) as u16;
 
