@@ -8,7 +8,6 @@ const TIMA_10_RATE: u64 = 64;
 const TIMA_11_RATE: u64 = 256;
 const TIMA_00_RATE: u64 = 1024;
 
-#[derive(Default)]
 pub struct Timer {
     pub div: IoReg<u16>,
     pub tima: IoReg<u8>,
@@ -16,6 +15,19 @@ pub struct Timer {
     pub tac: IoReg<u8>,
 
     tima_elapsed_clks: u64,
+}
+
+impl Default for Timer {
+    fn default() -> Timer {
+        Timer {
+            div: IoReg(0xC8A8),
+            tima: IoReg(0),
+            tma: IoReg(0),
+            tac: IoReg(0),
+
+            tima_elapsed_clks: 0,
+        }
+    }
 }
 
 impl Timer {
