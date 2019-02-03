@@ -33,11 +33,14 @@ the command line. Alternatively, you can use the in-app menus.
 
 ## Running tests
 
-Currently, the test suite only tests opcode size and timings. In the future, more
-complete tests will be developed. You can run the test suite with:
+Currently, unit tests exist for opcode size and timings, along with some peripherals.
+In the future, more complete tests will be developed. Some golden tests are also
+included to test against known working test ROMs (eg. blargg's).
+
+You can run the test suite with:
 
 ```shell
-cargo +nightly test
+cargo +nightly test --release
 ```
 
 ## Features
@@ -62,7 +65,7 @@ are shown below.
 
 [Blargg's Gameboy hardware test ROMs](https://github.com/retrio/gb-test-roms) results.
 
-**NOTE**: soon there will be an automated test suite to run and check these.
+The passing tests are also integrated in the emulator's test suite.
 
 | Test ROM       | Progress | Notes          |
 | -------------- | -------- | -------------- |
