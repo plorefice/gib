@@ -2,6 +2,8 @@ use super::dbg;
 use super::io::{IrqController, Joypad, Serial, Timer, APU, PPU};
 use super::mem::{MemR, MemRW, MemSize, MemW, Memory};
 
+use std::convert::TryFrom;
+
 const BOOT_ROM: [u8; 256] = [
     0x31, 0xfe, 0xff, 0xaf, 0x21, 0xff, 0x9f, 0x32, 0xcb, 0x7c, 0x20, 0xfb, 0x21, 0x26, 0xff, 0x0e,
     0x11, 0x3e, 0x80, 0x32, 0xe2, 0x0c, 0x3e, 0xf3, 0xe2, 0x32, 0x3e, 0x77, 0x77, 0x3e, 0xfc, 0xe0,
@@ -21,9 +23,29 @@ const BOOT_ROM: [u8; 256] = [
     0xf5, 0x06, 0x19, 0x78, 0x86, 0x23, 0x05, 0x20, 0xfb, 0x86, 0x20, 0xfe, 0x3e, 0x01, 0xe0, 0x50,
 ];
 
+pub enum MbcType {
+    None,
+    MBC1,
+}
+
+pub struct McbTypeError(u8);
+
+impl TryFrom<u8> for MbcType {
+    type Error = McbTypeError;
+
+    fn try_from(n: u8) -> Result<Self, Self::Error> {
+        match n {
+            0x00 => Ok(MbcType::None),
+            0x01 => Ok(MbcType::MBC1),
+            _ => Err(McbTypeError(n)),
+        }
+    }
+}
+
 pub struct Bus {
-    pub rom_00: Memory,
-    pub rom_nn: Memory,
+    rom_banks: Vec<Memory>,
+
+    pub rom_nn: usize,
     rom_backup: [u8; 256],
 
     pub eram: Memory,
@@ -37,13 +59,16 @@ pub struct Bus {
     pub sdt: Serial,
     pub pad: Joypad,
     pub itr: IrqController,
+
+    mbc: MbcType,
 }
 
 impl Bus {
     pub fn new() -> Bus {
         Bus {
-            rom_00: Memory::new(0x4000),
-            rom_nn: Memory::new(0x4000),
+            rom_banks: vec![],
+
+            rom_nn: 1,
             rom_backup: [0; 256],
 
             eram: Memory::new(0x2000),
@@ -57,49 +82,65 @@ impl Bus {
             sdt: Serial::new(),
             pad: Joypad::new(),
             itr: IrqController::new(),
+
+            mbc: MbcType::None,
         }
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
-        let mut chunks = rom.chunks(0x4000);
+        for chunk in rom.chunks(0x4000) {
+            let mut mem = Memory::new(0x4000);
 
-        if let Some(chunk) = chunks.nth(0) {
             for (i, b) in chunk.iter().enumerate() {
-                self.rom_00.write(i as u16, *b)?;
+                mem.write(i as u16, *b)?;
             }
+            self.rom_banks.push(mem);
         }
 
-        // TODO: rom_nn is actually multiple rom banks
-        for chunk in chunks {
-            for (i, b) in chunk.iter().enumerate() {
-                self.rom_nn.write(i as u16, *b)?;
-            }
-        }
+        // Check MBC type in the ROM header
+        self.mbc = MbcType::try_from(rom[0x147])
+            .map_err(|McbTypeError(n)| dbg::TraceEvent::UnsupportedMbcType(n))?;
 
         self.enable_bootrom()
     }
 
     fn enable_bootrom(&mut self) -> Result<(), dbg::TraceEvent> {
         for i in 0u16..256 {
-            self.rom_backup[usize::from(i)] = self.rom_00.read(i)?;
-            self.rom_00.write(i, BOOT_ROM[usize::from(i)])?;
+            self.rom_backup[usize::from(i)] = self.rom_banks[0].read(i)?;
+            self.rom_banks[0].write(i, BOOT_ROM[usize::from(i)])?;
         }
         Ok(())
     }
 
     fn disable_bootrom(&mut self) -> Result<(), dbg::TraceEvent> {
         for i in 0u16..256 {
-            self.rom_00.write(i, self.rom_backup[usize::from(i)])?;
+            self.rom_banks[0].write(i, self.rom_backup[usize::from(i)])?;
         }
         Ok(())
+    }
+
+    fn ram_enable<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
+        Err(dbg::TraceEvent::InvalidMbcOp(val.low()))
+    }
+
+    fn rom_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
+        Err(dbg::TraceEvent::InvalidMbcOp(val.low()))
+    }
+
+    fn ram_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
+        Err(dbg::TraceEvent::InvalidMbcOp(val.low()))
+    }
+
+    fn mode_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
+        Err(dbg::TraceEvent::InvalidMbcOp(val.low()))
     }
 }
 
 impl MemR for Bus {
     fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
         match addr {
-            0x0000..=0x3FFF => self.rom_00.read(addr),
-            0x4000..=0x7FFF => self.rom_nn.read(addr - 0x4000),
+            0x0000..=0x3FFF => self.rom_banks[0].read(addr),
+            0x4000..=0x7FFF => self.rom_banks[self.rom_nn].read(addr - 0x4000),
             0x8000..=0x9FFF => self.ppu.read(addr),
             0xA000..=0xBFFF => self.eram.read(addr - 0xA000),
             0xC000..=0xCFFF => self.wram_00.read(addr - 0xC000),
@@ -123,7 +164,10 @@ impl MemR for Bus {
 impl MemW for Bus {
     fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
         match addr {
-            0x0000..=0x7FFF => Ok(()), /* Writing to ROM is a no-op */
+            0x0000..=0x1FFF => self.ram_enable(val),
+            0x2000..=0x3FFF => self.rom_select(val),
+            0x4000..=0x5FFF => self.ram_select(val),
+            0x6000..=0x7FFF => self.mode_select(val),
             0x8000..=0x9FFF => self.ppu.write(addr, val),
             0xA000..=0xBFFF => self.eram.write(addr - 0xA000, val),
             0xC000..=0xCFFF => self.wram_00.write(addr - 0xC000, val),

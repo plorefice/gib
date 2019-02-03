@@ -1,6 +1,7 @@
 use super::dbg;
 use super::{MemR, MemSize, MemW};
 
+#[derive(Clone)]
 pub struct Memory {
     data: Vec<u8>,
 }

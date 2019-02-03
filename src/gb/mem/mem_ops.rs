@@ -3,9 +3,14 @@ use super::dbg;
 pub trait MemSize: Default {
     fn byte_size() -> u8;
 
+    /* IO operations */
     fn read_le(buf: &[u8]) -> Result<Self, dbg::TraceEvent>;
     fn write_le(buf: &mut [u8], v: Self) -> Result<(), dbg::TraceEvent>;
     fn write_mut_le(buf: &mut [&mut u8], v: Self) -> Result<(), dbg::TraceEvent>;
+
+    /* Byte manipulation */
+    fn low(&self) -> u8;
+    fn high(&self) -> u8;
 }
 
 impl MemSize for u8 {
@@ -26,6 +31,14 @@ impl MemSize for u8 {
         *buf[0] = v;
         Ok(())
     }
+
+    fn low(&self) -> u8 {
+        *self
+    }
+
+    fn high(&self) -> u8 {
+        *self
+    }
 }
 
 impl MemSize for i8 {
@@ -45,6 +58,14 @@ impl MemSize for i8 {
     fn write_mut_le(buf: &mut [&mut u8], v: i8) -> Result<(), dbg::TraceEvent> {
         *buf[0] = v as u8;
         Ok(())
+    }
+
+    fn low(&self) -> u8 {
+        *self as u8
+    }
+
+    fn high(&self) -> u8 {
+        *self as u8
     }
 }
 
@@ -79,6 +100,14 @@ impl MemSize for u16 {
             *buf[1] = (v >> 8) as u8;
             Ok(())
         }
+    }
+
+    fn low(&self) -> u8 {
+        (*self & 0xFF) as u8
+    }
+
+    fn high(&self) -> u8 {
+        (*self >> 8) as u8
     }
 }
 

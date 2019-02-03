@@ -135,4 +135,8 @@ pub enum TraceEvent {
     IoFault(Peripheral, u16),
     #[fail(display = "Access size fault")]
     AccessFault,
+    #[fail(display = "Unsupported MBC: {:02X}", _0)]
+    UnsupportedMbcType(u8),
+    #[fail(display = "Invalid MBC operation: {:02X}", _0)]
+    InvalidMbcOp(u8),
 }

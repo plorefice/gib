@@ -2,6 +2,7 @@
 #![feature(box_syntax)]
 #![feature(duration_float)]
 #![feature(range_contains)]
+#![feature(try_from)]
 
 #[macro_use]
 extern crate failure;
