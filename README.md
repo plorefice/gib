@@ -70,7 +70,7 @@ The passing tests are also integrated in the emulator's test suite.
 | Test ROM       | Progress | Notes          |
 | -------------- | -------- | -------------- |
 | cpu_instrs     | 100%     | Full pass!     |
-| instr_timing   | -        | Not tested yet |
+| instr_timing   | 100%     | Full pass!     |
 | interrupt_time | -        | Not tested yet |
 | mem_timing-2   | -        | Not tested yet |
 | mem_timing     | -        | Not tested yet |
