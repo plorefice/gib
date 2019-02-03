@@ -173,6 +173,10 @@ impl EmuUi {
 
                 ui.separator();
 
+                if ui.menu_item(im_str!("Save screen")).build() {
+                    std::fs::write("screen-dump.bin", &self.vpu_buffer[..]).unwrap();
+                }
+
                 if ui.menu_item(im_str!("Reset")).enabled(emu_running).build() {
                     if let Some(ref mut emu) = self.emu {
                         emu.reset().expect("error during reset");
