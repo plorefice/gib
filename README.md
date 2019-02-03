@@ -56,7 +56,7 @@ are shown below.
 | Link cable | 0%       | Not implemented yet                    |
 | Timers     | 95%      | More testing required                  |
 | Interrupts | 70%      | Interrupt handling mechanism supported |
-| MBC        | 0%       | Not implemented yet                    |
+| MBC        | 20%      | Support for some functions of MBC1     |
 
 ### Blargg's Test ROMs
 
@@ -64,19 +64,21 @@ are shown below.
 
 **NOTE**: soon there will be an automated test suite to run and check these.
 
-| Test ROM       | Progress | Notes                         |
-| -------------- | -------- | ----------------------------- |
-| cpu_instrs     | 99%      | All individual tests passing! |
-| instr_timing   | -        | Not tested yet                |
-| interrupt_time | -        | Not tested yet                |
-| mem_timing-2   | -        | Not tested yet                |
-| mem_timing     | -        | Not tested yet                |
-| halt_bug       | -        | Not tested yet                |
-| oam_bug        | -        | Not tested yet                |
-| dmg_sound      | -        | Not tested yet                |
+| Test ROM       | Progress | Notes          |
+| -------------- | -------- | -------------- |
+| cpu_instrs     | 100%     | Full pass!     |
+| instr_timing   | -        | Not tested yet |
+| interrupt_time | -        | Not tested yet |
+| mem_timing-2   | -        | Not tested yet |
+| mem_timing     | -        | Not tested yet |
+| halt_bug       | -        | Not tested yet |
+| oam_bug        | -        | Not tested yet |
+| dmg_sound      | -        | Not tested yet |
 
 ## Resources
 
+- [GBDev Wiki](http://gbdev.gg8.se/wiki/articles/Main_Page)
+- [The PanDocs](http://bgb.bircd.org/pandocs.htm)
 - [Pastraiser's Gameboy CPU (LR35902) instruction set](http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
 - [GameBoy Opcode Summary](http://www.devrs.com/gb/files/opcodes.html)
 - [gbz80](https://rednex.github.io/rgbds/gbz80.7.html)
