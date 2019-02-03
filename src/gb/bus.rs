@@ -119,20 +119,43 @@ impl Bus {
         Ok(())
     }
 
-    fn ram_enable<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(val.low()))
+    fn ram_enable<T: MemSize>(&mut self, _val: T) -> Result<(), dbg::TraceEvent> {
+        // TODO handle this just in case some ROMs rely on uncorrect behavior
+        Ok(())
     }
 
     fn rom_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(val.low()))
+        self.rom_nn = match val.low() {
+            0x00 => 0x01,
+            v @ 0x01..=0x1F => usize::from(v),
+            v => return Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RomBank, v)),
+        };
+        Ok(())
     }
 
-    fn ram_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(val.low()))
+    fn ram_rom_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
+        Err(dbg::TraceEvent::InvalidMbcOp(
+            dbg::McbOp::RamBank,
+            val.low(),
+        ))
     }
 
     fn mode_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(val.low()))
+        Err(dbg::TraceEvent::InvalidMbcOp(
+            dbg::McbOp::RamBank,
+            val.low(),
+        ))
+    }
+
+    fn write_to_cgb_functions<T: MemSize>(
+        &mut self,
+        addr: u16,
+        _val: T,
+    ) -> Result<(), dbg::TraceEvent> {
+        match addr {
+            0xFF4D => Err(dbg::TraceEvent::CgbSpeedSwitchReq),
+            _ => Err(dbg::TraceEvent::UnsupportedCgbOp(addr)),
+        }
     }
 }
 
@@ -166,7 +189,7 @@ impl MemW for Bus {
         match addr {
             0x0000..=0x1FFF => self.ram_enable(val),
             0x2000..=0x3FFF => self.rom_select(val),
-            0x4000..=0x5FFF => self.ram_select(val),
+            0x4000..=0x5FFF => self.ram_rom_select(val),
             0x6000..=0x7FFF => self.mode_select(val),
             0x8000..=0x9FFF => self.ppu.write(addr, val),
             0xA000..=0xBFFF => self.eram.write(addr - 0xA000, val),
@@ -175,14 +198,15 @@ impl MemW for Bus {
             0xE000..=0xEFFF => self.wram_00.write(addr - 0xE000, val),
             0xF000..=0xFDFF => self.wram_nn.write(addr - 0xF000, val),
             0xFE00..=0xFE9F => self.ppu.write(addr, val),
-            0xFEA0..=0xFEFF => Ok(()), /* Writing to unused memory is also a no-op */
+            0xFEA0..=0xFEFF => Ok(()), /* Writing to unused memory is a no-op */
             0xFF00..=0xFF00 => self.pad.write(addr, val),
             0xFF01..=0xFF02 => self.sdt.write(addr, val),
             0xFF04..=0xFF07 => self.tim.write(addr, val),
             0xFF10..=0xFF3F => self.apu.write(addr, val),
-            0xFF40..=0xFF4F => self.ppu.write(addr, val),
+            0xFF40..=0xFF4B => self.ppu.write(addr, val),
+            0xFF4D..=0xFF4F => self.write_to_cgb_functions(addr, val),
             0xFF51..=0xFF6F => self.ppu.write(addr, val),
-            0xFF70..=0xFF7F => Ok(()), /* Some of this space is used by CGB, but not DMG */
+            0xFF70..=0xFF7F => self.write_to_cgb_functions(addr, val),
             0xFF80..=0xFFFE => self.hram.write(addr - 0xFF80, val),
             0xFF0F | 0xFFFF => self.itr.write(addr, val),
             0xFF50 => self.disable_bootrom(),

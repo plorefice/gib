@@ -13,12 +13,15 @@ pub struct CPU {
     pub pc: u16,
 
     pub intr_enabled: bool,
-    pub halt_bug: bool,
-    pub halted: bool,
     pub clk: u64,
+
+    pub halted: bool,
+    pub halt_bug: bool,
 
     paused: bool,
     breakpoints: HashSet<u16>,
+
+    ignore_next_halt: bool,
 }
 
 impl CPU {
@@ -47,12 +50,31 @@ impl CPU {
             self.pc = saved_ctx.pc;
         }
 
-        // Restore previous state on error. Note that this is for debugging purposes only,
-        // the side effects of the instruction (eg. memory writes) are NOT rolled back.
-        if res.is_err() {
-            *self = saved_ctx;
+        match res {
+            Err(dbg::TraceEvent::CgbSpeedSwitchReq) => {
+                // A speed switch in CGB is followed by a STOP which should be ignored.
+                // Some ROMs (eg. Blargg's test ROMs) might call this on DMG, in which
+                // case it should be ignored.
+                self.ignore_next_halt = true;
+                Ok(false)
+            }
+            Err(e) => {
+                // Restore previous state on error. Note that this is for debugging purposes only,
+                // the side effects of the instruction (eg. memory writes) are NOT rolled back.
+                *self = saved_ctx;
+                Err(e)
+            }
+            Ok(true) => {
+                // See above for the CGB workaround
+                if self.ignore_next_halt {
+                    self.ignore_next_halt = false;
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            }
+            Ok(false) => Ok(false),
         }
-        res
     }
 
     pub fn jump_to_isr(&mut self, bus: &mut impl MemRW, addr: u16) -> Result<(), dbg::TraceEvent> {
