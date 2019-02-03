@@ -250,14 +250,15 @@ macro_rules! set {
 impl CPU {
     #[rustfmt::skip]
     #[allow(clippy::cyclomatic_complexity)]
-    pub fn op(&mut self, bus: &mut impl MemRW, opcode: u8) -> Result<(), dbg::TraceEvent> {
+    pub fn op(&mut self, bus: &mut impl MemRW, opcode: u8) -> Result<bool, dbg::TraceEvent> {
         match opcode {
             /*
              * Misc/control instructions
              */
             0x00 => (),
 
-            0x10 | 0x76 => self.halted = true,
+            0x10 | 0x76 => return Ok(true),
+
             0xF3 => self.intr_enabled = false,
             0xFB => self.intr_enabled = true,
 
@@ -619,7 +620,7 @@ impl CPU {
             }
         };
 
-        Ok(())
+        Ok(false)
     }
 
     #[rustfmt::skip]

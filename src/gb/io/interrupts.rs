@@ -11,6 +11,23 @@ impl IrqController {
     pub fn new() -> IrqController {
         IrqController::default()
     }
+
+    pub fn pending_irqs(&self) -> bool {
+        (self.ien.0 & self.ifg.0) != 0
+    }
+
+    pub fn get_pending_irq(&self) -> Option<usize> {
+        for req_id in 0..=4 {
+            if self.ien.bit(req_id) && self.ifg.bit(req_id) {
+                return Some(req_id);
+            }
+        }
+        None
+    }
+
+    pub fn clear_irq(&mut self, irq: usize) {
+        self.ifg.clear_bit(irq);
+    }
 }
 
 impl MemR for IrqController {

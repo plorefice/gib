@@ -2,7 +2,7 @@
 pub struct IoReg(pub u8);
 
 impl IoReg {
-    pub fn bit(&mut self, b: usize) -> bool {
+    pub fn bit(self, b: usize) -> bool {
         debug_assert!(b < 8);
         (self.0 & (1 << b)) != 0
     }

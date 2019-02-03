@@ -13,6 +13,7 @@ pub struct CPU {
     pub pc: u16,
 
     pub intr_enabled: bool,
+    pub halt_bug: bool,
     pub halted: bool,
     pub clk: u64,
 
@@ -25,7 +26,8 @@ impl CPU {
         CPU::default()
     }
 
-    pub fn exec(&mut self, bus: &mut impl MemRW) -> Result<(), dbg::TraceEvent> {
+    pub fn exec(&mut self, bus: &mut impl MemRW) -> Result<bool, dbg::TraceEvent> {
+        // Handle breakpoints at the current position
         if !self.paused() && self.breakpoints.contains(&self.pc) {
             self.pause();
             return Err(dbg::TraceEvent::Breakpoint(self.pc));
@@ -38,10 +40,30 @@ impl CPU {
         let opc = self.fetch_pc(bus)?;
         let res = self.op(bus, opc);
 
+        // The HALT bug prevents PC from being incremented on the instruction
+        // following a HALT, under certain conditions.
+        if self.halt_bug {
+            self.halt_bug = false;
+            self.pc = saved_ctx.pc;
+        }
+
+        // Restore previous state on error. Note that this is for debugging purposes only,
+        // the side effects of the instruction (eg. memory writes) are NOT rolled back.
         if res.is_err() {
             *self = saved_ctx;
         }
         res
+    }
+
+    pub fn jump_to_isr(&mut self, bus: &mut impl MemRW, addr: u16) -> Result<(), dbg::TraceEvent> {
+        // Push PC onto the stack
+        self.sp -= 2;
+        self.clk += 4;
+        self.store(bus, self.sp, self.pc)?;
+
+        // Jump to ISR
+        self.pc = addr;
+        Ok(())
     }
 
     pub fn fetch_pc<T: MemSize>(&mut self, bus: &mut impl MemRW) -> Result<T, dbg::TraceEvent> {

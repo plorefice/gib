@@ -25,23 +25,35 @@ impl GameBoy {
     }
 
     pub fn step(&mut self) -> Result<(), dbg::TraceEvent> {
-        if self.cpu.intr_enabled {
-            self.run_irqs()?;
+        self.handle_irqs()?;
+
+        let prev_clk = self.cpu.clk;
+
+        if !self.cpu.halted {
+            let should_halt = self.cpu.exec(&mut self.bus)?;
+
+            // Section 4.10 of "The Cycle-Accurate GameBoy Docs"
+            // =================================================
+            // The HALT bug triggers if a HALT instruction is executed when IME = 0 && (IE & IF) != 0.
+            // In this case, the CPU is NOT halted, and the HALT bug is triggered, causing the PC
+            // to NOT be incremented when the next instruction is executed (ie. the next instruction
+            // is executed twice).
+            if should_halt {
+                if self.cpu.intr_enabled || !self.bus.itr.pending_irqs() {
+                    self.cpu.halted = true;
+                } else {
+                    self.cpu.halt_bug = true;
+                }
+            }
+        } else {
+            self.cpu.clk += 4;
         }
 
-        let elapsed = {
-            let clk = self.cpu.clk;
-
-            if !self.cpu.halted {
-                self.cpu.exec(&mut self.bus)?;
-            } else {
-                self.cpu.clk += 4;
-            }
-            self.cpu.clk - clk
-        };
+        let elapsed = self.cpu.clk - prev_clk;
 
         self.bus.ppu.tick(elapsed);
 
+        // An interrupt has occurred for the TIMER peripheral
         if self.bus.tim.tick(elapsed) {
             self.bus.itr.ifg.set_bit(2);
         }
@@ -49,29 +61,23 @@ impl GameBoy {
         Ok(())
     }
 
-    fn run_irqs(&mut self) -> Result<(), dbg::TraceEvent> {
-        let mut req = || {
-            let itr = &mut self.bus.itr;
+    fn handle_irqs(&mut self) -> Result<(), dbg::TraceEvent> {
+        if let Some(id) = self.bus.itr.get_pending_irq() {
+            let addr = (0x40 + 0x08 * id) as u16;
 
-            for req_id in 0..=4 {
-                if itr.ien.bit(req_id) && itr.ifg.bit(req_id) {
-                    // Disable interrupts when entering ISR
-                    itr.ifg.clear_bit(req_id);
-                    self.cpu.intr_enabled = false;
+            self.cpu.halted = false;
 
-                    // Address of the ISR to be run
-                    return Some((0x40 + 0x08 * req_id) as u8);
-                }
+            // If IME = 1, disable HALT mode (if in it), set IME = 0,
+            // clear IF and run the corresponding ISR.
+            // If IME = 0, simply leave HALT mode.
+            if self.cpu.intr_enabled {
+                self.cpu.intr_enabled = false;
+
+                self.bus.itr.clear_irq(id);
+                self.cpu.jump_to_isr(&mut self.bus, addr)?;
             }
-            None
-        };
-
-        if let Some(r) = req() {
-            // Execute RST instruction
-            self.cpu.op(&mut self.bus, r)
-        } else {
-            Ok(())
         }
+        Ok(())
     }
 
     pub fn run_for_vblank(&mut self) -> Result<(), dbg::TraceEvent> {

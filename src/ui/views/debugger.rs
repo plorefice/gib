@@ -26,9 +26,16 @@ impl WindowView for DebuggerView {
                 ui.text(format!("Clock cycle: {:12}", cpu.clk));
 
                 if cpu.halted {
-                    ui.same_line_spacing(0.0, 10.0);
+                    ui.same_line_spacing(0.0, 20.0);
                     ui.with_color_var(ImGuiCol::Text, utils::RED, || {
                         ui.text(im_str!("HALT"));
+                    });
+                }
+
+                if cpu.intr_enabled {
+                    ui.same_line_spacing(0.0, 20.0);
+                    ui.with_color_var(ImGuiCol::Text, utils::GREEN, || {
+                        ui.text(im_str!("IME"));
                     });
                 }
 

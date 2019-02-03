@@ -45,8 +45,12 @@ impl WindowView for PeripheralView {
                     self.draw_timer(ui, state);
                 }
 
-                if ui.collapsing_header(im_str!("Interrupts")).build() {
-                    ui.text("NOT IMPLEMENTED YET!");
+                if ui
+                    .collapsing_header(im_str!("Interrupts"))
+                    .default_open(true)
+                    .build()
+                {
+                    self.draw_interrupts(ui, state);
                 }
             });
 
@@ -89,5 +93,46 @@ impl PeripheralView {
                 ui.text("RUNNING");
             },
         );
+    }
+
+    fn draw_interrupts(&self, ui: &Ui, state: &EmuState) {
+        let itr = &state.bus().itr;
+        let irqs = [
+            (0, "BLANK"),
+            (1, "STAT"),
+            (2, "TIM"),
+            (3, "SER"),
+            (4, "JOY"),
+        ];
+
+        ui.text("IE:");
+
+        for (b, s) in irqs.iter() {
+            ui.same_line_spacing(0.0, 15.0);
+            ui.with_color_var(
+                ImGuiCol::Text,
+                if itr.ien.bit(*b) {
+                    utils::GREEN
+                } else {
+                    utils::DARK_GREEN
+                },
+                || ui.text(s),
+            );
+        }
+
+        ui.text("IF:");
+
+        for (b, s) in irqs.iter() {
+            ui.same_line_spacing(0.0, 15.0);
+            ui.with_color_var(
+                ImGuiCol::Text,
+                if itr.ifg.bit(*b) {
+                    utils::GREEN
+                } else {
+                    utils::DARK_GREEN
+                },
+                || ui.text(s),
+            );
+        }
     }
 }
