@@ -5,8 +5,6 @@ jobs:
       - image: circleci/rust:latest
     steps:
       - checkout
-      - restore_cache:
-          key: project-cache
       - run:
           name: Install devtools
           command: |
@@ -27,8 +25,3 @@ jobs:
       - run:
           name: Run tests
           command: cargo +nightly test --release
-      - save_cache:
-          key: project-cache
-          paths:
-            - "~/.cargo"
-            - "./target"
