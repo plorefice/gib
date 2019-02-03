@@ -272,16 +272,21 @@ impl EmuUi {
     }
 
     fn draw_screen(&mut self, ui: &Ui) {
-        ui.window(im_str!("Screen"))
-            .size(
-                (EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0),
-                ImGuiCond::FirstUseEver,
-            )
-            .position((745.0, 30.0), ImGuiCond::FirstUseEver)
-            .resizable(false)
-            .build(|| {
-                ui.image(self.vpu_texture, (EMU_X_RES as f32, EMU_Y_RES as f32))
-                    .build();
-            });
+        use imgui::{ImStr, ImString};
+
+        ui.window(ImStr::new(&ImString::from(format!(
+            "Screen - {:.0} FPS",
+            ui.framerate()
+        ))))
+        .size(
+            (EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0),
+            ImGuiCond::FirstUseEver,
+        )
+        .position((745.0, 30.0), ImGuiCond::FirstUseEver)
+        .resizable(false)
+        .build(|| {
+            ui.image(self.vpu_texture, (EMU_X_RES as f32, EMU_Y_RES as f32))
+                .build();
+        });
     }
 }
