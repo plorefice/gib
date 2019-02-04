@@ -9,6 +9,7 @@ pub struct Timer {
     pub tac: IoReg<u8>,
 
     irq_pending: bool,
+    tima_reload_scheduled: bool,
 }
 
 impl Default for Timer {
@@ -20,6 +21,7 @@ impl Default for Timer {
             tac: IoReg(0),
 
             irq_pending: false,
+            tima_reload_scheduled: false,
         }
     }
 }
@@ -33,24 +35,25 @@ impl Timer {
         IoReg((self.sys_counter.0 >> 8) as u8)
     }
 
-    pub fn tick(&mut self, mut elapsed: u64) {
+    pub fn tick(&mut self) {
         let rb = self.curr_rate();
 
+        // See .inc_timer() for a description of this behavior.
+        if self.tima_reload_scheduled {
+            self.tima_reload_scheduled = false;
+            self.tima = self.tma;
+        }
+
         if !self.running() {
-            self.sys_counter.0 += elapsed as u16;
+            self.sys_counter.0 += 4;
         } else {
-            while elapsed > 0 {
-                let n = 8u64.min(elapsed) as u8;
+            let old = self.sys_counter;
+            self.sys_counter.0 += 4;
+            let new = self.sys_counter;
 
-                let old = self.sys_counter;
-                self.sys_counter.0 += u16::from(n);
-                let new = self.sys_counter;
-
-                // TIMA is incremented when a falling edge is detected on the rate bit.
-                if old.bit(rb) && !new.bit(rb) {
-                    self.inc_timer();
-                }
-                elapsed -= u64::from(n);
+            // TIMA is incremented when a falling edge is detected on the rate bit.
+            if old.bit(rb) && !new.bit(rb) {
+                self.inc_timer();
             }
         }
     }
@@ -63,8 +66,11 @@ impl Timer {
         self.tima.0 += 1;
 
         // Wehn TIMA overflows, TMA gets loaded in it and an IRQ request is registered.
+        // HW BUG: TIMA stays 00 for 4 clock cycles upon overflowing. These are just
+        // a register load delay, they do not affect the next tick duration.
+        // Just set a flag here, the actual swap will be done in the next tick.
         if self.tima.0 == 0 {
-            self.tima = self.tma;
+            self.tima_reload_scheduled = true;
             self.irq_pending = true;
         }
     }
@@ -140,7 +146,13 @@ impl MemW for Timer {
                 self.reset_sys_counter();
                 Ok(())
             }
-            0xFF05 => T::write_mut_le(&mut [&mut self.tima.0], val),
+            0xFF05 => {
+                if !self.tima_reload_scheduled {
+                    T::write_mut_le(&mut [&mut self.tima.0], val)
+                } else {
+                    Ok(())
+                }
+            }
             0xFF06 => T::write_mut_le(&mut [&mut self.tma.0], val),
             0xFF07 => {
                 self.write_to_tac(val);
@@ -165,20 +177,26 @@ mod tests {
         assert_eq!(timer.div().0, 0);
 
         // A whole tick happens every 256 clock cycles
-        timer.tick(255);
-        assert_eq!(timer.sys_counter.0, 255);
+        for _ in 0..63 {
+            timer.tick();
+        }
+        assert_eq!(timer.sys_counter.0, 252);
         assert_eq!(timer.div().0, 0);
 
-        timer.tick(1);
+        timer.tick();
         assert_eq!(timer.sys_counter.0, 256);
         assert_eq!(timer.div().0, 1);
 
         // It can handle any kind of step
-        timer.tick(12);
+        for _ in 0..3 {
+            timer.tick();
+        }
         assert_eq!(timer.sys_counter.0, 268);
         assert_eq!(timer.div().0, 1);
 
-        timer.tick(256 * 4);
+        for _ in 0..256 {
+            timer.tick();
+        }
         assert_eq!(timer.div().0, 5);
     }
 
@@ -186,13 +204,15 @@ mod tests {
     fn system_counter_reset() {
         let mut timer = Timer::default();
 
-        timer.tick(516);
+        for _ in 0..129 {
+            timer.tick();
+        }
         assert_eq!(timer.sys_counter.0, 516);
 
         timer.reset_sys_counter();
         assert_eq!(timer.sys_counter.0, 0);
 
-        timer.tick(4);
+        timer.tick();
         assert_eq!(timer.sys_counter.0, 4);
     }
 
@@ -201,19 +221,26 @@ mod tests {
         let mut timer = Timer::default();
 
         // Ticking does not affect a stopped timer
-        timer.tick(2048);
+        for _ in 0..512 {
+            timer.tick();
+        }
         assert_eq!(timer.tima.0, 0);
 
         // Enabling the timer on a even system counter
         // makes them synchronized.
         timer.write_to_tac(0b101_u8);
 
-        timer.tick(15);
+        for _ in 0..3 {
+            timer.tick();
+        }
         assert_eq!(timer.tima.0, 0);
-        timer.tick(1);
+
+        timer.tick();
         assert_eq!(timer.tima.0, 1);
 
-        timer.tick(65);
+        for _ in 0..17 {
+            timer.tick();
+        }
         assert_eq!(timer.tima.0, 5);
     }
 
@@ -224,8 +251,11 @@ mod tests {
         let mut timer = Timer::default();
         timer.tac.0 = 0b101;
 
-        timer.tick(12);
+        for _ in 0..3 {
+            timer.tick();
+        }
         assert_eq!(timer.tima.0, 0);
+
         timer.reset_sys_counter();
         assert_eq!(timer.tima.0, 1);
     }

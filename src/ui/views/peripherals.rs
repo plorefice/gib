@@ -62,7 +62,7 @@ impl PeripheralView {
     fn draw_timer(&self, ui: &Ui, state: &EmuState) {
         let timer = &state.bus().tim;
 
-        utils::input_addr(ui, "DIV", &mut Some(u16::from(timer.div().0)), false);
+        utils::input_addr(ui, "DIV", &mut Some(timer.sys_counter.0), false);
         ui.same_line(0.0);
         utils::input_addr(ui, "TIMA", &mut Some(u16::from(timer.tima.0)), false);
         ui.same_line(0.0);

@@ -1,27 +1,10 @@
 use super::dbg;
-use super::mem::MemRW;
-use super::CPU;
-
-macro_rules! pop {
-    ($cpu:ident, $bus:ident, $reg:ident) => {{
-        $cpu.$reg = $cpu.fetch($bus, $cpu.sp)?;
-        $cpu.sp += 2;
-    }};
-}
-
-macro_rules! push {
-    ($cpu:ident, $bus:ident, $reg:ident) => {{
-        $cpu.sp -= 2;
-        $cpu.clk += 4;
-        $cpu.store($bus, $cpu.sp, $cpu.$reg)?;
-    }};
-}
+use super::{MemoryAddressing::*, OpcodeInfo, OperandLocation::*, WritebackOp, CPU};
 
 macro_rules! jp {
     ($cpu:ident, $cond:expr, $abs:expr) => {{
         if $cond {
             $cpu.pc = $abs;
-            $cpu.clk += 4;
         }
     }};
 }
@@ -37,21 +20,19 @@ macro_rules! jr {
 }
 
 macro_rules! call {
-    ($cpu:ident, $bus:ident, $cond:expr, $to:expr) => {{
+    ($cpu:ident, $cond:expr, $to:expr) => {{
         if $cond {
-            push!($cpu, $bus, pc);
+            $cpu.write_op = Some(WritebackOp::Push($cpu.pc));
             $cpu.pc = $to;
         }
     }};
 }
 
 macro_rules! ret {
-    ($cpu:ident, $bus:ident, $cond:expr) => {{
+    ($cpu:ident, $cond:expr) => {{
         if $cond {
-            pop!($cpu, $bus, pc);
-            $cpu.clk += 4;
+            $cpu.write_op = Some(WritebackOp::Return);
         }
-        $cpu.clk += 4;
     }};
 }
 
@@ -128,7 +109,6 @@ macro_rules! add16 {
         $cpu.set_sf(false);
         $cpu.set_hc((old & 0x0FFF) + ($v & 0x0FFF) >= 0x1000);
         $cpu.set_cy($dst < old);
-        $cpu.clk += 4;
     }};
 }
 
@@ -142,7 +122,6 @@ macro_rules! addi16 {
         $cpu.set_sf(false);
         $cpu.set_hc(($a & 0xF) + (b & 0xF) >= 0x10);
         $cpu.set_cy(r > 0xFF);
-        $cpu.clk += 4;
 
         n
     }};
@@ -250,86 +229,79 @@ macro_rules! set {
 impl CPU {
     #[rustfmt::skip]
     #[allow(clippy::cyclomatic_complexity)]
-    pub fn op(&mut self, bus: &mut impl MemRW, opcode: u8) -> Result<bool, dbg::TraceEvent> {
-        match opcode {
+    pub fn op(&mut self) -> Result<(), dbg::TraceEvent> {
+        match self.opcode {
             /*
              * Misc/control instructions
              */
             0x00 => (),
 
-            0x10 | 0x76 => return Ok(true),
+            0x10 | 0x76 => self.should_halt = true,
 
             0xF3 => self.intr_enabled = false,
             0xFB => self.intr_enabled = true,
 
-            0xCB => {
-                let cb: u8 = self.fetch_pc(bus)?;
-                self.op_cb(bus, cb)?;
-            }
-
             /*
              * Jump/calls
              */
-            0x20 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, !self.zf(), off); }
-            0x30 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, !self.cy(), off); }
-            0x28 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, self.zf(),  off); }
-            0x38 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, self.cy(),  off); }
-            0x18 => { let off: i8 = self.fetch_pc(bus)?; jr!(self, true,       off); }
+            0x20 => jr!(self, !self.zf(), self.operand as i8),
+            0x30 => jr!(self, !self.cy(), self.operand as i8),
+            0x28 => jr!(self, self.zf(),  self.operand as i8),
+            0x38 => jr!(self, self.cy(),  self.operand as i8),
+            0x18 => jr!(self, true,       self.operand as i8),
 
-            0xC2 => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, !self.zf(), abs); }
-            0xD2 => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, !self.cy(), abs); }
-            0xCA => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, self.zf(),  abs); }
-            0xDA => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, self.cy(),  abs); }
-            0xC3 => { let abs: u16 = self.fetch_pc(bus)?; jp!(self, true,       abs); }
+            0xC2 => jp!(self, !self.zf(), self.operand),
+            0xD2 => jp!(self, !self.cy(), self.operand),
+            0xCA => jp!(self, self.zf(),  self.operand),
+            0xDA => jp!(self, self.cy(),  self.operand),
+            0xC3 => jp!(self, true,       self.operand),
 
-            0xE9 => { jp!(self, true, self.hl); self.clk -= 4; }
+            0xE9 => jp!(self, true, self.hl),
 
-            0xC4 => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, !self.zf(), abs); }
-            0xD4 => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, !self.cy(), abs); }
-            0xCC => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, self.zf(),  abs); }
-            0xDC => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, self.cy(),  abs); }
-            0xCD => { let abs: u16 = self.fetch_pc(bus)?; call!(self, bus, true,       abs); }
+            0xC4 => call!(self, !self.zf(), self.operand),
+            0xD4 => call!(self, !self.cy(), self.operand),
+            0xCC => call!(self, self.zf(),  self.operand),
+            0xDC => call!(self, self.cy(),  self.operand),
+            0xCD => call!(self, true,       self.operand),
 
-            0xC0 => ret!(self, bus, !self.zf()),
-            0xD0 => ret!(self, bus, !self.cy()),
-            0xC8 => ret!(self, bus, self.zf()),
-            0xD8 => ret!(self, bus, self.cy()),
+            0xC0 => ret!(self, !self.zf()),
+            0xD0 => ret!(self, !self.cy()),
+            0xC8 => ret!(self, self.zf()),
+            0xD8 => ret!(self, self.cy()),
 
-            0xC9 => { ret!(self, bus, true); self.clk -= 4; }
-            0xD9 => { ret!(self, bus, true); self.clk -= 4; self.intr_enabled = true; }
+            0xC9 => ret!(self, true),
+            0xD9 => { ret!(self, true); self.intr_enabled = true; }
 
-            0xC7 => call!(self, bus, true, 0x00),
-            0xCF => call!(self, bus, true, 0x08),
-            0xD7 => call!(self, bus, true, 0x10),
-            0xDF => call!(self, bus, true, 0x18),
-            0xE7 => call!(self, bus, true, 0x20),
-            0xEF => call!(self, bus, true, 0x28),
-            0xF7 => call!(self, bus, true, 0x30),
-            0xFF => call!(self, bus, true, 0x38),
+            0xC7 => call!(self, true, 0x00),
+            0xCF => call!(self, true, 0x08),
+            0xD7 => call!(self, true, 0x10),
+            0xDF => call!(self, true, 0x18),
+            0xE7 => call!(self, true, 0x20),
+            0xEF => call!(self, true, 0x28),
+            0xF7 => call!(self, true, 0x30),
+            0xFF => call!(self, true, 0x38),
 
             /*
              * 8bit load/store/move instructions
              */
-            0x02 => self.store(bus, self.bc, self.a())?,
-            0x12 => self.store(bus, self.de, self.a())?,
+            0x02 => self.write_op = Some(WritebackOp::Write8(self.bc, self.a())),
+            0x12 => self.write_op = Some(WritebackOp::Write8(self.de, self.a())),
+            0x22 => { self.write_op = Some(WritebackOp::Write8(self.hl, self.a())); self.hl += 1; }
+            0x32 => { self.write_op = Some(WritebackOp::Write8(self.hl, self.a())); self.hl -= 1; }
 
-            0x22 => { self.store(bus, self.hl, self.a())?; self.hl += 1; }
-            0x32 => { self.store(bus, self.hl, self.a())?; self.hl -= 1; }
+            0x0A => self.set_a(self.operand as u8),
+            0x1A => self.set_a(self.operand as u8),
+            0x2A => { self.set_a(self.operand as u8); self.hl += 1; }
+            0x3A => { self.set_a(self.operand as u8); self.hl -= 1; }
 
-            0x0A => { let d8: u8 = self.fetch(bus, self.bc)?; self.set_a(d8); }
-            0x1A => { let d8: u8 = self.fetch(bus, self.de)?; self.set_a(d8); }
-
-            0x2A => { let d8: u8 = self.fetch(bus, self.hl)?; self.set_a(d8); self.hl += 1; }
-            0x3A => { let d8: u8 = self.fetch(bus, self.hl)?; self.set_a(d8); self.hl -= 1; }
-
-            0x06 => { let d8: u8 = self.fetch_pc(bus)?; self.set_b(d8);                }
-            0x16 => { let d8: u8 = self.fetch_pc(bus)?; self.set_d(d8);                }
-            0x26 => { let d8: u8 = self.fetch_pc(bus)?; self.set_h(d8);                }
-            0x36 => { let d8: u8 = self.fetch_pc(bus)?; self.store(bus, self.hl, d8)?; }
-            0x0E => { let d8: u8 = self.fetch_pc(bus)?; self.set_c(d8);                }
-            0x1E => { let d8: u8 = self.fetch_pc(bus)?; self.set_e(d8);                }
-            0x2E => { let d8: u8 = self.fetch_pc(bus)?; self.set_l(d8);                }
-            0x3E => { let d8: u8 = self.fetch_pc(bus)?; self.set_a(d8);                }
+            0x06 => self.set_b(self.operand as u8),
+            0x16 => self.set_d(self.operand as u8),
+            0x26 => self.set_h(self.operand as u8),
+            0x36 => self.write_op = Some(WritebackOp::Write8(self.hl, self.operand as u8)),
+            0x0E => self.set_c(self.operand as u8),
+            0x1E => self.set_e(self.operand as u8),
+            0x2E => self.set_l(self.operand as u8),
+            0x3E => self.set_a(self.operand as u8),
 
             0x40 => self.set_b(self.b()),
             0x41 => self.set_b(self.c()),
@@ -337,7 +309,7 @@ impl CPU {
             0x43 => self.set_b(self.e()),
             0x44 => self.set_b(self.h()),
             0x45 => self.set_b(self.l()),
-            0x46 => { let b = self.fetch(bus, self.hl)?; self.set_b(b); }
+            0x46 => self.set_b(self.operand as u8),
             0x47 => self.set_b(self.a()),
             0x48 => self.set_c(self.b()),
             0x49 => self.set_c(self.c()),
@@ -345,7 +317,7 @@ impl CPU {
             0x4B => self.set_c(self.e()),
             0x4C => self.set_c(self.h()),
             0x4D => self.set_c(self.l()),
-            0x4E => { let d8 = self.fetch(bus, self.hl)?; self.set_c(d8); }
+            0x4E => self.set_c(self.operand as u8),
             0x4F => self.set_c(self.a()),
             0x50 => self.set_d(self.b()),
             0x51 => self.set_d(self.c()),
@@ -353,7 +325,7 @@ impl CPU {
             0x53 => self.set_d(self.e()),
             0x54 => self.set_d(self.h()),
             0x55 => self.set_d(self.l()),
-            0x56 => { let d8 = self.fetch(bus, self.hl)?; self.set_d(d8); }
+            0x56 => self.set_d(self.operand as u8),
             0x57 => self.set_d(self.a()),
             0x58 => self.set_e(self.b()),
             0x59 => self.set_e(self.c()),
@@ -361,7 +333,7 @@ impl CPU {
             0x5B => self.set_e(self.e()),
             0x5C => self.set_e(self.h()),
             0x5D => self.set_e(self.l()),
-            0x5E => { let d8 = self.fetch(bus, self.hl)?; self.set_e(d8); }
+            0x5E => self.set_e(self.operand as u8),
             0x5F => self.set_e(self.a()),
             0x60 => self.set_h(self.b()),
             0x61 => self.set_h(self.c()),
@@ -369,7 +341,7 @@ impl CPU {
             0x63 => self.set_h(self.e()),
             0x64 => self.set_h(self.h()),
             0x65 => self.set_h(self.l()),
-            0x66 => { let d8 = self.fetch(bus, self.hl)?; self.set_h(d8); }
+            0x66 => self.set_h(self.operand as u8),
             0x67 => self.set_h(self.a()),
             0x68 => self.set_l(self.b()),
             0x69 => self.set_l(self.c()),
@@ -377,7 +349,7 @@ impl CPU {
             0x6B => self.set_l(self.e()),
             0x6C => self.set_l(self.h()),
             0x6D => self.set_l(self.l()),
-            0x6E => { let d8 = self.fetch(bus, self.hl)?; self.set_l(d8); }
+            0x6E => self.set_l(self.operand as u8),
             0x6F => self.set_l(self.a()),
             0x78 => self.set_a(self.b()),
             0x79 => self.set_a(self.c()),
@@ -385,68 +357,45 @@ impl CPU {
             0x7B => self.set_a(self.e()),
             0x7C => self.set_a(self.h()),
             0x7D => self.set_a(self.l()),
-            0x7E => { let d8 = self.fetch(bus, self.hl)?; self.set_a(d8); }
+            0x7E => self.set_a(self.operand as u8),
             0x7F => self.set_a(self.a()),
 
-            0x70 => self.store(bus, self.hl, self.b())?,
-            0x71 => self.store(bus, self.hl, self.c())?,
-            0x72 => self.store(bus, self.hl, self.d())?,
-            0x73 => self.store(bus, self.hl, self.e())?,
-            0x74 => self.store(bus, self.hl, self.h())?,
-            0x75 => self.store(bus, self.hl, self.l())?,
-            0x77 => self.store(bus, self.hl, self.a())?,
+            0x70 => self.write_op = Some(WritebackOp::Write8(self.hl, self.b())),
+            0x71 => self.write_op = Some(WritebackOp::Write8(self.hl, self.c())),
+            0x72 => self.write_op = Some(WritebackOp::Write8(self.hl, self.d())),
+            0x73 => self.write_op = Some(WritebackOp::Write8(self.hl, self.e())),
+            0x74 => self.write_op = Some(WritebackOp::Write8(self.hl, self.h())),
+            0x75 => self.write_op = Some(WritebackOp::Write8(self.hl, self.l())),
+            0x77 => self.write_op = Some(WritebackOp::Write8(self.hl, self.a())),
 
-            0xE0 => {
-                let d8: u8 = self.fetch_pc(bus)?;
-                self.store(bus, 0xFF00 + u16::from(d8), self.a())?;
-            }
-            0xF0 => {
-                let d8: u8 = self.fetch_pc(bus)?;
-                let a: u8 = self.fetch(bus, 0xFF00 + u16::from(d8))?;
-                self.set_a(a);
-            }
+            0xE0 => self.write_op = Some(WritebackOp::Write8(0xFF00 + self.operand, self.a())),
+            0xE2 => self.write_op = Some(WritebackOp::Write8(0xFF00 + u16::from(self.c()), self.a())),
+            0xEA => self.write_op = Some(WritebackOp::Write8(self.operand, self.a())),
 
-            0xE2 => self.store(bus, 0xFF00 + u16::from(self.c()), self.a())?,
-            0xF2 => {
-                let d8: u8 = self.fetch(bus, 0xFF00 + u16::from(self.c()))?;
-                self.set_a(d8);
-            }
-
-            0xEA => { let d16: u16 = self.fetch_pc(bus)?; self.store(bus, d16, self.a())?; }
-            0xFA => {
-                let d16: u16 = self.fetch_pc(bus)?;
-                let a: u8 = self.fetch(bus, d16)?;
-                self.set_a(a);
-            }
+            0xF0 | 0xF2 | 0xFA => self.set_a(self.operand as u8),
 
             /*
              * 16bit load/store/move instructions
              */
-            0x01 => self.bc = self.fetch_pc(bus)?,
-            0x11 => self.de = self.fetch_pc(bus)?,
-            0x21 => self.hl = self.fetch_pc(bus)?,
-            0x31 => self.sp = self.fetch_pc(bus)?,
+            0x01 => self.bc = self.operand,
+            0x11 => self.de = self.operand,
+            0x21 => self.hl = self.operand,
+            0x31 => self.sp = self.operand,
 
-            0xC1 => pop!(self, bus, bc),
-            0xD1 => pop!(self, bus, de),
-            0xE1 => pop!(self, bus, hl),
-            0xF1 => {
-                pop!(self, bus, af);
-                self.af &= 0xFFF0;
-            }
+            0xC1 => self.bc = self.operand,
+            0xD1 => self.de = self.operand,
+            0xE1 => self.hl = self.operand,
+            0xF1 => self.af = self.operand & 0xFFF0,
 
-            0xC5 => push!(self, bus, bc),
-            0xD5 => push!(self, bus, de),
-            0xE5 => push!(self, bus, hl),
-            0xF5 => push!(self, bus, af),
+            0xC5 => self.write_op = Some(WritebackOp::Push(self.bc)),
+            0xD5 => self.write_op = Some(WritebackOp::Push(self.de)),
+            0xE5 => self.write_op = Some(WritebackOp::Push(self.hl)),
+            0xF5 => self.write_op = Some(WritebackOp::Push(self.af)),
 
-            0x08 => { let a16: u16 = self.fetch_pc(bus)?; self.store(bus, a16, self.sp)?; }
-            0xF9 => { self.sp = self.hl; self.clk += 4; }
+            0x08 => self.write_op = Some(WritebackOp::Write16(self.operand, self.sp)),
+            0xF9 => self.sp = self.hl,
 
-            0xF8 => {
-                let d8: i8 = self.fetch_pc(bus)?;
-                self.hl = addi16!(self, self.sp, d8);
-            }
+            0xF8 => self.hl = addi16!(self, self.sp, self.operand as i8),
 
             /*
              * 8bit arithmetic/logical instructions
@@ -459,9 +408,8 @@ impl CPU {
             0x2C => { let v = inc!(self, self.l()); self.set_l(v); }
             0x3C => { let v = inc!(self, self.a()); self.set_a(v); }
             0x34 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = inc!(self, d8);
-                self.store(bus, self.hl, v)?;
+                let v = inc!(self, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x05 => { let v = dec!(self, self.b()); self.set_b(v); }
@@ -472,9 +420,8 @@ impl CPU {
             0x2D => { let v = dec!(self, self.l()); self.set_l(v); }
             0x3D => { let v = dec!(self, self.a()); self.set_a(v); }
             0x35 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = dec!(self, d8);
-                self.store(bus, self.hl, v)?;
+                let v = dec!(self, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x80 => add!(self, self.b(), 0u8),
@@ -484,8 +431,7 @@ impl CPU {
             0x84 => add!(self, self.h(), 0u8),
             0x85 => add!(self, self.l(), 0u8),
             0x87 => add!(self, self.a(), 0u8),
-            0x86 => { let d8: u8 = self.fetch(bus, self.hl)?; add!(self, d8, 0u8); }
-            0xC6 => { let d8: u8 = self.fetch_pc(bus)?; add!(self, d8, 0u8); }
+            0x86 | 0xC6 => add!(self, self.operand as u8, 0u8),
 
             0x88 => add!(self, self.b(), self.cy() as u8),
             0x89 => add!(self, self.c(), self.cy() as u8),
@@ -494,8 +440,7 @@ impl CPU {
             0x8C => add!(self, self.h(), self.cy() as u8),
             0x8D => add!(self, self.l(), self.cy() as u8),
             0x8F => add!(self, self.a(), self.cy() as u8),
-            0x8E => { let d8: u8 = self.fetch(bus, self.hl)?; add!(self, d8, self.cy() as u8); }
-            0xCE => { let d8: u8 = self.fetch_pc(bus)?; add!(self, d8, self.cy() as u8); }
+            0x8E | 0xCE => add!(self, self.operand as u8, self.cy() as u8),
 
             0x90 => sub!(self, self.b(), 0u8),
             0x91 => sub!(self, self.c(), 0u8),
@@ -504,8 +449,7 @@ impl CPU {
             0x94 => sub!(self, self.h(), 0u8),
             0x95 => sub!(self, self.l(), 0u8),
             0x97 => sub!(self, self.a(), 0u8),
-            0x96 => { let d8: u8 = self.fetch(bus, self.hl)?; sub!(self, d8, 0u8); }
-            0xD6 => { let d8: u8 = self.fetch_pc(bus)?; sub!(self, d8, 0u8); }
+            0x96 | 0xD6 => sub!(self, self.operand as u8, 0u8),
 
             0x98 => sub!(self, self.b(), self.cy() as u8),
             0x99 => sub!(self, self.c(), self.cy() as u8),
@@ -514,8 +458,7 @@ impl CPU {
             0x9C => sub!(self, self.h(), self.cy() as u8),
             0x9D => sub!(self, self.l(), self.cy() as u8),
             0x9F => sub!(self, self.a(), self.cy() as u8),
-            0x9E => { let d8: u8 = self.fetch(bus, self.hl)?; sub!(self, d8, self.cy() as u8); }
-            0xDE => { let d8: u8 = self.fetch_pc(bus)?; sub!(self, d8, self.cy() as u8); }
+            0x9E | 0xDE => sub!(self, self.operand as u8, self.cy() as u8),
 
             0xA0 => and!(self, self.b()),
             0xA1 => and!(self, self.c()),
@@ -524,8 +467,7 @@ impl CPU {
             0xA4 => and!(self, self.h()),
             0xA5 => and!(self, self.l()),
             0xA7 => and!(self, self.a()),
-            0xA6 => { let d8: u8 = self.fetch(bus, self.hl)?; and!(self, d8); }
-            0xE6 => { let d8: u8 = self.fetch_pc(bus)?; and!(self, d8); }
+            0xA6 | 0xE6 => and!(self, self.operand as u8),
 
             0xA8 => xor!(self, self.b()),
             0xA9 => xor!(self, self.c()),
@@ -534,8 +476,7 @@ impl CPU {
             0xAC => xor!(self, self.h()),
             0xAD => xor!(self, self.l()),
             0xAF => xor!(self, self.a()),
-            0xAE => { let d8: u8 = self.fetch(bus, self.hl)?; xor!(self, d8); }
-            0xEE => { let d8: u8 = self.fetch_pc(bus)?; xor!(self, d8); }
+            0xAE | 0xEE => xor!(self, self.operand as u8),
 
             0xB0 => or!(self, self.b()),
             0xB1 => or!(self, self.c()),
@@ -544,8 +485,7 @@ impl CPU {
             0xB4 => or!(self, self.h()),
             0xB5 => or!(self, self.l()),
             0xB7 => or!(self, self.a()),
-            0xB6 => { let d8: u8 = self.fetch(bus, self.hl)?; or!(self, d8); }
-            0xF6 => { let d8: u8 = self.fetch_pc(bus)?; or!(self, d8); }
+            0xB6 | 0xF6 => or!(self, self.operand as u8),
 
             0xB8 => cmp!(self, self.a(), self.b()),
             0xB9 => cmp!(self, self.a(), self.c()),
@@ -554,8 +494,7 @@ impl CPU {
             0xBC => cmp!(self, self.a(), self.h()),
             0xBD => cmp!(self, self.a(), self.l()),
             0xBF => cmp!(self, self.a(), self.a()),
-            0xBE => { let d8: u8 = self.fetch(bus, self.hl)?; cmp!(self, self.a(), d8); }
-            0xFE => { let d8: u8 = self.fetch_pc(bus)?; cmp!(self, self.a(), d8); }
+            0xBE | 0xFE => cmp!(self, self.a(), self.operand as u8),
 
             0x2F => { self.set_a(!self.a()); self.set_sf(true); self.set_hc(true); }
             0x37 => { self.set_sf(false); self.set_hc(false); self.set_cy(true); }
@@ -586,25 +525,21 @@ impl CPU {
             /*
              * 	16bit arithmetic/logical instructions
              */
-            0x03 => { self.bc += 1; self.clk += 4; }
-            0x13 => { self.de += 1; self.clk += 4; }
-            0x23 => { self.hl += 1; self.clk += 4; }
-            0x33 => { self.sp += 1; self.clk += 4; }
+            0x03 => self.bc += 1,
+            0x13 => self.de += 1,
+            0x23 => self.hl += 1,
+            0x33 => self.sp += 1,
 
-            0x0B => { self.bc -= 1; self.clk += 4; }
-            0x1B => { self.de -= 1; self.clk += 4; }
-            0x2B => { self.hl -= 1; self.clk += 4; }
-            0x3B => { self.sp -= 1; self.clk += 4; }
+            0x0B => self.bc -= 1,
+            0x1B => self.de -= 1,
+            0x2B => self.hl -= 1,
+            0x3B => self.sp -= 1,
 
             0x09 => add16!(self, self.hl, self.bc),
             0x19 => add16!(self, self.hl, self.de),
             0x29 => add16!(self, self.hl, self.hl),
             0x39 => add16!(self, self.hl, self.sp),
-            0xE8 => {
-                let d8: i8 = self.fetch_pc(bus)?;
-                self.sp = addi16!(self, self.sp, d8);
-                self.clk += 4;
-            }
+            0xE8 => self.sp = addi16!(self, self.sp, self.operand as i8),
 
             /*
              * 8bit rotations/shifts and bit instructions
@@ -617,18 +552,18 @@ impl CPU {
             /*
              * Invalid opcodes
              */
-            0xD3 | 0xDB | 0xDD | 0xE3 | 0xE4 | 0xEB | 0xEC | 0xED | 0xF4 | 0xFC | 0xFD => {
-                return Err(dbg::TraceEvent::IllegalInstructionFault(opcode));
+            0xCB | 0xD3 | 0xDB | 0xDD | 0xE3 | 0xE4 | 0xEB | 0xEC | 0xED | 0xF4 | 0xFC | 0xFD => {
+                return Err(dbg::TraceEvent::IllegalInstructionFault(self.opcode));
             }
         };
 
-        Ok(false)
+        Ok(())
     }
 
     #[rustfmt::skip]
     #[allow(clippy::cyclomatic_complexity)]
-    fn op_cb(&mut self, bus: &mut impl MemRW, opcode: u8) -> Result<(), dbg::TraceEvent> {
-        match opcode {
+    pub fn op_cb(&mut self) -> Result<(), dbg::TraceEvent> {
+        match self.opcode {
             0x00 => { let v = rl!(self, true, self.b()); self.set_b(v); }
             0x01 => { let v = rl!(self, true, self.c()); self.set_c(v); }
             0x02 => { let v = rl!(self, true, self.d()); self.set_d(v); }
@@ -637,9 +572,8 @@ impl CPU {
             0x05 => { let v = rl!(self, true, self.l()); self.set_l(v); }
             0x07 => { let v = rl!(self, true, self.a()); self.set_a(v); }
             0x06 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = rl!(self, true, d8);
-                self.store(bus, self.hl, v)?;
+                let v = rl!(self, true, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x08 => { let v = rr!(self, true, self.b()); self.set_b(v); }
@@ -650,9 +584,8 @@ impl CPU {
             0x0D => { let v = rr!(self, true, self.l()); self.set_l(v); }
             0x0F => { let v = rr!(self, true, self.a()); self.set_a(v); }
             0x0E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = rr!(self, true, d8);
-                self.store(bus, self.hl, v)?;
+                let v = rr!(self, true, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x10 => { let v = rl!(self, false, self.b()); self.set_b(v); }
@@ -663,9 +596,8 @@ impl CPU {
             0x15 => { let v = rl!(self, false, self.l()); self.set_l(v); }
             0x17 => { let v = rl!(self, false, self.a()); self.set_a(v); }
             0x16 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = rl!(self, false, d8);
-                self.store(bus, self.hl, v)?;
+                let v = rl!(self, false, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x18 => { let v = rr!(self, false, self.b()); self.set_b(v); }
@@ -676,9 +608,8 @@ impl CPU {
             0x1D => { let v = rr!(self, false, self.l()); self.set_l(v); }
             0x1F => { let v = rr!(self, false, self.a()); self.set_a(v); }
             0x1E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = rr!(self, false, d8);
-                self.store(bus, self.hl, v)?;
+                let v = rr!(self, false, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x20 => { let v = sla!(self, self.b()); self.set_b(v); }
@@ -689,9 +620,8 @@ impl CPU {
             0x25 => { let v = sla!(self, self.l()); self.set_l(v); }
             0x27 => { let v = sla!(self, self.a()); self.set_a(v); }
             0x26 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = sla!(self, d8);
-                self.store(bus, self.hl, v)?;
+                let v = sla!(self, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x28 => { let v = sra!(self, self.b()); self.set_b(v); }
@@ -702,9 +632,8 @@ impl CPU {
             0x2D => { let v = sra!(self, self.l()); self.set_l(v); }
             0x2F => { let v = sra!(self, self.a()); self.set_a(v); }
             0x2E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = sra!(self, d8);
-                self.store(bus, self.hl, v)?;
+                let v = sra!(self, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x30 => { let v = swap!(self, self.b()); self.set_b(v); }
@@ -715,9 +644,8 @@ impl CPU {
             0x35 => { let v = swap!(self, self.l()); self.set_l(v); }
             0x37 => { let v = swap!(self, self.a()); self.set_a(v); }
             0x36 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = swap!(self, d8);
-                self.store(bus, self.hl, v)?;
+                let v = swap!(self, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x38 => { let v = srl!(self, self.b()); self.set_b(v); }
@@ -728,9 +656,8 @@ impl CPU {
             0x3D => { let v = srl!(self, self.l()); self.set_l(v); }
             0x3F => { let v = srl!(self, self.a()); self.set_a(v); }
             0x3E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = srl!(self, d8);
-                self.store(bus, self.hl, v)?;
+                let v = srl!(self, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x40 => bit!(self, 0, self.b()),
@@ -740,10 +667,7 @@ impl CPU {
             0x44 => bit!(self, 0, self.h()),
             0x45 => bit!(self, 0, self.l()),
             0x47 => bit!(self, 0, self.a()),
-            0x46 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                bit!(self, 0, d8);
-            }
+            0x46 => bit!(self, 0, self.operand as u8),
 
             0x48 => bit!(self, 1, self.b()),
             0x49 => bit!(self, 1, self.c()),
@@ -752,10 +676,7 @@ impl CPU {
             0x4C => bit!(self, 1, self.h()),
             0x4D => bit!(self, 1, self.l()),
             0x4F => bit!(self, 1, self.a()),
-            0x4E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                bit!(self, 1, d8);
-            }
+            0x4E => bit!(self, 1, self.operand as u8),
 
             0x50 => bit!(self, 2, self.b()),
             0x51 => bit!(self, 2, self.c()),
@@ -764,10 +685,7 @@ impl CPU {
             0x54 => bit!(self, 2, self.h()),
             0x55 => bit!(self, 2, self.l()),
             0x57 => bit!(self, 2, self.a()),
-            0x56 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                bit!(self, 2, d8);
-            }
+            0x56 => bit!(self, 2, self.operand as u8),
 
             0x58 => bit!(self, 3, self.b()),
             0x59 => bit!(self, 3, self.c()),
@@ -776,10 +694,7 @@ impl CPU {
             0x5C => bit!(self, 3, self.h()),
             0x5D => bit!(self, 3, self.l()),
             0x5F => bit!(self, 3, self.a()),
-            0x5E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                bit!(self, 3, d8);
-            }
+            0x5E => bit!(self, 3, self.operand as u8),
 
             0x60 => bit!(self, 4, self.b()),
             0x61 => bit!(self, 4, self.c()),
@@ -788,10 +703,7 @@ impl CPU {
             0x64 => bit!(self, 4, self.h()),
             0x65 => bit!(self, 4, self.l()),
             0x67 => bit!(self, 4, self.a()),
-            0x66 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                bit!(self, 4, d8);
-            }
+            0x66 => bit!(self, 4, self.operand as u8),
 
             0x68 => bit!(self, 5, self.b()),
             0x69 => bit!(self, 5, self.c()),
@@ -800,10 +712,7 @@ impl CPU {
             0x6C => bit!(self, 5, self.h()),
             0x6D => bit!(self, 5, self.l()),
             0x6F => bit!(self, 5, self.a()),
-            0x6E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                bit!(self, 5, d8);
-            }
+            0x6E => bit!(self, 5, self.operand as u8),
 
             0x70 => bit!(self, 6, self.b()),
             0x71 => bit!(self, 6, self.c()),
@@ -812,10 +721,7 @@ impl CPU {
             0x74 => bit!(self, 6, self.h()),
             0x75 => bit!(self, 6, self.l()),
             0x77 => bit!(self, 6, self.a()),
-            0x76 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                bit!(self, 6, d8);
-            }
+            0x76 => bit!(self, 6, self.operand as u8),
 
             0x78 => bit!(self, 7, self.b()),
             0x79 => bit!(self, 7, self.c()),
@@ -824,10 +730,7 @@ impl CPU {
             0x7C => bit!(self, 7, self.h()),
             0x7D => bit!(self, 7, self.l()),
             0x7F => bit!(self, 7, self.a()),
-            0x7E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                bit!(self, 7, d8);
-            }
+            0x7E => bit!(self, 7, self.operand as u8),
 
             0x80 => self.set_b(res!(0, self.b())),
             0x81 => self.set_c(res!(0, self.c())),
@@ -837,9 +740,8 @@ impl CPU {
             0x85 => self.set_l(res!(0, self.l())),
             0x87 => self.set_a(res!(0, self.a())),
             0x86 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = res!(0, d8);
-                self.store(bus, self.hl, v)?;
+                let v = res!(0, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x88 => self.set_b(res!(1, self.b())),
@@ -850,9 +752,8 @@ impl CPU {
             0x8D => self.set_l(res!(1, self.l())),
             0x8F => self.set_a(res!(1, self.a())),
             0x8E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = res!(1, d8);
-                self.store(bus, self.hl, v)?;
+                let v = res!(1, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x90 => self.set_b(res!(2, self.b())),
@@ -863,9 +764,8 @@ impl CPU {
             0x95 => self.set_l(res!(2, self.l())),
             0x97 => self.set_a(res!(2, self.a())),
             0x96 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = res!(2, d8);
-                self.store(bus, self.hl, v)?;
+                let v = res!(2, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0x98 => self.set_b(res!(3, self.b())),
@@ -876,9 +776,8 @@ impl CPU {
             0x9D => self.set_l(res!(3, self.l())),
             0x9F => self.set_a(res!(3, self.a())),
             0x9E => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = res!(3, d8);
-                self.store(bus, self.hl, v)?;
+                let v = res!(3, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xA0 => self.set_b(res!(4, self.b())),
@@ -889,9 +788,8 @@ impl CPU {
             0xA5 => self.set_l(res!(4, self.l())),
             0xA7 => self.set_a(res!(4, self.a())),
             0xA6 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = res!(4, d8);
-                self.store(bus, self.hl, v)?;
+                let v = res!(4, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xA8 => self.set_b(res!(5, self.b())),
@@ -902,9 +800,8 @@ impl CPU {
             0xAD => self.set_l(res!(5, self.l())),
             0xAF => self.set_a(res!(5, self.a())),
             0xAE => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = res!(5, d8);
-                self.store(bus, self.hl, v)?;
+                let v = res!(5, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xB0 => self.set_b(res!(6, self.b())),
@@ -915,9 +812,8 @@ impl CPU {
             0xB5 => self.set_l(res!(6, self.l())),
             0xB7 => self.set_a(res!(6, self.a())),
             0xB6 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = res!(6, d8);
-                self.store(bus, self.hl, v)?;
+                let v = res!(6, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xB8 => self.set_b(res!(7, self.b())),
@@ -928,9 +824,8 @@ impl CPU {
             0xBD => self.set_l(res!(7, self.l())),
             0xBF => self.set_a(res!(7, self.a())),
             0xBE => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = res!(7, d8);
-                self.store(bus, self.hl, v)?;
+                let v = res!(7, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xC0 => self.set_b(set!(0, self.b())),
@@ -941,9 +836,8 @@ impl CPU {
             0xC5 => self.set_l(set!(0, self.l())),
             0xC7 => self.set_a(set!(0, self.a())),
             0xC6 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = set!(0, d8);
-                self.store(bus, self.hl, v)?;
+                let v = set!(0, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xC8 => self.set_b(set!(1, self.b())),
@@ -954,9 +848,8 @@ impl CPU {
             0xCD => self.set_l(set!(1, self.l())),
             0xCF => self.set_a(set!(1, self.a())),
             0xCE => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = set!(1, d8);
-                self.store(bus, self.hl, v)?;
+                let v = set!(1, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xD0 => self.set_b(set!(2, self.b())),
@@ -967,9 +860,8 @@ impl CPU {
             0xD5 => self.set_l(set!(2, self.l())),
             0xD7 => self.set_a(set!(2, self.a())),
             0xD6 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = set!(2, d8);
-                self.store(bus, self.hl, v)?;
+                let v = set!(2, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xD8 => self.set_b(set!(3, self.b())),
@@ -980,9 +872,8 @@ impl CPU {
             0xDD => self.set_l(set!(3, self.l())),
             0xDF => self.set_a(set!(3, self.a())),
             0xDE => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = set!(3, d8);
-                self.store(bus, self.hl, v)?;
+                let v = set!(3, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xE0 => self.set_b(set!(4, self.b())),
@@ -993,9 +884,8 @@ impl CPU {
             0xE5 => self.set_l(set!(4, self.l())),
             0xE7 => self.set_a(set!(4, self.a())),
             0xE6 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = set!(4, d8);
-                self.store(bus, self.hl, v)?;
+                let v = set!(4, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xE8 => self.set_b(set!(5, self.b())),
@@ -1006,9 +896,8 @@ impl CPU {
             0xED => self.set_l(set!(5, self.l())),
             0xEF => self.set_a(set!(5, self.a())),
             0xEE => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = set!(5, d8);
-                self.store(bus, self.hl, v)?;
+                let v = set!(5, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xF0 => self.set_b(set!(6, self.b())),
@@ -1019,9 +908,8 @@ impl CPU {
             0xF5 => self.set_l(set!(6, self.l())),
             0xF7 => self.set_a(set!(6, self.a())),
             0xF6 => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = set!(6, d8);
-                self.store(bus, self.hl, v)?;
+                let v = set!(6, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
 
             0xF8 => self.set_b(set!(7, self.b())),
@@ -1032,9 +920,8 @@ impl CPU {
             0xFD => self.set_l(set!(7, self.l())),
             0xFF => self.set_a(set!(7, self.a())),
             0xFE => {
-                let d8: u8 = self.fetch(bus, self.hl)?;
-                let v = set!(7, d8);
-                self.store(bus, self.hl, v)?;
+                let v = set!(7, self.operand as u8);
+                self.write_op = Some(WritebackOp::Write8(self.hl, v));
             }
         };
 
@@ -1042,10 +929,271 @@ impl CPU {
     }
 }
 
+#[rustfmt::skip]
+pub const OPCODES: [OpcodeInfo; 256] = [
+    OpcodeInfo("NOP",         Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD BC,d16",   Register,    Immediate,    3, 12, 12),
+    OpcodeInfo("LD (BC),A",   Memory(BC),  Register,     1, 8,  8),
+    OpcodeInfo("INC BC",      Register,    Register,     1, 8,  8),
+    OpcodeInfo("INC B",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("DEC B",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD B,d8",     Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RLCA",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD (a16),SP", Memory(A16), Register,     3, 20, 20),
+    OpcodeInfo("ADD HL,BC",   Register,    Register,     1, 8,  8),
+    OpcodeInfo("LD A,(BC)",   Register,    Memory(BC),   1, 8,  8),
+    OpcodeInfo("DEC BC",      Register,    Register,     1, 8,  8),
+    OpcodeInfo("INC C",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("DEC C",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD C,d8",     Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RRCA",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("STOP 0",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD DE,d16",   Register,    Immediate,    3, 12, 12),
+    OpcodeInfo("LD (DE),A",   Memory(DE),  Register,     1, 8,  8),
+    OpcodeInfo("INC DE",      Register,    Register,     1, 8,  8),
+    OpcodeInfo("INC D",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("DEC D",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD D,d8",     Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RLA",         Register,    Register,     1, 4,  4),
+    OpcodeInfo("JR r8",       Register,    Immediate,    2, 12, 12),
+    OpcodeInfo("ADD HL,DE",   Register,    Register,     1, 8,  8),
+    OpcodeInfo("LD A,(DE)",   Register,    Memory(DE),   1, 8,  8),
+    OpcodeInfo("DEC DE",      Register,    Register,     1, 8,  8),
+    OpcodeInfo("INC E",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("DEC E",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD E,d8",     Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RRA",         Register,    Register,     1, 4,  4),
+    OpcodeInfo("JR NZ,r8",    Register,    Immediate,    2, 12, 8),
+    OpcodeInfo("LD HL,d16",   Register,    Immediate,    3, 12, 12),
+    OpcodeInfo("LD (HL+),A",  Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("INC HL",      Register,    Register,     1, 8,  8),
+    OpcodeInfo("INC H",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("DEC H",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD H,d8",     Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("DAA",         Register,    Register,     1, 4,  4),
+    OpcodeInfo("JR Z,r8",     Register,    Immediate,    2, 12, 8),
+    OpcodeInfo("ADD HL,HL",   Register,    Register,     1, 8,  8),
+    OpcodeInfo("LD A,(HL+)",  Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("DEC HL",      Register,    Register,     1, 8,  8),
+    OpcodeInfo("INC L",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("DEC L",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD L,d8",     Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("CPL",         Register,    Register,     1, 4,  4),
+    OpcodeInfo("JR NC,r8",    Register,    Immediate,    2, 12, 8),
+    OpcodeInfo("LD SP,d16",   Register,    Immediate,    3, 12, 12),
+    OpcodeInfo("LD (HL-),A",  Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("INC SP",      Register,    Register,     1, 8,  8),
+    OpcodeInfo("INC (HL)",    Memory(HL),  Memory(HL),   1, 12, 12),
+    OpcodeInfo("DEC (HL)",    Memory(HL),  Memory(HL),   1, 12, 12),
+    OpcodeInfo("LD (HL),d8",  Memory(HL),  Immediate,    2, 12, 12),
+    OpcodeInfo("SCF",         Register,    Register,     1, 4,  4),
+    OpcodeInfo("JR C,r8",     Register,    Immediate,    2, 12, 8),
+    OpcodeInfo("ADD HL,SP",   Register,    Register,     1, 8,  8),
+    OpcodeInfo("LD A,(HL-)",  Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("DEC SP",      Register,    Register,     1, 8,  8),
+    OpcodeInfo("INC A",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("DEC A",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD A,d8",     Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("CCF",         Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD B,B",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD B,C",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD B,D",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD B,E",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD B,H",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD B,L",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD B,(HL)",   Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("LD B,A",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD C,B",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD C,C",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD C,D",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD C,E",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD C,H",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD C,L",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD C,(HL)",   Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("LD C,A",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD D,B",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD D,C",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD D,D",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD D,E",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD D,H",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD D,L",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD D,(HL)",   Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("LD D,A",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD E,B",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD E,C",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD E,D",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD E,E",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD E,H",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD E,L",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD E,(HL)",   Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("LD E,A",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD H,B",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD H,C",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD H,D",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD H,E",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD H,H",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD H,L",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD H,(HL)",   Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("LD H,A",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD L,B",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD L,C",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD L,D",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD L,E",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD L,H",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD L,L",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD L,(HL)",   Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("LD L,A",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD (HL),B",   Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("LD (HL),C",   Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("LD (HL),D",   Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("LD (HL),E",   Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("LD (HL),H",   Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("LD (HL),L",   Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("HALT",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD (HL),A",   Memory(HL),  Register,     1, 8,  8),
+    OpcodeInfo("LD A,B",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD A,C",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD A,D",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD A,E",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD A,H",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD A,L",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("LD A,(HL)",   Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("LD A,A",      Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADD A,B",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADD A,C",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADD A,D",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADD A,E",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADD A,H",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADD A,L",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADD A,(HL)",  Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("ADD A,A",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADC A,B",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADC A,C",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADC A,D",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADC A,E",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADC A,H",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADC A,L",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("ADC A,(HL)",  Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("ADC A,A",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("SUB B",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("SUB C",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("SUB D",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("SUB E",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("SUB H",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("SUB L",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("SUB (HL)",    Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("SUB A",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("SBC A,B",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("SBC A,C",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("SBC A,D",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("SBC A,E",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("SBC A,H",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("SBC A,L",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("SBC A,(HL)",  Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("SBC A,A",     Register,    Register,     1, 4,  4),
+    OpcodeInfo("AND B",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("AND C",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("AND D",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("AND E",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("AND H",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("AND L",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("AND (HL)",    Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("AND A",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("XOR B",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("XOR C",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("XOR D",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("XOR E",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("XOR H",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("XOR L",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("XOR (HL)",    Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("XOR A",       Register,    Register,     1, 4,  4),
+    OpcodeInfo("OR B",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("OR C",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("OR D",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("OR E",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("OR H",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("OR L",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("OR (HL)",     Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("OR A",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("CP B",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("CP C",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("CP D",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("CP E",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("CP H",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("CP L",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("CP (HL)",     Register,    Memory(HL),   1, 8,  8),
+    OpcodeInfo("CP A",        Register,    Register,     1, 4,  4),
+    OpcodeInfo("RET NZ",      Register,    Register,     1, 20, 8),
+    OpcodeInfo("POP BC",      Register,    Memory(SP),   1, 12, 12),
+    OpcodeInfo("JP NZ,a16",   Register,    Immediate,    3, 16, 12),
+    OpcodeInfo("JP a16",      Register,    Immediate,    3, 16, 16),
+    OpcodeInfo("CALL NZ,a16", Register,    Immediate,    3, 24, 12),
+    OpcodeInfo("PUSH BC",     Memory(SP),  Register,     1, 16, 16),
+    OpcodeInfo("ADD A,d8",    Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RST 00H",     Register,    Register,     1, 16, 16),
+    OpcodeInfo("RET Z",       Register,    Register,     1, 20, 8),
+    OpcodeInfo("RET",         Register,    Register,     1, 16, 16),
+    OpcodeInfo("JP Z,a16",    Register,    Immediate,    3, 16, 12),
+    OpcodeInfo("PREFIX CB",   Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("CALL Z,a16",  Register,    Immediate,    3, 24, 12),
+    OpcodeInfo("CALL a16",    Register,    Immediate,    3, 24, 24),
+    OpcodeInfo("ADC A,d8",    Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RST 08H",     Register,    Register,     1, 16, 16),
+    OpcodeInfo("RET NC",      Register,    Register,     1, 20, 8),
+    OpcodeInfo("POP DE",      Register,    Memory(SP),   1, 12, 12),
+    OpcodeInfo("JP NC,a16",   Register,    Immediate,    3, 16, 12),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("CALL NC,a16", Register,    Immediate,    3, 24, 12),
+    OpcodeInfo("PUSH DE",     Memory(SP),  Register,     1, 16, 16),
+    OpcodeInfo("SUB d8",      Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RST 10H",     Register,    Register,     1, 16, 16),
+    OpcodeInfo("RET C",       Register,    Register,     1, 20, 8),
+    OpcodeInfo("RETI",        Register,    Register,     1, 16, 16),
+    OpcodeInfo("JP C,a16",    Register,    Immediate,    3, 16, 12),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("CALL C,a16",  Register,    Immediate,    3, 24, 12),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("SBC A,d8",    Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RST 18H",     Register,    Register,     1, 16, 16),
+    OpcodeInfo("LDH (a8),A",  Memory(IO),  Register,     2, 12, 12),
+    OpcodeInfo("POP HL",      Register,    Memory(SP),   1, 12, 12),
+    OpcodeInfo("LD (C),A",    Memory(C),   Register,     2, 8,  8),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("PUSH HL",     Memory(HL),  Register,     1, 16, 16),
+    OpcodeInfo("AND d8",      Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RST 20H",     Register,    Register,     1, 16, 16),
+    OpcodeInfo("ADD SP,r8",   Register,    Immediate,    2, 16, 16),
+    OpcodeInfo("JP (HL)",     Register,    Memory(HL),   1, 4,  4),
+    OpcodeInfo("LD (a16),A",  Memory(A16), Register,     3, 16, 16),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("XOR d8",      Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RST 28H",     Register,    Register,     1, 16, 16),
+    OpcodeInfo("LDH A,(a8)",  Register,    Memory(IO),   2, 12, 12),
+    OpcodeInfo("POP AF",      Register,    Memory(SP),   1, 12, 12),
+    OpcodeInfo("LD A,(C)",    Register,    Memory(C),    2, 8,  8),
+    OpcodeInfo("DI",          Register,    Register,     1, 4,  4),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("PUSH AF",     Memory(SP),  Register,     1, 16, 16),
+    OpcodeInfo("OR d8",       Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RST 30H",     Register,    Register,     1, 16, 16),
+    OpcodeInfo("LD HL,SP+r8", Register,    Immediate,    2, 12, 12),
+    OpcodeInfo("LD SP,HL",    Register,    Register,     1, 8,  8),
+    OpcodeInfo("LD A,(a16)",  Register,    Memory(A16),  3, 16, 16),
+    OpcodeInfo("EI",          Register,    Register,     1, 4,  4),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("-",           Register,    Register,     1, 0,  0),
+    OpcodeInfo("CP d8",       Register,    Immediate,    2, 8,  8),
+    OpcodeInfo("RST 38H",     Register,    Register,     1, 16, 16),
+];
+
 #[cfg(test)]
 mod test {
     use super::super::dbg;
-    use super::super::mem::{MemR, MemSize, MemW};
+    use super::super::mem::{MemR, MemRW, MemSize, MemW};
+    use super::super::{CpuState, CpuState::*};
     use super::*;
 
     impl<'a> MemR for &'a mut [u8] {
@@ -1062,228 +1210,254 @@ mod test {
 
     impl<'a> MemRW for &'a mut [u8] {}
 
-    fn check_opcode(cpu: Option<CPU>, opcode: u8, exp_pc: u16, exp_clk: u64) {
-        let mut cpu = cpu.unwrap_or_else(CPU::new);
-        cpu.exec(&mut (&mut [opcode; 0x10000][..]))
-            .expect("unexpected trace event");
-
-        assert!(
-            cpu.pc == exp_pc,
-            "wrong PC for {:02X}: {:04X} != {:04X}",
-            opcode,
-            cpu.pc,
-            exp_pc
-        );
-        assert!(
-            cpu.clk == exp_clk,
-            "wrong clk for {:02X}: {} != {}",
-            opcode,
-            cpu.clk,
-            exp_clk
-        );
+    struct CpuTest {
+        ticks: usize,
+        memory: Vec<u8>,
+        setup_fn: Box<FnMut(&mut CPU)>,
+        target_states: Option<Vec<CpuState>>,
+        target_memory: Option<Vec<u8>>,
     }
 
-    #[test]
-    fn opcode_misc_timings() {
-        [0x00u8, 0x10, 0x27, 0x76, 0xF3, 0xFB]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 4));
-    }
+    impl CpuTest {
+        fn new(ticks: usize, memory: Vec<u8>) -> CpuTest {
+            CpuTest {
+                ticks,
+                memory,
+                setup_fn: Box::new(|_| {}),
+                target_states: None,
+                target_memory: None,
+            }
+        }
 
-    #[test]
-    fn opcode_jump_timings() {
-        let cpu_with_zf = || {
+        fn match_states(mut self, states: Vec<CpuState>) -> CpuTest {
+            self.target_states = Some(states);
+            self
+        }
+
+        fn match_memory(mut self, mem: Vec<u8>) -> CpuTest {
+            self.target_memory = Some(mem);
+            self
+        }
+
+        fn setup<F: 'static>(mut self, setup: F) -> CpuTest
+        where
+            F: FnMut(&mut CPU),
+        {
+            self.setup_fn = Box::new(setup);
+            self
+        }
+
+        fn run<F>(mut self, mut verify: F)
+        where
+            F: FnMut(&mut CPU, &[u8]),
+        {
             let mut cpu = CPU::new();
-            cpu.set_zf(true);
-            cpu
-        };
 
-        let cpu_with_cy = || {
-            let mut cpu = CPU::new();
-            cpu.set_cy(true);
-            cpu
-        };
+            (self.setup_fn)(&mut cpu);
 
-        check_opcode(None, 0x18, 2 + 0x18, 12);
-        check_opcode(None, 0xC3, 0xC3C3, 16);
-        check_opcode(None, 0xCD, 0xCDCD, 24);
-        check_opcode(None, 0xE9, 0, 4);
+            for t in 0..self.ticks {
+                cpu.tick(&mut (&mut self.memory[..])).unwrap();
 
-        check_opcode(None, 0x20, 2 + 0x20, 12);
-        check_opcode(None, 0x28, 2, 8);
-        check_opcode(Some(cpu_with_zf()), 0x20, 2, 8);
-        check_opcode(Some(cpu_with_zf()), 0x28, 2 + 0x28, 12);
+                if let Some(ref states) = self.target_states {
+                    assert_eq!(cpu.state, states[t]);
+                }
+            }
 
-        check_opcode(None, 0x30, 2 + 0x30, 12);
-        check_opcode(None, 0x38, 2, 8);
-        check_opcode(Some(cpu_with_cy()), 0x30, 2, 8);
-        check_opcode(Some(cpu_with_cy()), 0x38, 2 + 0x38, 12);
+            if let Some(ref tgt_mem) = self.target_memory {
+                assert_eq!(self.memory, *tgt_mem);
+            }
 
-        check_opcode(None, 0xC2, 0xC2C2, 16);
-        check_opcode(None, 0xCA, 3, 12);
-        check_opcode(Some(cpu_with_zf()), 0xC2, 3, 12);
-        check_opcode(Some(cpu_with_zf()), 0xCA, 0xCACA, 16);
-
-        check_opcode(None, 0xD2, 0xD2D2, 16);
-        check_opcode(None, 0xDA, 3, 12);
-        check_opcode(Some(cpu_with_cy()), 0xD2, 3, 12);
-        check_opcode(Some(cpu_with_cy()), 0xDA, 0xDADA, 16);
-
-        check_opcode(None, 0xC4, 0xC4C4, 24);
-        check_opcode(None, 0xCC, 3, 12);
-        check_opcode(Some(cpu_with_zf()), 0xC4, 3, 12);
-        check_opcode(Some(cpu_with_zf()), 0xCC, 0xCCCC, 24);
-
-        check_opcode(None, 0xD4, 0xD4D4, 24);
-        check_opcode(None, 0xDC, 3, 12);
-        check_opcode(Some(cpu_with_cy()), 0xD4, 3, 12);
-        check_opcode(Some(cpu_with_cy()), 0xDC, 0xDCDC, 24);
-
-        check_opcode(None, 0xC7, 0x00, 16);
-        check_opcode(None, 0xD7, 0x10, 16);
-        check_opcode(None, 0xE7, 0x20, 16);
-        check_opcode(None, 0xF7, 0x30, 16);
-
-        check_opcode(None, 0xCF, 0x08, 16);
-        check_opcode(None, 0xDF, 0x18, 16);
-        check_opcode(None, 0xEF, 0x28, 16);
-        check_opcode(None, 0xFF, 0x38, 16);
-
-        check_opcode(None, 0xC0, 0xC0C0, 20);
-        check_opcode(None, 0xC8, 1, 8);
-        check_opcode(Some(cpu_with_zf()), 0xC0, 1, 8);
-        check_opcode(Some(cpu_with_zf()), 0xC8, 0xC8C8, 20);
-
-        check_opcode(None, 0xD0, 0xD0D0, 20);
-        check_opcode(None, 0xD8, 1, 8);
-        check_opcode(Some(cpu_with_cy()), 0xD0, 1, 8);
-        check_opcode(Some(cpu_with_cy()), 0xD8, 0xD8D8, 20);
-
-        check_opcode(None, 0xC9, 0xC9C9, 16);
-        check_opcode(None, 0xD9, 0xD9D9, 16);
+            verify(&mut cpu, &self.memory[..]);
+        }
     }
 
     #[test]
-    fn opcode_ld8_timings() {
-        (0x40..=0x6F)
-            .for_each(|opc| check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 }));
-
-        [0x70u8, 0x71, 0x72, 0x73, 0x74, 0x75, 0x77]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 8));
-
-        (0x78..=0x7F)
-            .for_each(|opc| check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 }));
-
-        [0x02u8, 0x12, 0x22, 0x32, 0x0A, 0x1A, 0x2A, 0x3A]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 8));
-
-        [0x06u8, 0x16, 0x26, 0x0E, 0x1E, 0x2E, 0x3E]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 2, 8));
-
-        [0x36u8, 0xE0, 0xF0]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 2, 12));
-
-        check_opcode(None, 0xE2, 1, 8);
-        check_opcode(None, 0xF2, 1, 8);
-        check_opcode(None, 0xEA, 3, 16);
-        check_opcode(None, 0xFA, 3, 16);
+    fn nop_works() {
+        CpuTest::new(1, vec![0x00])
+            .match_states(vec![FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.pc, 1);
+            });
     }
 
     #[test]
-    fn opcode_ld16_timings() {
-        [0x01u8, 0x11, 0x21, 0x31]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 3, 12));
+    fn ld16_opcodes_work() {
+        // LD rr,d16
+        CpuTest::new(3, vec![0x01, 0xAA, 0x55])
+            .match_states(vec![FetchByte0, FetchByte1, FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.bc, 0x55AA);
+            });
 
-        [0xC1u8, 0xD1, 0xE1, 0xF1]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 12));
+        // LD (a16),SP
+        CpuTest::new(4, vec![0x08, 0x03, 0x00, 0x00, 0x00])
+            .match_states(vec![FetchByte0, FetchByte1, Writeback, FetchOpcode])
+            .match_memory(vec![0x08, 0x03, 0x00, 0xC0, 0xBE])
+            .setup(|cpu| {
+                cpu.sp = 0xBEC0;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.sp, 0xBEC0);
+            });
 
-        [0xC5u8, 0xD5, 0xE5, 0xF5]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 16));
+        // PUSH rr
+        CpuTest::new(2, vec![0xD5, 0x00, 0x00, 0x22, 0x11])
+            .match_states(vec![Writeback, FetchOpcode])
+            .match_memory(vec![0xD5, 0x00, 0x00, 0xBB, 0xAA])
+            .setup(|cpu| {
+                cpu.sp = 0x0005;
+                cpu.de = 0xAABB;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.sp, 0x0003);
+                assert_eq!(cpu.de, 0xAABB);
+            });
 
-        check_opcode(None, 0x08, 3, 20);
-        check_opcode(None, 0xF8, 2, 12);
-        check_opcode(None, 0xF9, 1, 8);
+        // POP rr
+        CpuTest::new(2, vec![0xE1, 0x00, 0x00, 0x22, 0x11])
+            .match_states(vec![FetchMemory, FetchOpcode])
+            .match_memory(vec![0xE1, 0x00, 0x00, 0x22, 0x11])
+            .setup(|cpu| {
+                cpu.sp = 0x0003;
+                cpu.hl = 0x0000;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.sp, 0x0005);
+                assert_eq!(cpu.hl, 0x1122);
+            });
+
+        // LD SP,rr
+        CpuTest::new(1, vec![0xF9])
+            .match_states(vec![FetchOpcode])
+            .setup(|cpu| {
+                cpu.sp = 0x0000;
+                cpu.hl = 0x1234;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.sp, 0x1234);
+                assert_eq!(cpu.hl, 0x1234);
+            });
+
+        // LD HL,SP+r8
+        CpuTest::new(2, vec![0xF8, 0x15])
+            .match_states(vec![FetchByte0, FetchOpcode])
+            .setup(|cpu| {
+                cpu.sp = 0x2500;
+                cpu.hl = 0x1234;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.sp, 0x2500);
+                assert_eq!(cpu.hl, 0x2515);
+            });
+
+        CpuTest::new(2, vec![0xF8, 0xFE])
+            .match_states(vec![FetchByte0, FetchOpcode])
+            .setup(|cpu| {
+                cpu.sp = 0x2500;
+                cpu.hl = 0x1234;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.sp, 0x2500);
+                assert_eq!(cpu.hl, 0x24FE);
+            });
     }
 
     #[test]
-    fn opcode_alu8_timings() {
-        [
-            0x04u8, 0x05, 0x0C, 0x0D, 0x14u8, 0x15, 0x1C, 0x1D, 0x24u8, 0x25, 0x2C, 0x2D, 0x3C,
-            0x3D, 0x37, 0x2F, 0x3F,
-        ]
-        .iter()
-        .for_each(|&opc| check_opcode(None, opc, 1, 4));
+    fn ld8_opcodes_work() {
+        // LD m,A
+        CpuTest::new(2, vec![0x02, 0x00])
+            .match_states(vec![Writeback, FetchOpcode])
+            .match_memory(vec![0x02, 0xAA])
+            .setup(|cpu| {
+                cpu.bc = 0x0001;
+                cpu.set_a(0xAA);
+            })
+            .run(|_, _| {});
 
-        [0x34u8, 0x35]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 12));
+        // LD r,d8
+        CpuTest::new(2, vec![0x16, 0xAB])
+            .match_states(vec![FetchByte0, FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.d(), 0xAB);
+            });
 
-        (0x80..=0xBF)
-            .for_each(|opc| check_opcode(None, opc, 1, if (opc & 0x07) != 0x6 { 4 } else { 8 }));
+        // LD m,d8
+        CpuTest::new(3, vec![0x36, 0xAB, 0x00, 0xFF])
+            .match_states(vec![FetchByte0, Writeback, FetchOpcode])
+            .match_memory(vec![0x36, 0xAB, 0xAB, 0xFF])
+            .setup(|cpu| {
+                cpu.hl = 0x2;
+            })
+            .run(|_, _| {});
 
-        [0xC6u8, 0xCE, 0xD6, 0xDE, 0xE6, 0xEE, 0xF6, 0xFE]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 2, 8));
-    }
+        // LD A,m
+        CpuTest::new(2, vec![0x1A, 0xFE, 0x00])
+            .match_states(vec![FetchMemory, FetchOpcode])
+            .setup(|cpu| {
+                cpu.de = 0x1;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.a(), 0xFE);
+            });
 
-    #[test]
-    fn opcode_alu16_timings() {
-        [
-            0x03u8, 0x13, 0x23, 0x33, 0x0B, 0x1B, 0x2B, 0x3B, 0x09, 0x19, 0x29, 0x39,
-        ]
-        .iter()
-        .for_each(|&opc| check_opcode(None, opc, 1, 8));
+        // LD A,m+
+        CpuTest::new(2, vec![0x2A, 0xFE, 0x00])
+            .match_states(vec![FetchMemory, FetchOpcode])
+            .setup(|cpu| {
+                cpu.hl = 0x1;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.a(), 0xFE);
+                assert_eq!(cpu.hl, 0x2);
+            });
 
-        check_opcode(None, 0xE8, 2, 16);
-    }
+        // LD r,r
+        CpuTest::new(1, vec![0x51])
+            .match_states(vec![FetchOpcode])
+            .setup(|cpu| {
+                cpu.set_d(0x23);
+                cpu.set_c(0x12);
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.d(), 0x12);
+                assert_eq!(cpu.c(), 0x12);
+            });
 
-    #[test]
-    fn opcode_bitwise8_timings() {
-        let check_cb_opcode = |opcode, exp_pc, exp_clk| {
-            let mut cpu = CPU::new();
-            cpu.exec(&mut (&mut [0xCBu8, opcode][..]))
-                .expect("unexpected trace event");
+        // LD A,m
+        CpuTest::new(2, vec![0x5E, 0xFE, 0x00])
+            .match_states(vec![FetchMemory, FetchOpcode])
+            .setup(|cpu| {
+                cpu.hl = 0x1;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.e(), 0xFE);
+            });
 
-            assert!(
-                cpu.pc == exp_pc,
-                "[CB] wrong PC for {:02X}: {:04X} != {:04X}",
-                opcode,
-                cpu.pc,
-                exp_pc
-            );
-            assert!(
-                cpu.clk == exp_clk,
-                "[CB] wrong clk for {:02X}: {} != {}",
-                opcode,
-                cpu.clk,
-                exp_clk
-            );
-        };
+        // LD m,A
+        CpuTest::new(2, vec![0x71, 0x00])
+            .match_states(vec![Writeback, FetchOpcode])
+            .match_memory(vec![0x71, 0xAA])
+            .setup(|cpu| {
+                cpu.hl = 0x1;
+                cpu.set_c(0xAA);
+            })
+            .run(|_, _| {});
 
-        [0x07u8, 0x0F, 0x17, 0x1F]
-            .iter()
-            .for_each(|&opc| check_opcode(None, opc, 1, 4));
+        // LDH m,A
+        CpuTest::new(3, vec![0xE0; 0x10000])
+            .match_states(vec![FetchByte0, Writeback, FetchOpcode])
+            .setup(|cpu| {
+                cpu.set_a(0xAB);
+            })
+            .run(|_, mem| {
+                assert_eq!(mem[0xFFE0], 0xAB);
+            });
 
-        (0x00u8..=0xFF).for_each(|opc| {
-            check_cb_opcode(
-                opc,
-                2,
-                if (opc & 0x7) != 0x6 {
-                    8
-                } else {
-                    match opc & 0xF0 {
-                        0x40..=0x70 => 12,
-                        _ => 16,
-                    }
-                },
-            )
-        });
+        // LDH A,m
+        CpuTest::new(3, vec![0xF0; 0x10000])
+            .match_states(vec![FetchByte0, FetchMemory, FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.a(), 0xF0);
+            });
     }
 }

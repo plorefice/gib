@@ -137,8 +137,8 @@ impl PPU {
         }
     }
 
-    pub fn tick(&mut self, elapsed: u64) {
-        self.tstate = (self.tstate + elapsed) % 70224;
+    pub fn tick(&mut self) {
+        self.tstate = (self.tstate + 4) % 70224;
         let v_line = self.tstate / 456;
 
         let mode = if v_line < 144 {

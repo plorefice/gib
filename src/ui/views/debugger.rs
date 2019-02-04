@@ -23,7 +23,10 @@ impl WindowView for DebuggerView {
             .build(|| {
                 let cpu = state.cpu();
 
-                ui.text(format!("Clock cycle: {:12}", cpu.clk));
+                ui.text(format!(
+                    "Clock cycle: {:12}",
+                    state.gameboy().clock_cycles()
+                ));
 
                 if cpu.halted {
                     ui.same_line_spacing(0.0, 20.0);

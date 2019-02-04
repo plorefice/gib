@@ -89,6 +89,10 @@ impl EmuState {
         Ok(())
     }
 
+    pub fn gameboy(&self) -> &GameBoy {
+        &self.gb
+    }
+
     pub fn cpu(&self) -> &CPU {
         self.gb.cpu()
     }

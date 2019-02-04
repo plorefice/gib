@@ -20,11 +20,13 @@ impl RomTest {
 
         self.gb.load_rom(&self.rom[..]).unwrap();
 
-        while self.gb.cpu().clk < until {
+        while self.gb.clock_cycles() < until {
             self.gb.step().unwrap();
         }
         self.gb.rasterize(&mut vbuf[..]);
 
-        assert_eq!(&vbuf[..], &output[..]);
+        if &vbuf[..] != output {
+            panic!("output buffers not matching")
+        }
     }
 }

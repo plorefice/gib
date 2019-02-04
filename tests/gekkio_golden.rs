@@ -99,3 +99,14 @@ fn passes_gekkio_acceptance_timer_tim11_div_trigger() {
         include_bytes!("gekkio/acceptance/timer/tim11_div_trigger.bin"),
     );
 }
+
+// #[test]
+// fn passes_gekkio_acceptance_timer_tima_reload() {
+//     RomTest::new(include_bytes!(
+//         "../roms/gekkio/acceptance/timer/tima_reload.gb"
+//     ))
+//     .must_run_and_match(
+//         30_000_000u64,
+//         include_bytes!("gekkio/acceptance/timer/tima_reload.bin"),
+//     );
+// }

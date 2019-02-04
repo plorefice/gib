@@ -11,6 +11,7 @@ const CYCLES_PER_HSYNC: u64 = CPU_CLOCK / HSYNC_CLOCK;
 pub struct GameBoy {
     cpu: CPU,
     bus: Bus,
+    cycles: u64,
 }
 
 impl Default for GameBoy {
@@ -18,6 +19,7 @@ impl Default for GameBoy {
         GameBoy {
             cpu: CPU::new(),
             bus: Bus::new(),
+            cycles: 0,
         }
     }
 }
@@ -32,12 +34,21 @@ impl GameBoy {
     }
 
     pub fn step(&mut self) -> Result<(), dbg::TraceEvent> {
-        self.handle_irqs()?;
+        if !self.cpu.executing {
+            self.handle_irqs()?;
+        }
 
-        let prev_clk = self.cpu.clk;
+        self.tick()?;
+        while self.cpu.executing {
+            self.tick()?;
+        }
 
+        Ok(())
+    }
+
+    fn tick(&mut self) -> Result<(), dbg::TraceEvent> {
         if !self.cpu.halted {
-            let should_halt = self.cpu.exec(&mut self.bus)?;
+            self.cpu.tick(&mut self.bus)?;
 
             // Section 4.10 of "The Cycle-Accurate GameBoy Docs"
             // =================================================
@@ -45,21 +56,21 @@ impl GameBoy {
             // In this case, the CPU is NOT halted, and the HALT bug is triggered, causing the PC
             // to NOT be incremented when the next instruction is executed (ie. the next instruction
             // is executed twice).
-            if should_halt {
+            if self.cpu.should_halt {
+                self.cpu.should_halt = false;
+
                 if self.cpu.intr_enabled || !self.bus.itr.pending_irqs() {
                     self.cpu.halted = true;
                 } else {
                     self.cpu.halt_bug = true;
                 }
             }
-        } else {
-            self.cpu.clk += 4;
         }
 
-        let elapsed = self.cpu.clk - prev_clk;
+        self.bus.ppu.tick();
+        self.bus.tim.tick();
 
-        self.bus.ppu.tick(elapsed);
-        self.bus.tim.tick(elapsed);
+        self.cycles += 4;
 
         Ok(())
     }
@@ -89,17 +100,20 @@ impl GameBoy {
     }
 
     pub fn run_for_vblank(&mut self) -> Result<(), dbg::TraceEvent> {
-        let until_clk = self.cpu.clk + CYCLES_PER_HSYNC * 154;
+        let until = self.cycles + (CYCLES_PER_HSYNC * 154);
 
-        while self.cpu.clk < until_clk {
+        while self.cycles < until {
             self.step()?;
         }
-
         Ok(())
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {
         self.bus.ppu.rasterize(vbuf);
+    }
+
+    pub fn clock_cycles(&self) -> u64 {
+        self.cycles
     }
 
     pub fn cpu(&self) -> &CPU {

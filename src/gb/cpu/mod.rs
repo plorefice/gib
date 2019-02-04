@@ -5,5 +5,5 @@ mod opcodes;
 use super::dbg;
 use super::mem;
 
-pub use self::core::CPU;
-pub use self::debug::{Immediate, Instruction};
+pub use self::core::*;
+pub use self::debug::*;
