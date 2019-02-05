@@ -12,7 +12,6 @@ use reg::*;
 
 pub use interrupts::*;
 pub use joypad::*;
-pub use reg::InterruptSource;
 pub use serial::*;
 pub use sound::*;
 pub use timer::*;

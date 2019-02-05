@@ -1,4 +1,5 @@
 use super::dbg;
+use super::{InterruptSource, IrqSource};
 use super::{MemR, MemRW, MemSize, MemW};
 
 #[derive(Default)]
@@ -7,6 +8,12 @@ pub struct Serial;
 impl Serial {
     pub fn new() -> Serial {
         Serial::default()
+    }
+}
+
+impl InterruptSource for Serial {
+    fn irq_pending(&self) -> Option<IrqSource> {
+        None
     }
 }
 

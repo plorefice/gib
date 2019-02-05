@@ -77,8 +77,17 @@ impl GameBoy {
 
     fn handle_irqs(&mut self) -> Result<(), dbg::TraceEvent> {
         // Fetch interrupt requests from interrupt sources
-        if self.bus.tim.irq_pending() {
-            self.bus.itr.set_irq(2);
+        if let Some(irq) = self.bus.ppu.irq_pending() {
+            self.bus.itr.set_irq(irq.into());
+        }
+        if let Some(irq) = self.bus.tim.irq_pending() {
+            self.bus.itr.set_irq(irq.into());
+        }
+        if let Some(irq) = self.bus.apu.irq_pending() {
+            self.bus.itr.set_irq(irq.into());
+        }
+        if let Some(irq) = self.bus.sdt.irq_pending() {
+            self.bus.itr.set_irq(irq.into());
         }
 
         if let Some(id) = self.bus.itr.get_pending_irq() {

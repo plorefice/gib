@@ -1,4 +1,5 @@
 use super::dbg;
+use super::{InterruptSource, IrqSource};
 use super::{MemR, MemSize, MemW};
 
 pub struct APU;
@@ -12,6 +13,12 @@ impl Default for APU {
 impl APU {
     pub fn new() -> APU {
         APU::default()
+    }
+}
+
+impl InterruptSource for APU {
+    fn irq_pending(&self) -> Option<IrqSource> {
+        None
     }
 }
 

@@ -1,5 +1,5 @@
 use super::dbg;
-use super::{InterruptSource, IoReg};
+use super::{InterruptSource, IoReg, IrqSource};
 use super::{MemR, MemRW, MemSize, MemW};
 
 pub struct Timer {
@@ -131,8 +131,12 @@ impl Timer {
 }
 
 impl InterruptSource for Timer {
-    fn irq_pending(&self) -> bool {
-        self.irq_pending
+    fn irq_pending(&self) -> Option<IrqSource> {
+        if self.irq_pending {
+            Some(IrqSource::Timer)
+        } else {
+            None
+        }
     }
 }
 

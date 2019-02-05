@@ -55,7 +55,3 @@ where
     //     }
     // }
 }
-
-pub trait InterruptSource {
-    fn irq_pending(&self) -> bool;
-}

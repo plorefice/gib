@@ -1,4 +1,5 @@
 use super::dbg::{self, Peripheral};
+use super::{InterruptSource, IrqSource};
 use super::{IoReg, MemR, MemRW, MemSize, MemW};
 
 #[repr(usize)]
@@ -79,6 +80,9 @@ pub struct PPU {
 
     regs: [IoReg<u8>; 48],
     tstate: u64,
+
+    vblank_irq_pending: bool,
+    stat_irq_pending: bool,
 }
 
 impl Default for PPU {
@@ -91,6 +95,9 @@ impl Default for PPU {
 
             regs: [IoReg::default(); 48],
             tstate: 0,
+
+            vblank_irq_pending: false,
+            stat_irq_pending: false,
         }
     }
 }
@@ -158,6 +165,11 @@ impl PPU {
         {
             let IoReg(ref mut ly) = self.regs[Register::LY as usize];
             *ly = v_line as u8;
+
+            // V-Blank IRQ happens at the beginning of the 144th line
+            if v_line == 144 && self.tstate == 0 {
+                self.vblank_irq_pending = true;
+            }
         }
     }
 
@@ -198,6 +210,18 @@ impl PPU {
             &self.tdt[usize::from(tile_id)]
         } else {
             &self.tdt[(128 + i32::from(tile_id as i8)) as usize]
+        }
+    }
+}
+
+impl InterruptSource for PPU {
+    fn irq_pending(&self) -> Option<IrqSource> {
+        if self.vblank_irq_pending {
+            Some(IrqSource::VBlank)
+        } else if self.stat_irq_pending {
+            Some(IrqSource::LcdStat)
+        } else {
+            None
         }
     }
 }

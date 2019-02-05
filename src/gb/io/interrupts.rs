@@ -1,6 +1,32 @@
 use super::dbg::{self, Peripheral};
 use super::{IoReg, MemR, MemRW, MemSize, MemW};
 
+/// Possible sources of interrupt in the system
+#[allow(unused)]
+pub enum IrqSource {
+    VBlank,
+    LcdStat,
+    Timer,
+    Serial,
+    Joypad,
+}
+
+impl Into<usize> for IrqSource {
+    fn into(self) -> usize {
+        match self {
+            IrqSource::VBlank => 0,
+            IrqSource::LcdStat => 1,
+            IrqSource::Timer => 2,
+            IrqSource::Serial => 3,
+            IrqSource::Joypad => 4,
+        }
+    }
+}
+
+pub trait InterruptSource {
+    fn irq_pending(&self) -> Option<IrqSource>;
+}
+
 #[derive(Default)]
 pub struct IrqController {
     pub ien: IoReg<u8>,
