@@ -68,6 +68,18 @@ fn passes_gekkio_acceptance_bits_unused_hwio() {
 }
 
 /*
+ * Gekkio's INSTR acceptance tests
+ */
+
+#[test]
+fn passes_gekkio_acceptance_instr_daa() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/instr/daa.gb")).must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/instr/daa.bin"),
+    );
+}
+
+/*
  * Gekkio's TIMER acceptance tests
  */
 
