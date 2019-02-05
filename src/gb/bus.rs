@@ -160,7 +160,7 @@ impl Bus {
     ) -> Result<(), dbg::TraceEvent> {
         match addr {
             0xFF4D => Err(dbg::TraceEvent::CgbSpeedSwitchReq),
-            _ => Err(dbg::TraceEvent::UnsupportedCgbOp(addr)),
+            _ => Ok(()),
         }
     }
 }
