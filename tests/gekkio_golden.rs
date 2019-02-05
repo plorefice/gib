@@ -111,13 +111,13 @@ fn passes_gekkio_acceptance_timer_tima_reload() {
     );
 }
 
-// #[test]
-// fn passes_gekkio_acceptance_timer_tima_reload() {
-//     RomTest::new(include_bytes!(
-//         "../roms/gekkio/acceptance/timer/tima_reload.gb"
-//     ))
-//     .must_run_and_match(
-//         30_000_000u64,
-//         include_bytes!("gekkio/acceptance/timer/tima_reload.bin"),
-//     );
-// }
+#[test]
+fn passes_gekkio_acceptance_timer_tima_write_reloading() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/timer/tima_write_reloading.gb"
+    ))
+    .must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/timer/tima_write_reloading.bin"),
+    );
+}

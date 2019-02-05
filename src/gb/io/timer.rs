@@ -10,6 +10,7 @@ pub struct Timer {
 
     irq_pending: bool,
     tima_reload_scheduled: bool,
+    tima_is_being_reloaded: bool,
 }
 
 impl Default for Timer {
@@ -22,6 +23,7 @@ impl Default for Timer {
 
             irq_pending: false,
             tima_reload_scheduled: false,
+            tima_is_being_reloaded: false,
         }
     }
 }
@@ -38,9 +40,18 @@ impl Timer {
     pub fn tick(&mut self) {
         let rb = self.curr_rate();
 
-        // See .inc_timer() for a description of this behavior.
+        // TIMA reload lasts one cycle, so it's ok to reset this
+        // at the beginning of each tick.
+        self.tima_is_being_reloaded = false;
+
+        // If a reload was scheduled and not canceled, set the IRQ flag and
+        // reload TIMA with TMA. This also causes the timer to enter a cycle
+        // in which writes to TIMA are ignored.
         if self.tima_reload_scheduled {
             self.tima_reload_scheduled = false;
+
+            self.tima_is_being_reloaded = true;
+            self.irq_pending = true;
             self.tima = self.tma;
         }
 
@@ -66,12 +77,10 @@ impl Timer {
         self.tima.0 += 1;
 
         // Wehn TIMA overflows, TMA gets loaded in it and an IRQ request is registered.
-        // HW BUG: TIMA stays 00 for 4 clock cycles upon overflowing. These are just
-        // a register load delay, they do not affect the next tick duration.
-        // Just set a flag here, the actual swap will be done in the next tick.
+        // This happend with a full cycle delay, so for 4 clock cycles upon overflowing,
+        // TIMA stays 00, so here we just schedule the increment.
         if self.tima.0 == 0 {
             self.tima_reload_scheduled = true;
-            self.irq_pending = true;
         }
     }
 
@@ -147,11 +156,18 @@ impl MemW for Timer {
                 Ok(())
             }
             0xFF05 => {
-                if !self.tima_reload_scheduled {
-                    T::write_mut_le(&mut [&mut self.tima.0], val)
-                } else {
-                    Ok(())
+                // During the reload cycle, writes to TIMA are ignored.
+                if !self.tima_is_being_reloaded {
+                    T::write_mut_le(&mut [&mut self.tima.0], val)?;
+
+                    // If a write to TIMA happens in the cycle during which an overflow happens,
+                    // the reload is canceled: TIMA gets set to the written value and the
+                    // interrupt request does not happen.
+                    if self.tima_reload_scheduled {
+                        self.tima_reload_scheduled = false;
+                    }
                 }
+                Ok(())
             }
             0xFF06 => T::write_mut_le(&mut [&mut self.tma.0], val),
             0xFF07 => {
