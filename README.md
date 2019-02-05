@@ -67,16 +67,16 @@ are shown below.
 
 The passing tests are also integrated in the emulator's test suite.
 
-| Test ROM       | Progress | Notes          |
-| -------------- | -------- | -------------- |
-| cpu_instrs     | 100%     | Full pass!     |
-| instr_timing   | 100%     | Full pass!     |
-| interrupt_time | -        | Not tested yet |
-| mem_timing-2   | -        | Not tested yet |
-| mem_timing     | -        | Not tested yet |
-| halt_bug       | -        | Not tested yet |
-| oam_bug        | -        | Not tested yet |
-| dmg_sound      | -        | Not tested yet |
+| Test ROM       | Progress | Notes                        |
+| -------------- | -------- | ---------------------------- |
+| cpu_instrs     | 100%     | Full pass!                   |
+| instr_timing   | 100%     | **Broken on latest release** |
+| interrupt_time | -        | Not tested yet               |
+| mem_timing-2   | -        | Not tested yet               |
+| mem_timing     | -        | Not tested yet               |
+| halt_bug       | -        | Not tested yet               |
+| oam_bug        | -        | Not tested yet               |
+| dmg_sound      | -        | Not tested yet               |
 
 ### Gekkio's test suite
 
@@ -84,9 +84,9 @@ The passing tests are also integrated in the emulator's test suite.
 
 The passing tests are also integrated in the emulator's test suite.
 
-| Test Suite        | Progress | Notes |
-| ----------------- | -------- | ----- |
-| acceptance/timer/ |          |       |
+| Test Suite        | Progress | Notes      |
+| ----------------- | -------- | ---------- |
+| acceptance/timer  | 100%     | Full pass! |
 
 ## Resources
 
@@ -95,5 +95,6 @@ The passing tests are also integrated in the emulator's test suite.
 - [Pastraiser's Gameboy CPU (LR35902) instruction set](http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
 - [GameBoy Opcode Summary](http://www.devrs.com/gb/files/opcodes.html)
 - [gbz80](https://rednex.github.io/rgbds/gbz80.7.html)
+- [Gekkio's mooneye-gb test ROM sources](https://github.com/Gekkio/mooneye-gb/tree/master/tests)
 
 ... and any other brave soul posting any kind of GB info on the Internet :pray:
