@@ -2,6 +2,10 @@ mod common;
 
 use common::RomTest;
 
+/*
+ * Gekkio's TIMER acceptance tests
+ */
+
 #[test]
 fn passes_gekkio_acceptance_timer_div_write() {
     RomTest::new(include_bytes!(
@@ -119,5 +123,16 @@ fn passes_gekkio_acceptance_timer_tima_write_reloading() {
     .must_run_and_match(
         30_000_000u64,
         include_bytes!("gekkio/acceptance/timer/tima_write_reloading.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_timer_tma_write_reloading() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/timer/tma_write_reloading.gb"
+    ))
+    .must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/timer/tma_write_reloading.bin"),
     );
 }

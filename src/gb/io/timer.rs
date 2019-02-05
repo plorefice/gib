@@ -169,7 +169,16 @@ impl MemW for Timer {
                 }
                 Ok(())
             }
-            0xFF06 => T::write_mut_le(&mut [&mut self.tma.0], val),
+            0xFF06 => {
+                T::write_mut_le(&mut [&mut self.tma.0], val)?;
+
+                // If a write to TMA happens while TIMA is being reloaded,
+                // the new value should be loaded instead.
+                if self.tima_is_being_reloaded {
+                    self.tima = self.tma;
+                }
+                Ok(())
+            }
             0xFF07 => {
                 self.write_to_tac(val);
                 Ok(())
