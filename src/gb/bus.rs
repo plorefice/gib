@@ -181,11 +181,10 @@ impl MemR for Bus {
             0xFF01..=0xFF02 => self.sdt.read(addr),
             0xFF04..=0xFF07 => self.tim.read(addr),
             0xFF10..=0xFF3F => self.apu.read(addr),
-            0xFF40..=0xFF4F => self.ppu.read(addr),
-            0xFF51..=0xFF6F => self.ppu.read(addr),
+            0xFF40..=0xFF4B => self.ppu.read(addr),
             0xFF80..=0xFFFE => self.hram.read(addr - 0xFF80),
             0xFF0F | 0xFFFF => self.itr.read(addr),
-            _ => Err(dbg::TraceEvent::BusFault(addr)),
+            _ => T::read_le(&[0xFF]),
         }
     }
 }
@@ -210,13 +209,12 @@ impl MemW for Bus {
             0xFF04..=0xFF07 => self.tim.write(addr, val),
             0xFF10..=0xFF3F => self.apu.write(addr, val),
             0xFF40..=0xFF4B => self.ppu.write(addr, val),
-            0xFF4D..=0xFF4F => self.write_to_cgb_functions(addr, val),
-            0xFF51..=0xFF6F => self.ppu.write(addr, val),
-            0xFF70..=0xFF7F => self.write_to_cgb_functions(addr, val),
+            0xFF4C..=0xFF4F => self.write_to_cgb_functions(addr, val),
+            0xFF51..=0xFF7F => self.write_to_cgb_functions(addr, val),
             0xFF80..=0xFFFE => self.hram.write(addr - 0xFF80, val),
             0xFF0F | 0xFFFF => self.itr.write(addr, val),
             0xFF50 => self.disable_bootrom(),
-            _ => Err(dbg::TraceEvent::BusFault(addr)),
+            _ => Ok(()),
         }
     }
 }

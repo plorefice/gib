@@ -1,6 +1,6 @@
 use super::dbg;
 
-pub trait MemSize: Default {
+pub trait MemSize: Default + std::fmt::Debug {
     fn byte_size() -> u8;
 
     /* IO operations */

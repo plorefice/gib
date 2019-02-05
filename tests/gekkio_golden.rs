@@ -37,6 +37,37 @@ fn passes_gekkio_acceptance_div_timing() {
 }
 
 /*
+ * Gekkio's BITS acceptance tests
+ */
+
+#[test]
+fn passes_gekkio_acceptance_bits_mem_oam() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/bits/mem_oam.gb")).must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/bits/mem_oam.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_bits_reg_f() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/bits/reg_f.gb")).must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/bits/reg_f.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_bits_unused_hwio() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/bits/unused_hwio-GS.gb"
+    ))
+    .must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/bits/unused_hwio-GS.bin"),
+    );
+}
+
+/*
  * Gekkio's TIMER acceptance tests
  */
 

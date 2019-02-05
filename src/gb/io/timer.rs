@@ -147,7 +147,7 @@ impl MemR for Timer {
             0xFF04 => T::read_le(&[self.div().0]),
             0xFF05 => T::read_le(&[self.tima.0]),
             0xFF06 => T::read_le(&[self.tma.0]),
-            0xFF07 => T::read_le(&[self.tac.0]),
+            0xFF07 => T::read_le(&[self.tac.0 | 0xF8]),
             _ => Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr)),
         }
     }

@@ -50,16 +50,16 @@ are shown below.
 
 ### Progress
 
-| Peripheral | Progress | Notes                                  |
-| ---------- | -------- | -------------------------------------- |
-| CPU        | 100%     | More testing required                  |
-| Video      | 10%      | BG support and screen blanking only    |
-| Sound      | 0%       | Not implemented yet                    |
-| Joypad     | 0%       | Not implemented yet                    |
-| Link cable | 0%       | Not implemented yet                    |
-| Timers     | 95%      | More testing required                  |
-| Interrupts | 70%      | Interrupt handling mechanism supported |
-| MBC        | 20%      | Support for some functions of MBC1     |
+| Peripheral | Progress | Notes                                |
+| ---------- | -------- | ------------------------------------ |
+| CPU        | 100%     | More testing required                |
+| Video      | 10%      | BG support and screen blanking only  |
+| Sound      | 0%       | Not implemented yet                  |
+| Joypad     | 0%       | Not implemented yet                  |
+| Link cable | 0%       | Not implemented yet                  |
+| Timers     | 100%     | Passes all Gekkio's acceptance tests |
+| Interrupts | 70%      | Need to work on time accuracy        |
+| MBC        | 20%      | Support for some functions of MBC1   |
 
 ### Blargg's Test ROMs
 

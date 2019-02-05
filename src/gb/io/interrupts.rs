@@ -63,7 +63,7 @@ impl IrqController {
 impl MemR for IrqController {
     fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
         match addr {
-            0xFF0F => T::read_le(&[self.ifg.0]),
+            0xFF0F => T::read_le(&[self.ifg.0 | 0xE0]),
             0xFFFF => T::read_le(&[self.ien.0]),
             _ => Err(dbg::TraceEvent::IoFault(Peripheral::ITR, addr)),
         }

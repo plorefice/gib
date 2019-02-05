@@ -78,7 +78,7 @@ pub struct PPU {
     bgtm0: [u8; 1024], // Background Tile Map #0
     bgtm1: [u8; 1024], // Background Tile Map #1
 
-    regs: [IoReg<u8>; 48],
+    regs: [IoReg<u8>; 12],
     tstate: u64,
 
     vblank_irq_pending: bool,
@@ -93,7 +93,7 @@ impl Default for PPU {
             bgtm0: [0; 1024],
             bgtm1: [0; 1024],
 
-            regs: [IoReg::default(); 48],
+            regs: [IoReg::default(); 12],
             tstate: 0,
 
             vblank_irq_pending: false,
@@ -173,6 +173,21 @@ impl PPU {
         }
     }
 
+    fn io_read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+        let addr = usize::from(addr);
+
+        match addr {
+            1 => T::read_le(&[self.regs[1].0 | 0x80]),
+            _ => T::read_le(&[self.regs[addr].0]),
+        }
+    }
+
+    fn io_write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
+        let addr = usize::from(addr);
+
+        T::write_mut_le(&mut [&mut self.regs[addr].0], val)
+    }
+
     fn lcdc(&self) -> IoReg<u8> {
         self.regs[Register::LCDC as usize]
     }
@@ -240,7 +255,7 @@ impl MemR for PPU {
             0x9800..=0x9BFF => T::read_le(&self.bgtm0[usize::from(addr - 0x9800)..]),
             0x9C00..=0x9FFF => T::read_le(&self.bgtm1[usize::from(addr - 0x9C00)..]),
             0xFE00..=0xFE9F => (&self.oam[..]).read(addr - 0xFE00),
-            0xFF40..=0xFF6F => T::read_le(&[self.regs[usize::from(addr - 0xFF40)].0]),
+            0xFF40..=0xFF4B => self.io_read(addr - 0xFF40),
             _ => {
                 if addr >= 0xFF00 {
                     Err(dbg::TraceEvent::IoFault(Peripheral::VPU, addr - 0xFF00))
@@ -264,9 +279,7 @@ impl MemW for PPU {
             0x9800..=0x9BFF => T::write_le(&mut self.bgtm0[usize::from(addr - 0x9800)..], val),
             0x9C00..=0x9FFF => T::write_le(&mut self.bgtm1[usize::from(addr - 0x9C00)..], val),
             0xFE00..=0xFE9F => (&mut self.oam[..]).write(addr - 0xFE00, val),
-            0xFF40..=0xFF6F => {
-                T::write_mut_le(&mut [&mut self.regs[usize::from(addr - 0xFF40)].0], val)
-            }
+            0xFF40..=0xFF4B => self.io_write(addr - 0xFF40, val),
             _ => {
                 if addr >= 0xFF00 {
                     Err(dbg::TraceEvent::IoFault(Peripheral::VPU, addr - 0xFF00))

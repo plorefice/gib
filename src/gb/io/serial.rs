@@ -20,7 +20,7 @@ impl InterruptSource for Serial {
 impl MemR for Serial {
     fn read<T: MemSize>(&self, _addr: u16) -> Result<T, dbg::TraceEvent> {
         // TODO: it's gonna be a while before serial link is implemented :)
-        Ok(T::default())
+        T::read_le(&[0xFF][..])
     }
 }
 

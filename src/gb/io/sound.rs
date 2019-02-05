@@ -23,9 +23,20 @@ impl InterruptSource for APU {
 }
 
 impl MemR for APU {
-    fn read<T: MemSize>(&self, _addr: u16) -> Result<T, dbg::TraceEvent> {
+    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
         // TODO: it's gonna be a while before sound is implemented :)
-        Ok(T::default())
+        match addr {
+            0xFF10 => T::read_le(&[0x80]),
+            0xFF14 => T::read_le(&[0x38]),
+            0xFF19 => T::read_le(&[0x38]),
+            0xFF1A => T::read_le(&[0x7F]),
+            0xFF1C => T::read_le(&[0x9F]),
+            0xFF1E => T::read_le(&[0x38]),
+            0xFF20 => T::read_le(&[0xC0]),
+            0xFF23 => T::read_le(&[0x3F]),
+            0xFF26 => T::read_le(&[0x70]),
+            _ => T::read_le(&[0xFF]),
+        }
     }
 }
 

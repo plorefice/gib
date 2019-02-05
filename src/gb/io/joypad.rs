@@ -13,7 +13,7 @@ impl Joypad {
 impl MemR for Joypad {
     fn read<T: MemSize>(&self, _addr: u16) -> Result<T, dbg::TraceEvent> {
         // TODO: Soon™ :)
-        Ok(T::default())
+        T::read_le(&[0xFF][..])
     }
 }
 
