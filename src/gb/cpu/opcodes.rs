@@ -1290,8 +1290,14 @@ mod test {
             });
 
         // LD (a16),SP
-        CpuTest::new(4, vec![0x08, 0x03, 0x00, 0x00, 0x00])
-            .match_states(vec![FetchByte0, FetchByte1, Writeback, FetchOpcode])
+        CpuTest::new(5, vec![0x08, 0x03, 0x00, 0x00, 0x00])
+            .match_states(vec![
+                FetchByte0,
+                FetchByte1,
+                Writeback,
+                Delay(0),
+                FetchOpcode,
+            ])
             .match_memory(vec![0x08, 0x03, 0x00, 0xC0, 0xBE])
             .setup(|cpu| {
                 cpu.sp = 0xBEC0;
@@ -1301,8 +1307,8 @@ mod test {
             });
 
         // PUSH rr
-        CpuTest::new(2, vec![0xD5, 0x00, 0x00, 0x22, 0x11])
-            .match_states(vec![Writeback, FetchOpcode])
+        CpuTest::new(4, vec![0xD5, 0x00, 0x00, 0x22, 0x11])
+            .match_states(vec![Writeback, Delay(1), Delay(0), FetchOpcode])
             .match_memory(vec![0xD5, 0x00, 0x00, 0xBB, 0xAA])
             .setup(|cpu| {
                 cpu.sp = 0x0005;
@@ -1314,8 +1320,8 @@ mod test {
             });
 
         // POP rr
-        CpuTest::new(2, vec![0xE1, 0x00, 0x00, 0x22, 0x11])
-            .match_states(vec![FetchMemory, FetchOpcode])
+        CpuTest::new(3, vec![0xE1, 0x00, 0x00, 0x22, 0x11])
+            .match_states(vec![FetchMemory, Delay(0), FetchOpcode])
             .match_memory(vec![0xE1, 0x00, 0x00, 0x22, 0x11])
             .setup(|cpu| {
                 cpu.sp = 0x0003;
@@ -1326,9 +1332,9 @@ mod test {
                 assert_eq!(cpu.hl, 0x1122);
             });
 
-        // LD SP,rr
-        CpuTest::new(1, vec![0xF9])
-            .match_states(vec![FetchOpcode])
+        // LD SP,HL
+        CpuTest::new(2, vec![0xF9])
+            .match_states(vec![Delay(0), FetchOpcode])
             .setup(|cpu| {
                 cpu.sp = 0x0000;
                 cpu.hl = 0x1234;
@@ -1339,8 +1345,8 @@ mod test {
             });
 
         // LD HL,SP+r8
-        CpuTest::new(2, vec![0xF8, 0x15])
-            .match_states(vec![FetchByte0, FetchOpcode])
+        CpuTest::new(3, vec![0xF8, 0x15])
+            .match_states(vec![FetchByte0, Delay(0), FetchOpcode])
             .setup(|cpu| {
                 cpu.sp = 0x2500;
                 cpu.hl = 0x1234;
@@ -1350,8 +1356,8 @@ mod test {
                 assert_eq!(cpu.hl, 0x2515);
             });
 
-        CpuTest::new(2, vec![0xF8, 0xFE])
-            .match_states(vec![FetchByte0, FetchOpcode])
+        CpuTest::new(3, vec![0xF8, 0xFE])
+            .match_states(vec![FetchByte0, Delay(0), FetchOpcode])
             .setup(|cpu| {
                 cpu.sp = 0x2500;
                 cpu.hl = 0x1234;
@@ -1458,6 +1464,142 @@ mod test {
             .match_states(vec![FetchByte0, FetchMemory, FetchOpcode])
             .run(|cpu, _| {
                 assert_eq!(cpu.a(), 0xF0);
+            });
+    }
+
+    #[test]
+    fn arith16_opcodes_work() {
+        // INC rr
+        CpuTest::new(2, vec![0x23])
+            .match_states(vec![Delay(0), FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.hl, 0x1);
+            });
+
+        // DEC rr
+        CpuTest::new(2, vec![0x0B])
+            .match_states(vec![Delay(0), FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.bc, 0xFFFF);
+            });
+
+        // ADD HL,rr
+        CpuTest::new(2, vec![0x39])
+            .match_states(vec![Delay(0), FetchOpcode])
+            .setup(|cpu| {
+                cpu.hl = 0xFA;
+                cpu.sp = 0xF120;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.hl, 0xF21A);
+            });
+
+        // ADD SP,d8
+        CpuTest::new(4, vec![0xE8, 0x05])
+            .match_states(vec![FetchByte0, Delay(1), Delay(0), FetchOpcode])
+            .setup(|cpu| {
+                cpu.sp = 0xA890;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.sp, 0xA895);
+            });
+
+        CpuTest::new(4, vec![0xE8, 0xFE])
+            .match_states(vec![FetchByte0, Delay(1), Delay(0), FetchOpcode])
+            .setup(|cpu| {
+                cpu.sp = 0xA890;
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.sp, 0xA88E);
+            });
+    }
+
+    #[test]
+    fn arith8_opcodes_work() {
+        // INC r
+        CpuTest::new(1, vec![0x14])
+            .match_states(vec![FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.d(), 0x1);
+            });
+
+        // DEC r
+        CpuTest::new(1, vec![0x1D])
+            .match_states(vec![FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.e(), 0xFF);
+            });
+
+        // INC m
+        CpuTest::new(3, vec![0x34, 0x04])
+            .match_states(vec![FetchMemory, Writeback, FetchOpcode])
+            .match_memory(vec![0x34, 0x05])
+            .setup(|cpu| {
+                cpu.hl = 0x1;
+            })
+            .run(|_, _| {});
+
+        // DEC m
+        CpuTest::new(3, vec![0x35, 0x04])
+            .match_states(vec![FetchMemory, Writeback, FetchOpcode])
+            .match_memory(vec![0x35, 0x03])
+            .setup(|cpu| {
+                cpu.hl = 0x1;
+            })
+            .run(|_, _| {});
+
+        // ADD/ADC/SUB/SBC r,r
+        CpuTest::new(1, vec![0x83])
+            .match_states(vec![FetchOpcode])
+            .setup(|cpu| {
+                cpu.set_a(0xA5);
+                cpu.set_e(0x05);
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.a(), 0xAA);
+            });
+
+        // ADD/ADC/SUB/SBC r,m
+        CpuTest::new(2, vec![0x96, 0x0E])
+            .match_states(vec![FetchMemory, FetchOpcode])
+            .setup(|cpu| {
+                cpu.hl = 0x1;
+                cpu.set_a(0xA5);
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.a(), 0x97);
+            });
+
+        // AND/OR/XOR r,r
+        CpuTest::new(1, vec![0xB0])
+            .match_states(vec![FetchOpcode])
+            .setup(|cpu| {
+                cpu.set_a(0b_1000_1001);
+                cpu.set_b(0b_1101_0000);
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.a(), 0b_1101_1001);
+            });
+
+        // AND/OR/XOR r,m
+        CpuTest::new(2, vec![0xA6, 0b_0010_1001])
+            .match_states(vec![FetchMemory, FetchOpcode])
+            .setup(|cpu| {
+                cpu.hl = 0x1;
+                cpu.set_a(0b_0101_1010);
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.a(), 0b_0000_1000);
+            });
+
+        // ADD/ADC/SUB/SBC/AND/OR/XOR r,d8
+        CpuTest::new(2, vec![0xEE, 0b_1011_0010])
+            .match_states(vec![FetchByte0, FetchOpcode])
+            .setup(|cpu| {
+                cpu.set_a(0b_1000_1110);
+            })
+            .run(|cpu, _| {
+                assert_eq!(cpu.a(), 0b_0011_1100);
             });
     }
 }

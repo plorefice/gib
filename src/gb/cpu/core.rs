@@ -10,8 +10,8 @@ pub struct OpcodeInfo(
     pub OperandLocation, // Destination
     pub OperandLocation, // Source
     pub u8,              // Size
-    pub u8,              // Cycles if taken
-    pub u8,              // Cycles if not taken
+    pub u8,              // Cycles if branch taken
+    pub u8,              // Cycles if branch not taken
 );
 
 #[derive(Debug, Clone, Copy)]
@@ -39,6 +39,7 @@ pub enum CpuState {
     FetchByte1,
     FetchMemory,
     Writeback,
+    Delay(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -70,6 +71,7 @@ pub struct CPU {
     pub operand: u16,
     pub write_op: Option<WritebackOp>,
     pub executing: bool,
+    pub remaining_cycles: u8,
 
     paused: bool,
     breakpoints: HashSet<u16>,
@@ -99,6 +101,7 @@ impl Default for CPU {
             operand: 0,
             write_op: None,
             executing: false,
+            remaining_cycles: 0,
 
             paused: false,
             breakpoints: HashSet::new(),
@@ -118,12 +121,23 @@ impl CPU {
 
         let saved_ctx = self.clone();
 
+        self.remaining_cycles -= 4;
+
         let res = match self.state {
             FetchOpcode => self.fetch_opcode(bus),
             FetchByte0 => self.fetch_immediate(bus),
             FetchByte1 => self.fetch_immediate(bus),
             FetchMemory => self.fetch_memory(bus),
             Writeback => self.writeback(bus),
+            Delay(0) => {
+                self.state = CpuState::FetchOpcode;
+                self.executing = false;
+                Ok(())
+            }
+            Delay(n) => {
+                self.state = CpuState::Delay(n - 1);
+                Ok(())
+            }
         };
 
         // // The HALT bug prevents PC from being incremented on the instruction
@@ -174,6 +188,7 @@ impl CPU {
         self.cb_mode = self.opcode == 0xCB;
         self.write_op = None;
         self.executing = true;
+        self.remaining_cycles = self.info.4 - 4;
 
         // Check if we need to fetch more bytes, otherwise execute directly
         if self.info.3 > 1 {
@@ -267,6 +282,8 @@ impl CPU {
         // If nothing needs to be written to memory, we are done
         if self.write_op.is_some() {
             self.state = CpuState::Writeback;
+        } else if self.remaining_cycles > 0 {
+            self.state = CpuState::Delay((self.remaining_cycles - 1) / 4)
         } else {
             self.state = CpuState::FetchOpcode;
             self.executing = false;
@@ -279,8 +296,12 @@ impl CPU {
         use WritebackOp::*;
 
         // After a writeback operation, reset state machine for the next instruction
-        self.state = CpuState::FetchOpcode;
-        self.executing = false;
+        if self.remaining_cycles > 0 {
+            self.state = CpuState::Delay((self.remaining_cycles - 1) / 4);
+        } else {
+            self.state = CpuState::FetchOpcode;
+            self.executing = false;
+        }
 
         match self.write_op {
             Some(Write8(dest, d8)) => bus.write::<u8>(dest, d8),
