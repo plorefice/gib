@@ -3,6 +3,40 @@ mod common;
 use common::RomTest;
 
 /*
+ * Gekkio's COMMON acceptance tests
+ */
+
+#[test]
+fn passes_gekkio_acceptance_boot_div() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/boot_div-dmgABCmgb.gb"
+    ))
+    .must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/boot_div-dmgABCmgb.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_boot_regs() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/boot_regs-dmgABC.gb"
+    ))
+    .must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/boot_regs-dmgABC.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_div_timing() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/div_timing.gb")).must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/div_timing.bin"),
+    );
+}
+
+/*
  * Gekkio's TIMER acceptance tests
  */
 
