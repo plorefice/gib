@@ -12,7 +12,7 @@ impl Serial {
 }
 
 impl InterruptSource for Serial {
-    fn irq_pending(&self) -> Option<IrqSource> {
+    fn get_and_clear_irq(&mut self) -> Option<IrqSource> {
         None
     }
 }

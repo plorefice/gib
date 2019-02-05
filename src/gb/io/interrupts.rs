@@ -24,7 +24,7 @@ impl Into<usize> for IrqSource {
 }
 
 pub trait InterruptSource {
-    fn irq_pending(&self) -> Option<IrqSource>;
+    fn get_and_clear_irq(&mut self) -> Option<IrqSource>;
 }
 
 #[derive(Default)]

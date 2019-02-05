@@ -131,8 +131,9 @@ impl Timer {
 }
 
 impl InterruptSource for Timer {
-    fn irq_pending(&self) -> Option<IrqSource> {
+    fn get_and_clear_irq(&mut self) -> Option<IrqSource> {
         if self.irq_pending {
+            self.irq_pending = false;
             Some(IrqSource::Timer)
         } else {
             None

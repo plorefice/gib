@@ -215,10 +215,12 @@ impl PPU {
 }
 
 impl InterruptSource for PPU {
-    fn irq_pending(&self) -> Option<IrqSource> {
+    fn get_and_clear_irq(&mut self) -> Option<IrqSource> {
         if self.vblank_irq_pending {
+            self.vblank_irq_pending = false;
             Some(IrqSource::VBlank)
         } else if self.stat_irq_pending {
+            self.stat_irq_pending = false;
             Some(IrqSource::LcdStat)
         } else {
             None

@@ -34,14 +34,16 @@ impl GameBoy {
     }
 
     pub fn step(&mut self) -> Result<(), dbg::TraceEvent> {
-        if !self.cpu.executing {
-            self.handle_irqs()?;
-        }
-
+        // The first tick fetches the opcode
         self.tick()?;
+
+        // The others perform the instruction itself, if necessary
         while self.cpu.executing {
             self.tick()?;
         }
+
+        // Finally, handle any interrupts that arised
+        self.handle_irqs()?;
 
         Ok(())
     }
@@ -77,16 +79,16 @@ impl GameBoy {
 
     fn handle_irqs(&mut self) -> Result<(), dbg::TraceEvent> {
         // Fetch interrupt requests from interrupt sources
-        if let Some(irq) = self.bus.ppu.irq_pending() {
+        if let Some(irq) = self.bus.ppu.get_and_clear_irq() {
             self.bus.itr.set_irq(irq.into());
         }
-        if let Some(irq) = self.bus.tim.irq_pending() {
+        if let Some(irq) = self.bus.tim.get_and_clear_irq() {
             self.bus.itr.set_irq(irq.into());
         }
-        if let Some(irq) = self.bus.apu.irq_pending() {
+        if let Some(irq) = self.bus.apu.get_and_clear_irq() {
             self.bus.itr.set_irq(irq.into());
         }
-        if let Some(irq) = self.bus.sdt.irq_pending() {
+        if let Some(irq) = self.bus.sdt.get_and_clear_irq() {
             self.bus.itr.set_irq(irq.into());
         }
 
