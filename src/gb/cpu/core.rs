@@ -226,7 +226,9 @@ impl CPU {
 
                     if self.operand & 0x7 == 0x6 {
                         self.info.2 = Memory(HL);
-                        self.remaining_cycles += 8;
+
+                        let cy = if self.operand & 0xC0 == 0x40 { 4 } else { 8 };
+                        self.remaining_cycles += cy;
                     }
                 }
 
