@@ -1281,6 +1281,33 @@ mod test {
     }
 
     #[test]
+    fn misc_opcodes_work() {
+        // STOP/HALT
+        CpuTest::new(1, vec![0x10])
+            .match_states(vec![FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.should_halt, true);
+            });
+
+        // EI
+        CpuTest::new(1, vec![0xFB])
+            .match_states(vec![FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.intr_enabled, true);
+            });
+
+        // DI
+        CpuTest::new(2, vec![0xFB, 0xF3])
+            .match_states(vec![FetchOpcode, FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.intr_enabled, false);
+            });
+    }
+
+    #[test]
+    fn branch_opcodes_work() {}
+
+    #[test]
     fn ld16_opcodes_work() {
         // LD rr,d16
         CpuTest::new(3, vec![0x01, 0xAA, 0x55])
@@ -1601,5 +1628,31 @@ mod test {
             .run(|cpu, _| {
                 assert_eq!(cpu.a(), 0b_0011_1100);
             });
+
+        // RLCA/RLA/RRCA/RRA
+        for op in [0x07, 0x0F, 0x17, 0x1F].iter() {
+            CpuTest::new(1, vec![*op])
+                .match_states(vec![FetchOpcode])
+                .run(|_, _| {});
+        }
+    }
+
+    #[test]
+    fn prefix_cb_opcodes_work() {
+        // CB r
+        CpuTest::new(2, vec![0xCB, 0xDB])
+            .match_states(vec![FetchByte0, FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(cpu.e(), 0b_0000_1000);
+            });
+
+        // CB m
+        CpuTest::new(4, vec![0xCB, 0x96, 0b_0110_1110])
+            .match_states(vec![FetchByte0, FetchMemory, Writeback, FetchOpcode])
+            .match_memory(vec![0xCB, 0x96, 0b_0110_1010])
+            .setup(|cpu| {
+                cpu.hl = 0x2;
+            })
+            .run(|_, _| {});
     }
 }
