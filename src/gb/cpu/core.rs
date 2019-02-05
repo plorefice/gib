@@ -52,6 +52,7 @@ pub enum WritebackOp {
 
 #[derive(Clone)]
 pub struct CPU {
+    // Registers
     pub af: u16,
     pub bc: u16,
     pub de: u16,
@@ -59,11 +60,13 @@ pub struct CPU {
     pub sp: u16,
     pub pc: u16,
 
+    // Misc
     pub halted: bool,
     pub halt_bug: bool,
     pub should_halt: bool,
     pub intr_enabled: bool,
 
+    // Execution-related members
     pub state: CpuState,
     pub info: OpcodeInfo,
     pub opcode: u8,
@@ -71,11 +74,14 @@ pub struct CPU {
     pub operand: u16,
     pub write_op: Option<WritebackOp>,
     pub executing: bool,
+    pub branch_taken: bool,
     pub remaining_cycles: u8,
 
+    // Debug
     paused: bool,
     breakpoints: HashSet<u16>,
 
+    // Hacks/workarounds
     ignore_next_halt: bool,
 }
 
@@ -101,6 +107,7 @@ impl Default for CPU {
             operand: 0,
             write_op: None,
             executing: false,
+            branch_taken: false,
             remaining_cycles: 0,
 
             paused: false,
@@ -188,7 +195,8 @@ impl CPU {
         self.cb_mode = self.opcode == 0xCB;
         self.write_op = None;
         self.executing = true;
-        self.remaining_cycles = self.info.4 - 4;
+        self.branch_taken = false;
+        self.remaining_cycles = self.info.5 - 4;
 
         // Check if we need to fetch more bytes, otherwise execute directly
         if self.info.3 > 1 {
@@ -218,6 +226,7 @@ impl CPU {
 
                     if self.operand & 0x7 == 0x6 {
                         self.info.2 = Memory(HL);
+                        self.remaining_cycles += 8;
                     }
                 }
 
@@ -277,6 +286,11 @@ impl CPU {
             self.op()?;
         } else {
             self.op_cb()?;
+        }
+
+        // Adjust remaining cycles based on the branching information
+        if self.branch_taken {
+            self.remaining_cycles += self.info.4 - self.info.5;
         }
 
         // If nothing needs to be written to memory, we are done

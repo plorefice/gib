@@ -5,6 +5,7 @@ macro_rules! jp {
     ($cpu:ident, $cond:expr, $abs:expr) => {{
         if $cond {
             $cpu.pc = $abs;
+            $cpu.branch_taken = true;
         }
     }};
 }
@@ -24,6 +25,7 @@ macro_rules! call {
         if $cond {
             $cpu.write_op = Some(WritebackOp::Push($cpu.pc));
             $cpu.pc = $to;
+            $cpu.branch_taken = true;
         }
     }};
 }
@@ -32,6 +34,7 @@ macro_rules! ret {
     ($cpu:ident, $cond:expr) => {{
         if $cond {
             $cpu.write_op = Some(WritebackOp::Return);
+            $cpu.branch_taken = true;
         }
     }};
 }
@@ -1157,14 +1160,14 @@ pub const OPCODES: [OpcodeInfo; 256] = [
     OpcodeInfo("RST 18H",     Register,    Register,     1, 16, 16),
     OpcodeInfo("LDH (a8),A",  Memory(IO),  Register,     2, 12, 12),
     OpcodeInfo("POP HL",      Register,    Memory(SP),   1, 12, 12),
-    OpcodeInfo("LD (C),A",    Memory(C),   Register,     2, 8,  8),
+    OpcodeInfo("LD (C),A",    Memory(C),   Register,     1, 8,  8),
     OpcodeInfo("-",           Register,    Register,     1, 0,  0),
     OpcodeInfo("-",           Register,    Register,     1, 0,  0),
     OpcodeInfo("PUSH HL",     Memory(HL),  Register,     1, 16, 16),
     OpcodeInfo("AND d8",      Register,    Immediate,    2, 8,  8),
     OpcodeInfo("RST 20H",     Register,    Register,     1, 16, 16),
     OpcodeInfo("ADD SP,r8",   Register,    Immediate,    2, 16, 16),
-    OpcodeInfo("JP (HL)",     Register,    Memory(HL),   1, 4,  4),
+    OpcodeInfo("JP HL",       Register,    Register,     1, 4,  4),
     OpcodeInfo("LD (a16),A",  Memory(A16), Register,     3, 16, 16),
     OpcodeInfo("-",           Register,    Register,     1, 0,  0),
     OpcodeInfo("-",           Register,    Register,     1, 0,  0),
@@ -1173,7 +1176,7 @@ pub const OPCODES: [OpcodeInfo; 256] = [
     OpcodeInfo("RST 28H",     Register,    Register,     1, 16, 16),
     OpcodeInfo("LDH A,(a8)",  Register,    Memory(IO),   2, 12, 12),
     OpcodeInfo("POP AF",      Register,    Memory(SP),   1, 12, 12),
-    OpcodeInfo("LD A,(C)",    Register,    Memory(C),    2, 8,  8),
+    OpcodeInfo("LD A,(C)",    Register,    Memory(C),    1, 8,  8),
     OpcodeInfo("DI",          Register,    Register,     1, 4,  4),
     OpcodeInfo("-",           Register,    Register,     1, 0,  0),
     OpcodeInfo("PUSH AF",     Memory(SP),  Register,     1, 16, 16),
@@ -1486,6 +1489,16 @@ mod test {
                 assert_eq!(mem[0xFFE0], 0xAB);
             });
 
+        CpuTest::new(2, vec![0xE2; 0x10000])
+            .match_states(vec![Writeback, FetchOpcode])
+            .setup(|cpu| {
+                cpu.set_a(0xAB);
+                cpu.set_c(0x10);
+            })
+            .run(|_, mem| {
+                assert_eq!(mem[0xFF10], 0xAB);
+            });
+
         // LDH A,m
         CpuTest::new(3, vec![0xF0; 0x10000])
             .match_states(vec![FetchByte0, FetchMemory, FetchOpcode])
@@ -1654,5 +1667,28 @@ mod test {
                 cpu.hl = 0x2;
             })
             .run(|_, _| {});
+    }
+
+    #[test]
+    fn opcode_timings_are_correct() {
+        for op in 0_u8..=255 {
+            let info = OPCODES[op as usize];
+
+            let res_on_branch_taken = std::panic::catch_unwind(|| {
+                CpuTest::new(info.4 as usize, vec![op; 0x10000]).run(|cpu, _| {
+                    assert_eq!(cpu.state, FetchOpcode);
+                });
+            });
+
+            let res_on_branch_not_taken = std::panic::catch_unwind(|| {
+                CpuTest::new(info.5 as usize, vec![op; 0x10000]).run(|cpu, _| {
+                    assert_eq!(cpu.state, FetchOpcode);
+                });
+            });
+
+            if res_on_branch_taken.is_err() && res_on_branch_not_taken.is_err() {
+                panic!("both timings are wrong for opcode {:02X}", op);
+            }
+        }
     }
 }
