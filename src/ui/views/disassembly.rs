@@ -81,6 +81,26 @@ impl DisassemblyView {
         }
     }
 
+    /// Scroll disassembly view to the desired address.
+    fn goto(&mut self, ui: &Ui, state: &EmuState, dest: u16) {
+        let (_, h) = ui.get_content_region_avail();
+
+        if !self.disasm.contains_key(&dest) {
+            self.realign_disasm(state, dest);
+        }
+
+        for (i, addr) in self.disasm.keys().enumerate() {
+            if *addr == dest {
+                unsafe {
+                    imgui_sys::igSetScrollY(
+                        ui.get_text_line_height_with_spacing() * i as f32 - h / 3.0,
+                    );
+                }
+                break;
+            }
+        }
+    }
+
     fn draw_goto_bar(&mut self, ui: &Ui) -> (bool, bool) {
         let goto_pc;
         let goto_addr;
@@ -108,23 +128,10 @@ impl DisassemblyView {
             .always_show_vertical_scroll_bar(true)
             .show_borders(false)
             .build(|| {
-                let goto = |dest: u16| {
-                    for (i, addr) in self.disasm.keys().enumerate() {
-                        if *addr == dest {
-                            unsafe {
-                                imgui_sys::igSetScrollY(
-                                    ui.get_text_line_height_with_spacing() * i as f32 - h / 3.0,
-                                );
-                            }
-                            break;
-                        }
-                    }
-                };
-
                 if self.follow_pc || goto_pc {
-                    goto(pc);
+                    self.goto(ui, state, pc);
                 } else if goto_addr && self.goto_addr.is_some() {
-                    goto(self.goto_addr.unwrap());
+                    self.goto(ui, state, self.goto_addr.unwrap());
                 }
 
                 // Only render currently visible instructions
