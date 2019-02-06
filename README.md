@@ -88,6 +88,7 @@ The passing tests are also integrated in the emulator's test suite.
 | ---------------- | -------- | ---------- |
 | acceptance/timer | 100%     | Full pass! |
 | acceptance/bits  | 100%     | Full pass! |
+| acceptance/instr | 100%     | Full pass! |
 
 ## Resources
 
