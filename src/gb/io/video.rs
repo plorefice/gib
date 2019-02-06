@@ -98,25 +98,25 @@ impl Default for PPU {
             bgtm0: [0; 1024],
             bgtm1: [0; 1024],
 
-            lcdc_reg: IoReg(0x00),
+            lcdc_reg: IoReg(0x91),
             stat_reg: IoReg(0x00),
 
             scx_reg: IoReg(0x00),
             scy_reg: IoReg(0x00),
             lyc_reg: IoReg(0x00),
-            ly_reg: IoReg(0x00),
+            ly_reg: IoReg(0x99),
             wy_reg: IoReg(0x00),
             wx_reg: IoReg(0x00),
 
-            obp0_reg: IoReg(0x00),
-            obp1_reg: IoReg(0x00),
-            bgp_reg: IoReg(0x00),
+            bgp_reg: IoReg(0xFC),
+            obp0_reg: IoReg(0xFF),
+            obp1_reg: IoReg(0xFF),
 
             dma_reg: IoReg(0x00),
 
-            tstate: 0,
+            tstate: 70164,
 
-            vblank_irq_pending: false,
+            vblank_irq_pending: true,
             stat_irq_pending: false,
         }
     }

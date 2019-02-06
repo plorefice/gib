@@ -11,6 +11,7 @@ const CYCLES_PER_HSYNC: u64 = CPU_CLOCK / HSYNC_CLOCK;
 pub struct GameBoy {
     cpu: CPU,
     bus: Bus,
+
     cycles: u64,
 }
 
@@ -19,7 +20,8 @@ impl Default for GameBoy {
         GameBoy {
             cpu: CPU::new(),
             bus: Bus::new(),
-            cycles: 0,
+
+            cycles: 0x18FCC,
         }
     }
 }

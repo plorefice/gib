@@ -1256,6 +1256,14 @@ mod test {
         {
             let mut cpu = CPU::new();
 
+            // Reset CPU state for test purposes
+            cpu.af = 0;
+            cpu.bc = 0;
+            cpu.de = 0;
+            cpu.hl = 0;
+            cpu.sp = 0;
+            cpu.pc = 0;
+
             (self.setup_fn)(&mut cpu);
 
             for t in 0..self.ticks {

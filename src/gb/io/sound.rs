@@ -41,31 +41,31 @@ pub struct APU {
 impl Default for APU {
     fn default() -> APU {
         APU {
-            ch1_swp_reg: IoReg(0x00),
-            ch1_len_reg: IoReg(0x00),
-            ch1_vol_reg: IoReg(0x00),
+            ch1_swp_reg: IoReg(0x80),
+            ch1_len_reg: IoReg(0x8F),
+            ch1_vol_reg: IoReg(0xF3),
             ch1_flo_reg: IoReg(0x00),
-            ch1_fhi_reg: IoReg(0x00),
+            ch1_fhi_reg: IoReg(0xBF),
 
-            ch2_len_reg: IoReg(0x00),
+            ch2_len_reg: IoReg(0x3F),
             ch2_vol_reg: IoReg(0x00),
             ch2_flo_reg: IoReg(0x00),
-            ch2_fhi_reg: IoReg(0x00),
+            ch2_fhi_reg: IoReg(0xBF),
 
-            ch3_snd_reg: IoReg(0x00),
+            ch3_snd_reg: IoReg(0x7F),
             ch3_len_reg: IoReg(0xFF),
-            ch3_vol_reg: IoReg(0x00),
+            ch3_vol_reg: IoReg(0x9F),
             ch3_flo_reg: IoReg(0x00),
-            ch3_fhi_reg: IoReg(0x00),
+            ch3_fhi_reg: IoReg(0xBF),
 
             ch4_len_reg: IoReg(0xFF),
             ch4_vol_reg: IoReg(0x00),
             ch4_cnt_reg: IoReg(0x00),
-            ch4_ini_reg: IoReg(0x00),
+            ch4_ini_reg: IoReg(0xBF),
 
-            ctrl_master_reg: IoReg(0x00),
-            ctrl_output_reg: IoReg(0x00),
-            ctrl_snd_en_reg: IoReg(0x00),
+            ctrl_master_reg: IoReg(0x77),
+            ctrl_output_reg: IoReg(0xF3),
+            ctrl_snd_en_reg: IoReg(0xF1),
 
             wave_ram: [0; 16],
         }
@@ -112,8 +112,8 @@ impl MemR for APU {
 
             0xFF24 => T::read_le(&[self.ctrl_master_reg.0]),
             0xFF25 => T::read_le(&[self.ctrl_output_reg.0]),
-            0xFF26 => T::read_le(&[self.ctrl_snd_en_reg.0 | 0x71]),
-            //                                  TODO: FIX THIS ^! It's here just to make tests pass!
+            0xFF26 => T::read_le(&[self.ctrl_snd_en_reg.0 | 0x70]),
+
             0xFF30..=0xFF3F => T::read_le(&self.wave_ram[..]),
 
             // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F

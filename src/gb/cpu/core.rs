@@ -88,12 +88,12 @@ pub struct CPU {
 impl Default for CPU {
     fn default() -> CPU {
         CPU {
-            af: 0,
-            bc: 0,
-            de: 0,
-            hl: 0,
-            sp: 0,
-            pc: 0,
+            af: 0x01B0,
+            bc: 0x0013,
+            de: 0x00D8,
+            hl: 0x014D,
+            sp: 0xFFFE,
+            pc: 0x0100,
 
             halted: false,
             halt_bug: false,
