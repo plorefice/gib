@@ -48,6 +48,14 @@ fn passes_gekkio_acceptance_div_timing() {
 }
 
 #[test]
+fn passes_gekkio_acceptance_ei_sequence() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/ei_sequence.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/ei_sequence.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_intr_timing() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/intr_timing.gb")).must_run_and_match(
         4_000_000u64,
