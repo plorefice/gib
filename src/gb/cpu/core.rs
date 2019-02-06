@@ -343,6 +343,11 @@ impl CPU {
 
         // Jump to ISR
         self.pc = addr;
+
+        // Add 5 wait states to match hardware behavior
+        self.executing = true;
+        self.state = CpuState::Delay(4);
+
         Ok(())
     }
 

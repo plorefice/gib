@@ -104,9 +104,15 @@ impl GameBoy {
             // If IME = 0, simply leave HALT mode.
             if self.cpu.intr_enabled {
                 self.cpu.intr_enabled = false;
-
                 self.bus.itr.clear_irq(id);
+
+                // Jump to interrupt service routing and wait 5 cycles until
+                // the jump has been performed.
                 self.cpu.jump_to_isr(&mut self.bus, addr)?;
+
+                while self.cpu.executing {
+                    self.tick()?;
+                }
             }
         }
         Ok(())
