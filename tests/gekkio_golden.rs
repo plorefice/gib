@@ -47,6 +47,14 @@ fn passes_gekkio_acceptance_div_timing() {
     );
 }
 
+#[test]
+fn passes_gekkio_acceptance_intr_timing() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/intr_timing.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/intr_timing.bin"),
+    );
+}
+
 /*
  * Gekkio's BITS acceptance tests
  */
