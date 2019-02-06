@@ -3,7 +3,6 @@ use std::ops::RangeInclusive;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Peripheral {
-    VPU,
     TIM,
     ITR,
 }

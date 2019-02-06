@@ -1,8 +1,16 @@
 use super::dbg;
+use super::IoReg;
 use super::{MemR, MemRW, MemSize, MemW};
 
-#[derive(Default)]
-pub struct Joypad;
+pub struct Joypad {
+    reg: IoReg<u8>,
+}
+
+impl Default for Joypad {
+    fn default() -> Joypad {
+        Joypad { reg: IoReg(0x0F) }
+    }
+}
 
 impl Joypad {
     pub fn new() -> Joypad {
@@ -13,7 +21,7 @@ impl Joypad {
 impl MemR for Joypad {
     fn read<T: MemSize>(&self, _addr: u16) -> Result<T, dbg::TraceEvent> {
         // TODO: Soon™ :)
-        T::read_le(&[0xFF][..])
+        T::read_le(&[self.reg.0 | 0xC0][..])
     }
 }
 

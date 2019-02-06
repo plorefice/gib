@@ -1,22 +1,6 @@
-use super::dbg::{self, Peripheral};
+use super::dbg;
 use super::{InterruptSource, IrqSource};
 use super::{IoReg, MemR, MemRW, MemSize, MemW};
-
-#[repr(usize)]
-enum Register {
-    LCDC = 0x00,
-    STAT = 0x01,
-    SCY = 0x02,
-    SCX = 0x03,
-    LY = 0x04,
-    // LYC = 0x05,
-    // DMA = 0x06,
-    BGP = 0x07,
-    // OBP0 = 0x08,
-    // OBP1 = 0x09,
-    // WY = 0x0A,
-    // WX = 0x0B,
-}
 
 #[derive(Default, Copy, Clone)]
 struct Tile([u8; 16]);
@@ -78,9 +62,30 @@ pub struct PPU {
     bgtm0: [u8; 1024], // Background Tile Map #0
     bgtm1: [u8; 1024], // Background Tile Map #1
 
-    regs: [IoReg<u8>; 12],
+    // Ctrl/status IO registes
+    lcdc_reg: IoReg<u8>,
+    stat_reg: IoReg<u8>,
+
+    // Position/scrolling registers
+    scx_reg: IoReg<u8>,
+    scy_reg: IoReg<u8>,
+    lyc_reg: IoReg<u8>,
+    ly_reg: IoReg<u8>,
+    wy_reg: IoReg<u8>,
+    wx_reg: IoReg<u8>,
+
+    // Monochorome palette registers
+    obp0_reg: IoReg<u8>,
+    obp1_reg: IoReg<u8>,
+    bgp_reg: IoReg<u8>,
+
+    // DMA register
+    dma_reg: IoReg<u8>,
+
+    // Timings
     tstate: u64,
 
+    // IRQ handling
     vblank_irq_pending: bool,
     stat_irq_pending: bool,
 }
@@ -93,7 +98,22 @@ impl Default for PPU {
             bgtm0: [0; 1024],
             bgtm1: [0; 1024],
 
-            regs: [IoReg::default(); 12],
+            lcdc_reg: IoReg(0x00),
+            stat_reg: IoReg(0x00),
+
+            scx_reg: IoReg(0x00),
+            scy_reg: IoReg(0x00),
+            lyc_reg: IoReg(0x00),
+            ly_reg: IoReg(0x00),
+            wy_reg: IoReg(0x00),
+            wx_reg: IoReg(0x00),
+
+            obp0_reg: IoReg(0x00),
+            obp1_reg: IoReg(0x00),
+            bgp_reg: IoReg(0x00),
+
+            dma_reg: IoReg(0x00),
+
             tstate: 0,
 
             vblank_irq_pending: false,
@@ -108,7 +128,7 @@ impl PPU {
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {
-        if !self.lcdc().bit(7) {
+        if !self.lcdc_reg.bit(7) {
             for b in vbuf.iter_mut() {
                 *b = 0xFF;
             }
@@ -119,7 +139,7 @@ impl PPU {
     }
 
     fn rasterize_bg(&self, vbuf: &mut [u8]) {
-        if !self.lcdc().bit(0) {
+        if !self.lcdc_reg.bit(0) {
             for b in vbuf.iter_mut() {
                 *b = 0xFF;
             }
@@ -128,8 +148,8 @@ impl PPU {
 
         for py in 0usize..144 {
             for px in 0usize..160 {
-                let y = (py + usize::from(self.scroll_y().0)) % 256;
-                let x = (px + usize::from(self.scroll_x().0)) % 256;
+                let y = (py + usize::from(self.scy_reg.0)) % 256;
+                let x = (px + usize::from(self.scx_reg.0)) % 256;
 
                 let pid = (py * (160 * 4)) + (px * 4);
 
@@ -146,66 +166,31 @@ impl PPU {
 
     pub fn tick(&mut self) {
         self.tstate = (self.tstate + 4) % 70224;
+
+        let tstate = self.tstate % 456;
         let v_line = self.tstate / 456;
 
         let mode = if v_line < 144 {
-            match self.tstate % 456 {
+            match tstate {
                 0..=79 => 2,   // Mode 2
-                80..=279 => 3, // Mode 3
+                80..=253 => 3, // Mode 3
                 _ => 0,        // Mode 0
             }
         } else {
             1
         };
 
-        {
-            let IoReg(ref mut stat) = self.regs[Register::STAT as usize];
-            *stat = (*stat & (!0x3)) | mode;
+        self.stat_reg.0 = (self.stat_reg.0 & (!0x3)) | mode;
+        self.ly_reg.0 = v_line as u8;
+
+        // V-Blank IRQ happens at the beginning of the 144th line
+        if v_line == 144 && tstate == 0 {
+            self.vblank_irq_pending = true;
         }
-        {
-            let IoReg(ref mut ly) = self.regs[Register::LY as usize];
-            *ly = v_line as u8;
-
-            // V-Blank IRQ happens at the beginning of the 144th line
-            if v_line == 144 && self.tstate == 0 {
-                self.vblank_irq_pending = true;
-            }
-        }
-    }
-
-    fn io_read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
-        let addr = usize::from(addr);
-
-        match addr {
-            1 => T::read_le(&[self.regs[1].0 | 0x80]),
-            _ => T::read_le(&[self.regs[addr].0]),
-        }
-    }
-
-    fn io_write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
-        let addr = usize::from(addr);
-
-        T::write_mut_le(&mut [&mut self.regs[addr].0], val)
-    }
-
-    fn lcdc(&self) -> IoReg<u8> {
-        self.regs[Register::LCDC as usize]
-    }
-
-    fn bgp(&self) -> IoReg<u8> {
-        self.regs[Register::BGP as usize]
-    }
-
-    fn scroll_x(&self) -> IoReg<u8> {
-        self.regs[Register::SCX as usize]
-    }
-
-    fn scroll_y(&self) -> IoReg<u8> {
-        self.regs[Register::SCY as usize]
     }
 
     fn shade(&self, color: u8) -> u8 {
-        match (self.bgp().0 >> (color * 2)) & 0x3 {
+        match (self.bgp_reg.0 >> (color * 2)) & 0x3 {
             0b00 => 0xFF,
             0b01 => 0xAA,
             0b10 => 0x55,
@@ -215,13 +200,13 @@ impl PPU {
     }
 
     fn bg_tile(&self, id: usize) -> &Tile {
-        let tile_id = if self.lcdc().bit(3) {
+        let tile_id = if self.lcdc_reg.bit(3) {
             self.bgtm1[id]
         } else {
             self.bgtm0[id]
         };
 
-        if self.lcdc().bit(4) {
+        if self.lcdc_reg.bit(4) {
             &self.tdt[usize::from(tile_id)]
         } else {
             &self.tdt[(128 + i32::from(tile_id as i8)) as usize]
@@ -254,15 +239,23 @@ impl MemR for PPU {
             }
             0x9800..=0x9BFF => T::read_le(&self.bgtm0[usize::from(addr - 0x9800)..]),
             0x9C00..=0x9FFF => T::read_le(&self.bgtm1[usize::from(addr - 0x9C00)..]),
+
             0xFE00..=0xFE9F => (&self.oam[..]).read(addr - 0xFE00),
-            0xFF40..=0xFF4B => self.io_read(addr - 0xFF40),
-            _ => {
-                if addr >= 0xFF00 {
-                    Err(dbg::TraceEvent::IoFault(Peripheral::VPU, addr - 0xFF00))
-                } else {
-                    Err(dbg::TraceEvent::MemFault(addr))
-                }
-            }
+
+            0xFF40 => T::read_le(&[self.lcdc_reg.0]),
+            0xFF41 => T::read_le(&[self.stat_reg.0 | 0x80]),
+            0xFF42 => T::read_le(&[self.scy_reg.0]),
+            0xFF43 => T::read_le(&[self.scx_reg.0]),
+            0xFF44 => T::read_le(&[self.ly_reg.0]),
+            0xFF45 => T::read_le(&[self.lyc_reg.0]),
+            0xFF46 => T::read_le(&[0xFF]),
+            0xFF47 => T::read_le(&[self.bgp_reg.0]),
+            0xFF48 => T::read_le(&[self.obp0_reg.0]),
+            0xFF49 => T::read_le(&[self.obp1_reg.0]),
+            0xFF4A => T::read_le(&[self.wy_reg.0]),
+            0xFF4B => T::read_le(&[self.wx_reg.0]),
+
+            _ => unreachable!(),
         }
     }
 }
@@ -278,15 +271,23 @@ impl MemW for PPU {
             }
             0x9800..=0x9BFF => T::write_le(&mut self.bgtm0[usize::from(addr - 0x9800)..], val),
             0x9C00..=0x9FFF => T::write_le(&mut self.bgtm1[usize::from(addr - 0x9C00)..], val),
+
             0xFE00..=0xFE9F => (&mut self.oam[..]).write(addr - 0xFE00, val),
-            0xFF40..=0xFF4B => self.io_write(addr - 0xFF40, val),
-            _ => {
-                if addr >= 0xFF00 {
-                    Err(dbg::TraceEvent::IoFault(Peripheral::VPU, addr - 0xFF00))
-                } else {
-                    Err(dbg::TraceEvent::MemFault(addr))
-                }
-            }
+
+            0xFF40 => T::write_mut_le(&mut [&mut self.lcdc_reg.0], val),
+            0xFF41 => T::write_mut_le(&mut [&mut self.stat_reg.0], val),
+            0xFF42 => T::write_mut_le(&mut [&mut self.scy_reg.0], val),
+            0xFF43 => T::write_mut_le(&mut [&mut self.scx_reg.0], val),
+            0xFF44 => Ok(()),
+            0xFF45 => T::write_mut_le(&mut [&mut self.lyc_reg.0], val),
+            0xFF46 => T::write_mut_le(&mut [&mut self.dma_reg.0], val),
+            0xFF47 => T::write_mut_le(&mut [&mut self.bgp_reg.0], val),
+            0xFF48 => T::write_mut_le(&mut [&mut self.obp0_reg.0], val),
+            0xFF49 => T::write_mut_le(&mut [&mut self.obp1_reg.0], val),
+            0xFF4A => T::write_mut_le(&mut [&mut self.wy_reg.0], val),
+            0xFF4B => T::write_mut_le(&mut [&mut self.wx_reg.0], val),
+
+            _ => unreachable!(),
         }
     }
 }

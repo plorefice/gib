@@ -203,7 +203,6 @@ impl MemW for Bus {
             0xE000..=0xEFFF => self.wram_00.write(addr - 0xE000, val),
             0xF000..=0xFDFF => self.wram_nn.write(addr - 0xF000, val),
             0xFE00..=0xFE9F => self.ppu.write(addr, val),
-            0xFEA0..=0xFEFF => Ok(()), /* Writing to unused memory is a no-op */
             0xFF00..=0xFF00 => self.pad.write(addr, val),
             0xFF01..=0xFF02 => self.sdt.write(addr, val),
             0xFF04..=0xFF07 => self.tim.write(addr, val),
