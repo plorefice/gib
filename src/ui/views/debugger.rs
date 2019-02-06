@@ -28,7 +28,7 @@ impl WindowView for DebuggerView {
                     state.gameboy().clock_cycles()
                 ));
 
-                if cpu.halted {
+                if *cpu.halted.value() {
                     ui.same_line_spacing(0.0, 20.0);
                     ui.with_color_var(ImGuiCol::Text, utils::RED, || {
                         ui.text(im_str!("HALT"));

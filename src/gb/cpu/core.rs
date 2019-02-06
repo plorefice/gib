@@ -62,9 +62,7 @@ pub struct CPU {
     pub pc: u16,
 
     // Misc
-    pub halted: bool,
-    pub halt_bug: bool,
-    pub should_halt: bool,
+    pub halted: Latch<bool>,
     pub intr_enabled: Latch<bool>,
 
     // Execution-related members
@@ -83,6 +81,7 @@ pub struct CPU {
     breakpoints: HashSet<u16>,
 
     // Hacks/workarounds
+    pub halt_bug: bool,
     ignore_next_halt: bool,
 }
 
@@ -96,9 +95,7 @@ impl Default for CPU {
             sp: 0xFFFE,
             pc: 0x0100,
 
-            halted: false,
-            halt_bug: false,
-            should_halt: false,
+            halted: Latch::new(false),
             intr_enabled: Latch::new(false),
 
             state: CpuState::FetchOpcode,
@@ -114,6 +111,7 @@ impl Default for CPU {
             paused: false,
             breakpoints: HashSet::new(),
 
+            halt_bug: false,
             ignore_next_halt: false,
         }
     }
@@ -129,9 +127,14 @@ impl CPU {
 
         let saved_ctx = self.clone();
 
-        self.remaining_cycles -= 4;
-
         self.intr_enabled.tick();
+        self.halted.tick();
+
+        if *self.halted.value() {
+            return Ok(());
+        }
+
+        self.remaining_cycles -= 4;
 
         let res = match self.state {
             FetchOpcode => self.fetch_opcode(bus),
@@ -173,9 +176,9 @@ impl CPU {
             }
             Ok(()) => {
                 // See above for the CGB workaround
-                if self.should_halt && self.ignore_next_halt {
+                if *self.halted.loaded() && self.ignore_next_halt {
                     self.ignore_next_halt = false;
-                    self.should_halt = false;
+                    self.halted.reset(false);
                 }
                 Ok(())
             }

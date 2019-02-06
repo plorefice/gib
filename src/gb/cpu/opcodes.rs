@@ -239,7 +239,7 @@ impl CPU {
              */
             0x00 => (),
 
-            0x10 | 0x76 => self.should_halt = true,
+            0x10 | 0x76 => self.halted.load(true),
 
             0xF3 => self.intr_enabled.reset(false),
             0xFB => self.intr_enabled.load(true),
@@ -1297,7 +1297,13 @@ mod test {
         CpuTest::new(1, vec![0x10])
             .match_states(vec![FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(cpu.should_halt, true);
+                assert_eq!(*cpu.halted.loaded(), true);
+            });
+
+        CpuTest::new(2, vec![0x10, 0x00])
+            .match_states(vec![FetchOpcode, FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(*cpu.halted.value(), true);
             });
 
         // EI

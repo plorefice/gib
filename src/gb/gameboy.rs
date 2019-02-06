@@ -51,24 +51,18 @@ impl GameBoy {
     }
 
     fn tick(&mut self) -> Result<(), dbg::TraceEvent> {
-        if !self.cpu.halted {
-            self.cpu.tick(&mut self.bus)?;
+        self.cpu.tick(&mut self.bus)?;
 
-            // Section 4.10 of "The Cycle-Accurate GameBoy Docs"
-            // =================================================
-            // The HALT bug triggers if a HALT instruction is executed when IME = 0 && (IE & IF) != 0.
-            // In this case, the CPU is NOT halted, and the HALT bug is triggered, causing the PC
-            // to NOT be incremented when the next instruction is executed (ie. the next instruction
-            // is executed twice).
-            if self.cpu.should_halt {
-                self.cpu.should_halt = false;
-
-                if *self.cpu.intr_enabled.value() || !self.bus.itr.pending_irqs() {
-                    self.cpu.halted = true;
-                } else {
-                    self.cpu.halt_bug = true;
-                }
-            }
+        // Section 4.10 of "The Cycle-Accurate GameBoy Docs"
+        // =================================================
+        // The HALT bug triggers if a HALT instruction is executed when IME = 0 && (IE & IF) != 0.
+        // In this case, the CPU is NOT halted, and the HALT bug is triggered, causing the PC
+        // to NOT be incremented when the next instruction is executed (ie. the next instruction
+        // is executed twice).
+        if *self.cpu.halted.loaded()
+            && (!*self.cpu.intr_enabled.value() && self.bus.itr.pending_irqs())
+        {
+            self.cpu.halt_bug = true;
         }
 
         self.bus.ppu.tick();
@@ -97,7 +91,7 @@ impl GameBoy {
         if let Some(id) = self.bus.itr.get_pending_irq() {
             let addr = (0x40 + 0x08 * id) as u16;
 
-            self.cpu.halted = false;
+            self.cpu.halted.reset(false);
 
             // If IME = 1, disable HALT mode (if in it), set IME = 0,
             // clear IF and run the corresponding ISR.
