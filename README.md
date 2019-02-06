@@ -52,13 +52,13 @@ are shown below.
 
 | Peripheral | Progress | Notes                                |
 | ---------- | -------- | ------------------------------------ |
-| CPU        | 100%     | More testing required                |
+| CPU        | 100%     | Timings verification still missing   |
 | Video      | 10%      | BG support and screen blanking only  |
 | Sound      | 0%       | Not implemented yet                  |
 | Joypad     | 0%       | Not implemented yet                  |
 | Link cable | 0%       | Not implemented yet                  |
 | Timers     | 100%     | Passes all Gekkio's acceptance tests |
-| Interrupts | 70%      | Need to work on time accuracy        |
+| Interrupts | 90%      | Need to work on time accuracy        |
 | MBC        | 20%      | Support for some functions of MBC1   |
 
 ### Blargg's Test ROMs
@@ -71,7 +71,7 @@ The passing tests are also integrated in the emulator's test suite.
 | -------------- | -------- | -------------- |
 | cpu_instrs     | 100%     | Full pass!     |
 | instr_timing   | 100%     | Full pass!     |
-| interrupt_time | -        | Not tested yet |
+| interrupt_time | 0%       | Not yet        |
 | mem_timing-2   | 100%     | Full pass!     |
 | mem_timing     | 100%     | Full pass!     |
 | halt_bug       | -        | Not tested yet |
@@ -84,11 +84,12 @@ The passing tests are also integrated in the emulator's test suite.
 
 The passing tests are also integrated in the emulator's test suite.
 
-| Test Suite       | Progress | Notes      |
-| ---------------- | -------- | ---------- |
-| acceptance/timer | 100%     | Full pass! |
-| acceptance/bits  | 100%     | Full pass! |
-| acceptance/instr | 100%     | Full pass! |
+| Test Suite        | Progress | Notes                               |
+| ----------------- | -------- | ----------------------------------- |
+| acceptance/timer  | 100%     | Full pass!                          |
+| acceptance/bits   | 100%     | Full pass!                          |
+| acceptance/instr  | 100%     | Full pass!                          |
+| acceptance/boot_* | 100%     | All default boot values are correct |
 
 ## Resources
 
