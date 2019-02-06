@@ -29,6 +29,17 @@ fn passes_gekkio_acceptance_boot_regs() {
 }
 
 #[test]
+fn passes_gekkio_acceptance_boot_hwio() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/boot_hwio-dmgABCmgb.gb"
+    ))
+    .must_run_and_match(
+        30_000_000u64,
+        include_bytes!("gekkio/acceptance/boot_hwio-dmgABCmgb.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_div_timing() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/div_timing.gb")).must_run_and_match(
         30_000_000u64,

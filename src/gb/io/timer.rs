@@ -16,7 +16,7 @@ pub struct Timer {
 impl Default for Timer {
     fn default() -> Timer {
         Timer {
-            sys_counter: IoReg(0xB648),
+            sys_counter: IoReg(0xABCC),
             tima: IoReg(0),
             tma: IoReg(0),
             tac: IoReg(0),
