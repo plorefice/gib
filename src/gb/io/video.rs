@@ -165,6 +165,10 @@ impl PPU {
     }
 
     pub fn tick(&mut self) {
+        if !self.lcdc_reg.bit(7) {
+            return;
+        }
+
         self.tstate = (self.tstate + 4) % 70224;
 
         let tstate = self.tstate % 456;
