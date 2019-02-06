@@ -10,9 +10,9 @@ pub use memedit::*;
 pub use memmap::*;
 pub use peripherals::*;
 
-use super::dbg;
+use super::gb;
 use super::utils;
-use super::{EmuState, Immediate};
+use super::EmuState;
 
 use imgui::Ui;
 

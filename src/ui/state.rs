@@ -1,5 +1,4 @@
-use super::dbg;
-use super::{Bus, GameBoy, CPU};
+use super::gb::{bus::Bus, cpu::CPU, dbg, GameBoy};
 
 use failure::Error;
 

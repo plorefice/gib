@@ -1,10 +1,9 @@
-mod bus;
-mod cpu;
-mod gameboy;
-mod io;
-mod mem;
-
+pub mod bus;
+pub mod cpu;
 pub mod dbg;
-pub use bus::*;
-pub use cpu::*;
+pub mod io;
+pub mod mem;
+
+mod gameboy;
+
 pub use gameboy::*;

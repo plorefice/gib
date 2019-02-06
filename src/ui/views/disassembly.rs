@@ -1,7 +1,6 @@
-use super::dbg;
+use super::gb::{dbg, cpu::Immediate};
 use super::utils;
-use super::WindowView;
-use super::{EmuState, Immediate};
+use super::{EmuState, WindowView};
 
 use std::collections::BTreeMap;
 

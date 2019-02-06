@@ -1,4 +1,4 @@
-use super::gb::*;
+use super::gb;
 
 mod ctx;
 mod state;

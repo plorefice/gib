@@ -1,6 +1,6 @@
-use super::EmuState;
-use super::WindowView;
-use super::{dbg::MemoryType, utils};
+use super::gb::dbg::MemoryType;
+use super::utils;
+use super::{EmuState, WindowView};
 
 use imgui::{ImGuiCol, ImGuiCond, ImStr, ImString, Ui};
 
