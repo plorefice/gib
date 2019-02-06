@@ -56,6 +56,17 @@ fn passes_gekkio_acceptance_ei_sequence() {
 }
 
 #[test]
+fn passes_gekkio_acceptance_if_ie_registers() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/if_ie_registers.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/if_ie_registers.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_intr_timing() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/intr_timing.gb")).must_run_and_match(
         4_000_000u64,
