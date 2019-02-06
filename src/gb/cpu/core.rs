@@ -1,4 +1,5 @@
 use super::dbg;
+use super::io::Latch;
 use super::mem::MemRW;
 use super::opcodes::OPCODES;
 
@@ -64,7 +65,7 @@ pub struct CPU {
     pub halted: bool,
     pub halt_bug: bool,
     pub should_halt: bool,
-    pub intr_enabled: bool,
+    pub intr_enabled: Latch<bool>,
 
     // Execution-related members
     pub state: CpuState,
@@ -98,7 +99,7 @@ impl Default for CPU {
             halted: false,
             halt_bug: false,
             should_halt: false,
-            intr_enabled: false,
+            intr_enabled: Latch::new(false),
 
             state: CpuState::FetchOpcode,
             info: OPCODES[0],
@@ -129,6 +130,8 @@ impl CPU {
         let saved_ctx = self.clone();
 
         self.remaining_cycles -= 4;
+
+        self.intr_enabled.tick();
 
         let res = match self.state {
             FetchOpcode => self.fetch_opcode(bus),

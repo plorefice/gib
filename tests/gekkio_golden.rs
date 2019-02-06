@@ -55,6 +55,14 @@ fn passes_gekkio_acceptance_intr_timing() {
     );
 }
 
+#[test]
+fn passes_gekkio_acceptance_rapid_di_ei() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/rapid_di_ei.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/rapid_di_ei.bin"),
+    );
+}
+
 /*
  * Gekkio's BITS acceptance tests
  */

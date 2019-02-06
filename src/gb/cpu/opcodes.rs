@@ -241,8 +241,8 @@ impl CPU {
 
             0x10 | 0x76 => self.should_halt = true,
 
-            0xF3 => self.intr_enabled = false,
-            0xFB => self.intr_enabled = true,
+            0xF3 => self.intr_enabled.reset(false),
+            0xFB => self.intr_enabled.load(true),
 
             /*
              * Jump/calls
@@ -273,7 +273,7 @@ impl CPU {
             0xD8 => ret!(self, self.cy()),
 
             0xC9 => ret!(self, true),
-            0xD9 => { ret!(self, true); self.intr_enabled = true; }
+            0xD9 => { ret!(self, true); self.intr_enabled.reset(true); }
 
             0xC7 => call!(self, true, 0x00),
             0xCF => call!(self, true, 0x08),
@@ -1304,14 +1304,20 @@ mod test {
         CpuTest::new(1, vec![0xFB])
             .match_states(vec![FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(cpu.intr_enabled, true);
+                assert_eq!(*cpu.intr_enabled.value(), false);
+            });
+
+        CpuTest::new(2, vec![0xFB, 0x00])
+            .match_states(vec![FetchOpcode, FetchOpcode])
+            .run(|cpu, _| {
+                assert_eq!(*cpu.intr_enabled.value(), true);
             });
 
         // DI
         CpuTest::new(2, vec![0xFB, 0xF3])
             .match_states(vec![FetchOpcode, FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(cpu.intr_enabled, false);
+                assert_eq!(*cpu.intr_enabled.value(), false);
             });
     }
 

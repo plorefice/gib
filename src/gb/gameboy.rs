@@ -63,7 +63,7 @@ impl GameBoy {
             if self.cpu.should_halt {
                 self.cpu.should_halt = false;
 
-                if self.cpu.intr_enabled || !self.bus.itr.pending_irqs() {
+                if *self.cpu.intr_enabled.value() || !self.bus.itr.pending_irqs() {
                     self.cpu.halted = true;
                 } else {
                     self.cpu.halt_bug = true;
@@ -102,8 +102,8 @@ impl GameBoy {
             // If IME = 1, disable HALT mode (if in it), set IME = 0,
             // clear IF and run the corresponding ISR.
             // If IME = 0, simply leave HALT mode.
-            if self.cpu.intr_enabled {
-                self.cpu.intr_enabled = false;
+            if *self.cpu.intr_enabled.value() {
+                self.cpu.intr_enabled.reset(false);
                 self.bus.itr.clear_irq(id);
 
                 // Jump to interrupt service routing and wait 5 cycles until

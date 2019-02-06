@@ -35,7 +35,7 @@ impl WindowView for DebuggerView {
                     });
                 }
 
-                if cpu.intr_enabled {
+                if *cpu.intr_enabled.value() {
                     ui.same_line_spacing(0.0, 20.0);
                     ui.with_color_var(ImGuiCol::Text, utils::GREEN, || {
                         ui.text(im_str!("IME"));
