@@ -19,3 +19,9 @@ fn passes_blargg_mem_timing() {
     RomTest::new(include_bytes!("../roms/blargg/mem_timing.gb"))
         .must_run_and_match(7_000_000u64, include_bytes!("blargg/mem_timing.bin"));
 }
+
+#[test]
+fn passes_blargg_mem_timing_2() {
+    RomTest::new(include_bytes!("../roms/blargg/mem_timing-2.gb"))
+        .must_run_and_match(12_000_000u64, include_bytes!("blargg/mem_timing-2.bin"));
+}

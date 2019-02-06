@@ -72,7 +72,7 @@ The passing tests are also integrated in the emulator's test suite.
 | cpu_instrs     | 100%     | Full pass!     |
 | instr_timing   | 100%     | Full pass!     |
 | interrupt_time | -        | Not tested yet |
-| mem_timing-2   | -        | Not tested yet |
+| mem_timing-2   | 100%     | Full pass!     |
 | mem_timing     | 100%     | Full pass!     |
 | halt_bug       | -        | Not tested yet |
 | oam_bug        | -        | Not tested yet |
