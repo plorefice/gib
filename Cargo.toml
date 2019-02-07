@@ -11,6 +11,7 @@ imgui = "0.0.21"
 imgui-sys = "0.0.21"
 imgui-glium-renderer = "0.0.21"
 failure = "0.1.5"
+bitflags = "1.0.4"
 
 [profile.dev]
 overflow-checks = false

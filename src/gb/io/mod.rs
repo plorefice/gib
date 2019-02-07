@@ -1,5 +1,6 @@
 mod interrupts;
 mod joypad;
+#[macro_use]
 mod reg;
 mod serial;
 mod sound;
