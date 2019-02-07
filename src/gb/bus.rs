@@ -87,6 +87,19 @@ impl Bus {
         Ok(())
     }
 
+    /// Advances the system peripheral/memory bus by a single M-cycle.
+    pub fn tick(&mut self) -> Result<(), dbg::TraceEvent> {
+        self.ppu.tick();
+        self.tim.tick();
+
+        if let Some((src, dst)) = self.ppu.advance_dma_xfer() {
+            let b = self.read::<u8>(src)?;
+            self.write::<u8>(dst, b)?;
+        }
+
+        Ok(())
+    }
+
     fn ram_enable<T: MemSize>(&mut self, _val: T) -> Result<(), dbg::TraceEvent> {
         // TODO handle this just in case some ROMs rely on uncorrect behavior
         Ok(())

@@ -65,8 +65,7 @@ impl GameBoy {
             self.cpu.halt_bug = true;
         }
 
-        self.bus.ppu.tick();
-        self.bus.tim.tick();
+        self.bus.tick()?;
 
         self.cycles += 4;
 
