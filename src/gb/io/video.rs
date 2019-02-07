@@ -56,6 +56,52 @@ impl<'a> MemW for &'a mut [Sprite] {
 
 impl<'a> MemRW for &'a mut [Sprite] {}
 
+bitflags! {
+    struct LCDC: u8 {
+        const DISP_EN         = 0b_1000_0000;
+        const WIN_DISP_SEL    = 0b_0100_0000;
+        const WIN_DISP_EN     = 0b_0010_0000;
+        const BG_WIN_DATA_SEL = 0b_0001_0000;
+        const BG_DISP_SEL     = 0b_0000_1000;
+        const OBJ_SIZE        = 0b_0000_0100;
+        const OBJ_DISP_EN     = 0b_0000_0010;
+        const BG_DISP         = 0b_0000_0001;
+
+        const DEFAULT = 0b_1001_0001;
+    }
+}
+mem_rw!(LCDC, 0x00);
+
+bitflags! {
+    struct STAT: u8 {
+        const LYC_INTR = 0b_0100_0000;
+        const OAM_INTR = 0b_0010_0000;
+        const VBK_INTR = 0b_0001_0000;
+        const HBK_INTR = 0b_0000_1000;
+        const LYC_FLAG = 0b_0000_0100;
+
+        const MOD_FLAG = 0b_0000_0011;
+        const MOD_0    = 0b_0000_0000;
+        const MOD_1    = 0b_0000_0001;
+        const MOD_2    = 0b_0000_0010;
+        const MOD_3    = 0b_0000_0011;
+
+        const DEFAULT = 0b_0000_0000;
+    }
+}
+mem_rw!(STAT, 0x80);
+
+bitflags! {
+    struct STATIRQ: u8 {
+        const LYC = 0b_0100_0000;
+        const OAM = 0b_0010_0000;
+        const VBK = 0b_0001_0000;
+        const HBK = 0b_0000_1000;
+
+        const DEFAULT = 0b_0000_0000;
+    }
+}
+
 pub struct PPU {
     tdt: [Tile; 384],  // Tile Data Table
     oam: [Sprite; 40], // Object Attribute Memory
@@ -63,8 +109,9 @@ pub struct PPU {
     bgtm1: [u8; 1024], // Background Tile Map #1
 
     // Ctrl/status IO registes
-    lcdc_reg: IoReg<u8>,
-    stat_reg: IoReg<u8>,
+    lcdc_reg: LCDC,
+    stat_reg: STAT,
+    stat_irq: STATIRQ,
 
     // Position/scrolling registers
     scx_reg: IoReg<u8>,
@@ -87,7 +134,6 @@ pub struct PPU {
 
     // IRQ handling
     vblank_irq_pending: bool,
-    stat_irq_pending: bool,
 }
 
 impl Default for PPU {
@@ -98,8 +144,9 @@ impl Default for PPU {
             bgtm0: [0; 1024],
             bgtm1: [0; 1024],
 
-            lcdc_reg: IoReg(0x91),
-            stat_reg: IoReg(0x00),
+            lcdc_reg: LCDC::DEFAULT,
+            stat_reg: STAT::DEFAULT,
+            stat_irq: STATIRQ::DEFAULT,
 
             scx_reg: IoReg(0x00),
             scy_reg: IoReg(0x00),
@@ -117,7 +164,6 @@ impl Default for PPU {
             tstate: 70164,
 
             vblank_irq_pending: true,
-            stat_irq_pending: false,
         }
     }
 }
@@ -128,7 +174,7 @@ impl PPU {
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {
-        if !self.lcdc_reg.bit(7) {
+        if !self.lcdc_reg.contains(LCDC::DISP_EN) {
             for b in vbuf.iter_mut() {
                 *b = 0xFF;
             }
@@ -139,7 +185,7 @@ impl PPU {
     }
 
     fn rasterize_bg(&self, vbuf: &mut [u8]) {
-        if !self.lcdc_reg.bit(0) {
+        if !self.lcdc_reg.contains(LCDC::BG_DISP) {
             for b in vbuf.iter_mut() {
                 *b = 0xFF;
             }
@@ -165,32 +211,60 @@ impl PPU {
     }
 
     pub fn tick(&mut self) {
-        if !self.lcdc_reg.bit(7) {
+        if !self.lcdc_reg.contains(LCDC::DISP_EN) {
             return;
         }
 
         self.tstate = (self.tstate + 4) % 70224;
-
         let tstate = self.tstate % 456;
         let v_line = self.tstate / 456;
 
-        let mode = if v_line < 144 {
-            match tstate {
-                0..=79 => 2,   // Mode 2
-                80..=253 => 3, // Mode 3
-                _ => 0,        // Mode 0
-            }
-        } else {
-            1
-        };
-
-        self.stat_reg.0 = (self.stat_reg.0 & (!0x3)) | mode;
         self.ly_reg.0 = v_line as u8;
 
         // V-Blank IRQ happens at the beginning of the 144th line
         if v_line == 144 && tstate == 0 {
             self.vblank_irq_pending = true;
         }
+
+        // This should be called last, after every other counter has been updated!
+        self.tick_stat(tstate, v_line);
+    }
+
+    /// Update the STAT register and set any relevant interrupts.
+    fn tick_stat(&mut self, tstate: u64, v_line: u64) {
+        let mode = if v_line < 144 {
+            match tstate {
+                0..=79 => STAT::MOD_2,
+                80..=253 => STAT::MOD_3,
+                _ => STAT::MOD_0,
+            }
+        } else {
+            STAT::MOD_1
+        };
+
+        let lyc_coinc = self.ly_reg == self.lyc_reg;
+
+        // Set STAT interrupt flags depending on the enable bits in STAT
+        if self.stat_reg.contains(STAT::LYC_INTR) && lyc_coinc && tstate == 0 {
+            self.stat_irq |= STATIRQ::LYC;
+        }
+        if self.stat_reg.contains(STAT::OAM_INTR) && mode == STAT::MOD_2 && tstate == 0 {
+            self.stat_irq |= STATIRQ::OAM;
+        }
+        if self.stat_reg.contains(STAT::VBK_INTR) && v_line == 144 && tstate == 0 {
+            self.stat_irq |= STATIRQ::VBK;
+        }
+        if self.stat_reg.contains(STAT::HBK_INTR) && mode == STAT::MOD_0 && tstate == 256 {
+            self.stat_irq |= STATIRQ::HBK;
+        }
+
+        if lyc_coinc {
+            self.stat_reg |= STAT::LYC_FLAG;
+        } else {
+            self.stat_reg &= !STAT::LYC_FLAG;
+        }
+
+        self.stat_reg = (self.stat_reg & !STAT::MOD_FLAG) | mode;
     }
 
     fn shade(&self, color: u8) -> u8 {
@@ -204,13 +278,13 @@ impl PPU {
     }
 
     fn bg_tile(&self, id: usize) -> &Tile {
-        let tile_id = if self.lcdc_reg.bit(3) {
+        let tile_id = if self.lcdc_reg.contains(LCDC::BG_DISP_SEL) {
             self.bgtm1[id]
         } else {
             self.bgtm0[id]
         };
 
-        if self.lcdc_reg.bit(4) {
+        if self.lcdc_reg.contains(LCDC::BG_WIN_DATA_SEL) {
             &self.tdt[usize::from(tile_id)]
         } else {
             &self.tdt[(128 + i32::from(tile_id as i8)) as usize]
@@ -223,8 +297,9 @@ impl InterruptSource for PPU {
         if self.vblank_irq_pending {
             self.vblank_irq_pending = false;
             Some(IrqSource::VBlank)
-        } else if self.stat_irq_pending {
-            self.stat_irq_pending = false;
+        } else if !self.stat_irq.is_empty() {
+            // TODO: resetting everything might not be the correct behavior.
+            self.stat_irq = STATIRQ::DEFAULT;
             Some(IrqSource::LcdStat)
         } else {
             None
@@ -246,8 +321,8 @@ impl MemR for PPU {
 
             0xFE00..=0xFE9F => (&self.oam[..]).read(addr - 0xFE00),
 
-            0xFF40 => T::read_le(&[self.lcdc_reg.0]),
-            0xFF41 => T::read_le(&[self.stat_reg.0 | 0x80]),
+            0xFF40 => (&self.lcdc_reg).read(addr),
+            0xFF41 => (&self.stat_reg).read(addr),
             0xFF42 => T::read_le(&[self.scy_reg.0]),
             0xFF43 => T::read_le(&[self.scx_reg.0]),
             0xFF44 => T::read_le(&[self.ly_reg.0]),
@@ -278,8 +353,8 @@ impl MemW for PPU {
 
             0xFE00..=0xFE9F => (&mut self.oam[..]).write(addr - 0xFE00, val),
 
-            0xFF40 => T::write_mut_le(&mut [&mut self.lcdc_reg.0], val),
-            0xFF41 => T::write_mut_le(&mut [&mut self.stat_reg.0], val),
+            0xFF40 => (&mut self.lcdc_reg).write(0, val),
+            0xFF41 => (&mut self.stat_reg).write(0, val),
             0xFF42 => T::write_mut_le(&mut [&mut self.scy_reg.0], val),
             0xFF43 => T::write_mut_le(&mut [&mut self.scx_reg.0], val),
             0xFF44 => Ok(()),
