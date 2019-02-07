@@ -364,9 +364,11 @@ impl PPU {
 
                     let pid = (py as usize) * 160 * 4 + (px as usize) * 4;
 
-                    vbuf[pid] = shade;
-                    vbuf[pid + 1] = shade;
-                    vbuf[pid + 2] = shade;
+                    if pixel != 0 {
+                        vbuf[pid] = shade;
+                        vbuf[pid + 1] = shade;
+                        vbuf[pid + 2] = shade;
+                    }
                 }
             }
         }
