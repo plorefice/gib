@@ -340,10 +340,7 @@ impl PPU {
             let attr = sprite.attributes;
 
             // TODO implement nice sprite features
-            if attr
-                & (SpriteAttributes::BG_PRIO | SpriteAttributes::FLIP_X | SpriteAttributes::FLIP_Y)
-                != SpriteAttributes::empty()
-            {
+            if attr.contains(SpriteAttributes::BG_PRIO) {
                 unimplemented!();
             }
 
@@ -356,10 +353,27 @@ impl PPU {
                 self.obp0_reg.0
             };
 
+            // Flip sprite horizontally
+            let off_x = if attr.contains(SpriteAttributes::FLIP_X) {
+                7
+            } else {
+                0
+            };
+
+            // Flip sprite vertically
+            let off_y = if attr.contains(SpriteAttributes::FLIP_Y) {
+                7
+            } else {
+                0
+            };
+
             // Clip to currently visible area
             for py in y.max(0)..(y + 8).min(144) {
                 for px in x.max(0)..(x + 8).min(160) {
-                    let pixel = tile.pixel((px - x) as u8, (py - y) as u8);
+                    let x = (off_x - (px - x) as i16).abs() as u8;
+                    let y = (off_y - (py - y) as i16).abs() as u8;
+
+                    let pixel = tile.pixel(x, y);
                     let shade = self.get_shade(palette, pixel);
 
                     let pid = (py as usize) * 160 * 4 + (px as usize) * 4;
