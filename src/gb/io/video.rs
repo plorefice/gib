@@ -450,7 +450,7 @@ impl PPU {
         if self.lcdc_reg.contains(LCDC::BG_WIN_DATA_SEL) {
             &self.tdt[usize::from(tile_id)]
         } else {
-            &self.tdt[(128 + i32::from(tile_id as i8)) as usize]
+            &self.tdt[(256 + i32::from(tile_id as i8)) as usize]
         }
     }
 
