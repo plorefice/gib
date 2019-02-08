@@ -44,12 +44,6 @@ impl DisassemblyView {
         while from < *mem_range.end() {
             let instr = match cpu.disasm(bus, from) {
                 Ok(instr) => instr,
-                Err(dbg::TraceEvent::AccessFault) => {
-                    // This usually happens when disassembling unaligned bytecode
-                    // located at the end of the memory space. Just stop disassembling.
-                    // It should be one of the last instructions anyway.
-                    return;
-                }
                 Err(evt) => panic!("unexpected trace event during disassembly: {}", evt),
             };
 

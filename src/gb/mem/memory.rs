@@ -1,5 +1,5 @@
 use super::dbg;
-use super::{MemR, MemSize, MemW};
+use super::{MemR, MemRW, MemW};
 
 #[derive(Clone)]
 pub struct Memory {
@@ -15,13 +15,16 @@ impl Memory {
 }
 
 impl MemR for Memory {
-    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
-        T::read_le(&self.data[usize::from(addr)..])
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
+        Ok(self.data[usize::from(addr)])
     }
 }
 
 impl MemW for Memory {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
-        T::write_le(&mut self.data[usize::from(addr)..], val)
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
+        self.data[usize::from(addr)] = val;
+        Ok(())
     }
 }
+
+impl MemRW for Memory {}

@@ -4,20 +4,21 @@ use std::ops::{BitAnd, BitAndAssign, BitOrAssign, Not, Shl};
 macro_rules! mem_rw {
     ($reg:ident, $mask:expr) => {
         impl<'a> MemR for &'a $reg {
-            fn read<T: MemSize>(&self, _addr: u16) -> Result<T, dbg::TraceEvent> {
-                T::read_le(&[self.bits() | $mask])
+            fn read(&self, _addr: u16) -> Result<u8, dbg::TraceEvent> {
+                Ok(self.bits() | $mask)
             }
         }
 
         impl<'a> MemR for &'a mut $reg {
-            fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+            fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
                 (&*self as &$reg).read(addr)
             }
         }
 
         impl<'a> MemW for &'a mut $reg {
-            fn write<T: MemSize>(&mut self, _addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
-                T::write_mut_le(&mut [&mut self.bits], val)
+            fn write(&mut self, _addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
+                self.bits = val;
+                Ok(())
             }
         }
 

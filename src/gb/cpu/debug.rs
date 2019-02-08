@@ -19,13 +19,17 @@ pub struct Instruction {
 
 impl CPU {
     pub fn disasm(&self, mem: &impl MemR, addr: u16) -> Result<Instruction, dbg::TraceEvent> {
-        let opcode = mem.read::<u8>(addr)?;
+        let opcode = mem.read(addr)?;
         let info = &OPCODES[opcode as usize];
 
         let imm: Option<Immediate> = match info.3 {
             1 => None,
-            2 => Some(Immediate::Imm8(mem.read::<u8>(addr + 1)?)),
-            3 => Some(Immediate::Imm16(mem.read::<u16>(addr + 1)?)),
+            2 => Some(Immediate::Imm8(mem.read(addr + 1)?)),
+            3 => {
+                let lo = u16::from(mem.read(addr + 1)?);
+                let hi = u16::from(mem.read(addr + 2)?);
+                Some(Immediate::Imm16((hi << 8) | lo))
+            }
             _ => unreachable!(),
         };
 

@@ -1,6 +1,6 @@
 use super::dbg;
 use super::io::{IrqController, Joypad, Serial, Timer, APU, PPU};
-use super::mem::{MemR, MemRW, MemSize, MemW, Memory};
+use super::mem::{MemR, MemRW, MemW, Memory};
 
 use std::convert::TryFrom;
 
@@ -93,20 +93,20 @@ impl Bus {
         self.tim.tick();
 
         if let Some((src, dst)) = self.ppu.advance_dma_xfer() {
-            let b = self.read::<u8>(src)?;
-            self.write::<u8>(dst, b)?;
+            let b = self.read(src)?;
+            self.write(dst, b)?;
         }
 
         Ok(())
     }
 
-    fn ram_enable<T: MemSize>(&mut self, _val: T) -> Result<(), dbg::TraceEvent> {
+    fn ram_enable(&mut self, _val: u8) -> Result<(), dbg::TraceEvent> {
         // TODO handle this just in case some ROMs rely on uncorrect behavior
         Ok(())
     }
 
-    fn rom_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
-        self.rom_nn = match val.low() {
+    fn rom_select(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
+        self.rom_nn = match val {
             0x00 => 0x01,
             v @ 0x01..=0x1F => usize::from(v),
             v => return Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RomBank, v)),
@@ -114,25 +114,15 @@ impl Bus {
         Ok(())
     }
 
-    fn ram_rom_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(
-            dbg::McbOp::RamBank,
-            val.low(),
-        ))
+    fn ram_rom_select(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
+        Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RamBank, val))
     }
 
-    fn mode_select<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(
-            dbg::McbOp::RamBank,
-            val.low(),
-        ))
+    fn mode_select(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
+        Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RamBank, val))
     }
 
-    fn write_to_cgb_functions<T: MemSize>(
-        &mut self,
-        addr: u16,
-        _val: T,
-    ) -> Result<(), dbg::TraceEvent> {
+    fn write_to_cgb_functions(&mut self, addr: u16, _val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
             0xFF4D => Err(dbg::TraceEvent::CgbSpeedSwitchReq),
             _ => Ok(()),
@@ -141,7 +131,7 @@ impl Bus {
 }
 
 impl MemR for Bus {
-    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         match addr {
             0x0000..=0x3FFF => self.rom_banks[0].read(addr),
             0x4000..=0x7FFF => self.rom_banks[self.rom_nn].read(addr - 0x4000),
@@ -159,13 +149,13 @@ impl MemR for Bus {
             0xFF40..=0xFF4B => self.ppu.read(addr),
             0xFF80..=0xFFFE => self.hram.read(addr - 0xFF80),
             0xFF0F | 0xFFFF => self.itr.read(addr),
-            _ => T::read_le(&[0xFF]),
+            _ => Ok(0xFF),
         }
     }
 }
 
 impl MemW for Bus {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
             0x0000..=0x1FFF => self.ram_enable(val),
             0x2000..=0x3FFF => self.rom_select(val),

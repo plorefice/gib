@@ -270,14 +270,14 @@ impl CPU {
         // Operand location in memory is codified in the opcode.
         // This handles all possible memory addressings.
         self.operand = match self.info.2 {
-            Memory(C) => bus.read::<u8>(0xFF00 + u16::from(self.c()))?.into(),
-            Memory(IO) => bus.read::<u8>(0xFF00 + self.operand)?.into(),
-            Memory(BC) => bus.read::<u8>(self.bc)?.into(),
-            Memory(DE) => bus.read::<u8>(self.de)?.into(),
-            Memory(HL) => bus.read::<u8>(self.hl)?.into(),
-            Memory(A16) => bus.read::<u8>(self.operand)?.into(),
+            Memory(C) => bus.read(0xFF00 + u16::from(self.c()))?.into(),
+            Memory(IO) => bus.read(0xFF00 + self.operand)?.into(),
+            Memory(BC) => bus.read(self.bc)?.into(),
+            Memory(DE) => bus.read(self.de)?.into(),
+            Memory(HL) => bus.read(self.hl)?.into(),
+            Memory(A16) => bus.read(self.operand)?.into(),
             Memory(SP) => {
-                let r = bus.read::<u16>(self.sp)?;
+                let r = self.fetch_word(bus, self.sp)?;
                 self.sp += 2;
                 r
             }
@@ -326,15 +326,15 @@ impl CPU {
         }
 
         match self.write_op {
-            Some(Write8(dest, d8)) => bus.write::<u8>(dest, d8),
-            Some(Write16(dest, d16)) => bus.write::<u16>(dest, d16),
+            Some(Write8(dest, d8)) => bus.write(dest, d8),
+            Some(Write16(dest, d16)) => self.store_word(bus, dest, d16),
             Some(Push(d16)) => {
                 self.sp -= 2;
-                bus.write::<u16>(self.sp, d16)
+                self.store_word(bus, self.sp, d16)
             }
             Some(Return) => {
                 // This is basically a POP PC operation
-                self.pc = bus.read::<u16>(self.sp)?;
+                self.pc = self.fetch_word(bus, self.sp)?;
                 self.sp += 2;
                 Ok(())
             }
@@ -345,7 +345,7 @@ impl CPU {
     pub fn jump_to_isr(&mut self, bus: &mut impl MemRW, addr: u16) -> Result<(), dbg::TraceEvent> {
         // Push PC onto the stack
         self.sp -= 2;
-        bus.write::<u16>(self.sp, self.pc)?;
+        self.store_word(bus, self.sp, self.pc)?;
 
         // Jump to ISR
         self.pc = addr;
@@ -358,9 +358,25 @@ impl CPU {
     }
 
     pub fn fetch_pc(&mut self, bus: &mut impl MemRW) -> Result<u8, dbg::TraceEvent> {
-        let v = bus.read::<u8>(self.pc)?;
+        let v = bus.read(self.pc)?;
         self.pc += 1;
         Ok(v)
+    }
+
+    pub fn fetch_word(&mut self, bus: &mut impl MemRW, addr: u16) -> Result<u16, dbg::TraceEvent> {
+        let lo = u16::from(bus.read(addr)?);
+        let hi = u16::from(bus.read(addr + 1)?);
+        Ok((hi << 8) | lo)
+    }
+
+    pub fn store_word(
+        &mut self,
+        bus: &mut impl MemRW,
+        addr: u16,
+        val: u16,
+    ) -> Result<(), dbg::TraceEvent> {
+        bus.write(addr, val as u8)?;
+        bus.write(addr + 1, (val >> 8) as u8)
     }
 
     fn resume(&mut self) {

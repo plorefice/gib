@@ -1,7 +1,7 @@
 use super::dbg;
 use super::IoReg;
 use super::{InterruptSource, IrqSource};
-use super::{MemR, MemSize, MemW};
+use super::{MemR, MemW};
 
 pub struct APU {
     // Channel 1 registers
@@ -85,77 +85,79 @@ impl InterruptSource for APU {
 }
 
 impl MemR for APU {
-    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         // TODO: it's gonna be a while before sound is implemented :)
-        match addr {
-            0xFF10 => T::read_le(&[self.ch1_swp_reg.0 | 0x80]),
-            0xFF11 => T::read_le(&[self.ch1_len_reg.0 | 0x3F]),
-            0xFF12 => T::read_le(&[self.ch1_vol_reg.0]),
-            0xFF13 => T::read_le(&[self.ch1_flo_reg.0 | 0xFF]),
-            0xFF14 => T::read_le(&[self.ch1_fhi_reg.0 | 0xBF]),
+        Ok(match addr {
+            0xFF10 => self.ch1_swp_reg.0 | 0x80,
+            0xFF11 => self.ch1_len_reg.0 | 0x3F,
+            0xFF12 => self.ch1_vol_reg.0,
+            0xFF13 => self.ch1_flo_reg.0 | 0xFF,
+            0xFF14 => self.ch1_fhi_reg.0 | 0xBF,
 
-            0xFF16 => T::read_le(&[self.ch2_len_reg.0 | 0x3F]),
-            0xFF17 => T::read_le(&[self.ch2_vol_reg.0]),
-            0xFF18 => T::read_le(&[self.ch2_flo_reg.0 | 0xFF]),
-            0xFF19 => T::read_le(&[self.ch2_fhi_reg.0 | 0xBF]),
+            0xFF16 => self.ch2_len_reg.0 | 0x3F,
+            0xFF17 => self.ch2_vol_reg.0,
+            0xFF18 => self.ch2_flo_reg.0 | 0xFF,
+            0xFF19 => self.ch2_fhi_reg.0 | 0xBF,
 
-            0xFF1A => T::read_le(&[self.ch3_snd_reg.0 | 0x7F]),
-            0xFF1B => T::read_le(&[self.ch3_len_reg.0]),
-            0xFF1C => T::read_le(&[self.ch3_vol_reg.0 | 0x9F]),
-            0xFF1D => T::read_le(&[self.ch3_flo_reg.0 | 0xFF]),
-            0xFF1E => T::read_le(&[self.ch3_fhi_reg.0 | 0xBF]),
+            0xFF1A => self.ch3_snd_reg.0 | 0x7F,
+            0xFF1B => self.ch3_len_reg.0,
+            0xFF1C => self.ch3_vol_reg.0 | 0x9F,
+            0xFF1D => self.ch3_flo_reg.0 | 0xFF,
+            0xFF1E => self.ch3_fhi_reg.0 | 0xBF,
 
-            0xFF20 => T::read_le(&[self.ch4_len_reg.0 | 0xC0]),
-            0xFF21 => T::read_le(&[self.ch4_vol_reg.0]),
-            0xFF22 => T::read_le(&[self.ch4_cnt_reg.0]),
-            0xFF23 => T::read_le(&[self.ch4_ini_reg.0 | 0xBF]),
+            0xFF20 => self.ch4_len_reg.0 | 0xC0,
+            0xFF21 => self.ch4_vol_reg.0,
+            0xFF22 => self.ch4_cnt_reg.0,
+            0xFF23 => self.ch4_ini_reg.0 | 0xBF,
 
-            0xFF24 => T::read_le(&[self.ctrl_master_reg.0]),
-            0xFF25 => T::read_le(&[self.ctrl_output_reg.0]),
-            0xFF26 => T::read_le(&[self.ctrl_snd_en_reg.0 | 0x70]),
+            0xFF24 => self.ctrl_master_reg.0,
+            0xFF25 => self.ctrl_output_reg.0,
+            0xFF26 => self.ctrl_snd_en_reg.0 | 0x70,
 
-            0xFF30..=0xFF3F => T::read_le(&self.wave_ram[..]),
+            0xFF30..=0xFF3F => self.wave_ram[usize::from(addr) - 0xFF30],
 
             // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F
-            _ => T::read_le(&[0xFF]),
-        }
+            _ => 0xFF,
+        })
     }
 }
 
 impl MemW for APU {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         // TODO: it's gonna be a while before sound is implemented :)
         match addr {
-            0xFF10 => T::write_mut_le(&mut [&mut self.ch1_swp_reg.0], val),
-            0xFF11 => T::write_mut_le(&mut [&mut self.ch1_len_reg.0], val),
-            0xFF12 => T::write_mut_le(&mut [&mut self.ch1_vol_reg.0], val),
-            0xFF13 => T::write_mut_le(&mut [&mut self.ch1_flo_reg.0], val),
-            0xFF14 => T::write_mut_le(&mut [&mut self.ch1_fhi_reg.0], val),
+            0xFF10 => self.ch1_swp_reg.0 = val,
+            0xFF11 => self.ch1_len_reg.0 = val,
+            0xFF12 => self.ch1_vol_reg.0 = val,
+            0xFF13 => self.ch1_flo_reg.0 = val,
+            0xFF14 => self.ch1_fhi_reg.0 = val,
 
-            0xFF16 => T::write_mut_le(&mut [&mut self.ch2_len_reg.0], val),
-            0xFF17 => T::write_mut_le(&mut [&mut self.ch2_vol_reg.0], val),
-            0xFF18 => T::write_mut_le(&mut [&mut self.ch2_flo_reg.0], val),
-            0xFF19 => T::write_mut_le(&mut [&mut self.ch2_fhi_reg.0], val),
+            0xFF16 => self.ch2_len_reg.0 = val,
+            0xFF17 => self.ch2_vol_reg.0 = val,
+            0xFF18 => self.ch2_flo_reg.0 = val,
+            0xFF19 => self.ch2_fhi_reg.0 = val,
 
-            0xFF1A => T::write_mut_le(&mut [&mut self.ch3_snd_reg.0], val),
-            0xFF1B => T::write_mut_le(&mut [&mut self.ch3_len_reg.0], val),
-            0xFF1C => T::write_mut_le(&mut [&mut self.ch3_vol_reg.0], val),
-            0xFF1D => T::write_mut_le(&mut [&mut self.ch3_flo_reg.0], val),
-            0xFF1E => T::write_mut_le(&mut [&mut self.ch3_fhi_reg.0], val),
+            0xFF1A => self.ch3_snd_reg.0 = val,
+            0xFF1B => self.ch3_len_reg.0 = val,
+            0xFF1C => self.ch3_vol_reg.0 = val,
+            0xFF1D => self.ch3_flo_reg.0 = val,
+            0xFF1E => self.ch3_fhi_reg.0 = val,
 
-            0xFF20 => T::write_mut_le(&mut [&mut self.ch4_len_reg.0], val),
-            0xFF21 => T::write_mut_le(&mut [&mut self.ch4_vol_reg.0], val),
-            0xFF22 => T::write_mut_le(&mut [&mut self.ch4_cnt_reg.0], val),
-            0xFF23 => T::write_mut_le(&mut [&mut self.ch4_ini_reg.0], val),
+            0xFF20 => self.ch4_len_reg.0 = val,
+            0xFF21 => self.ch4_vol_reg.0 = val,
+            0xFF22 => self.ch4_cnt_reg.0 = val,
+            0xFF23 => self.ch4_ini_reg.0 = val,
 
-            0xFF24 => T::write_mut_le(&mut [&mut self.ctrl_master_reg.0], val),
-            0xFF25 => T::write_mut_le(&mut [&mut self.ctrl_output_reg.0], val),
-            0xFF26 => T::write_mut_le(&mut [&mut self.ctrl_snd_en_reg.0], val),
+            0xFF24 => self.ctrl_master_reg.0 = val,
+            0xFF25 => self.ctrl_output_reg.0 = val,
+            0xFF26 => self.ctrl_snd_en_reg.0 = val,
 
-            0xFF30..=0xFF3F => T::write_le(&mut self.wave_ram[..], val),
+            0xFF30..=0xFF3F => self.wave_ram[usize::from(addr) - 0xFF30] = val,
 
             // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F
-            _ => Ok(()),
-        }
+            _ => (),
+        };
+
+        Ok(())
     }
 }

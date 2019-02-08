@@ -1,12 +1,6 @@
 use std::fmt;
 use std::ops::RangeInclusive;
 
-#[derive(Debug, Clone, Copy)]
-pub enum Peripheral {
-    TIM,
-    ITR,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryType {
     RomBank(u8),
@@ -146,10 +140,6 @@ pub enum TraceEvent {
     BusFault(u16),
     #[fail(display = "Memory fault accessing 0x{:04X}", _0)]
     MemFault(u16),
-    #[fail(display = "IO fault accessing {:?}@{:04X}", _0, _1)]
-    IoFault(Peripheral, u16),
-    #[fail(display = "Access size fault")]
-    AccessFault,
     #[fail(display = "Unsupported MBC: {:02X}", _0)]
     UnsupportedMbcType(u8),
     #[fail(display = "Invalid MBC operation: {}@{:02X}", _0, _1)]

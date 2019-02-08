@@ -1195,19 +1195,20 @@ pub const OPCODES: [OpcodeInfo; 256] = [
 #[cfg(test)]
 mod test {
     use super::super::dbg;
-    use super::super::mem::{MemR, MemRW, MemSize, MemW};
+    use super::super::mem::{MemR, MemRW, MemW};
     use super::super::{CpuState, CpuState::*};
     use super::*;
 
     impl<'a> MemR for &'a mut [u8] {
-        fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
-            T::read_le(&self[addr as usize..])
+        fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
+            Ok(self[addr as usize])
         }
     }
 
     impl<'a> MemW for &'a mut [u8] {
-        fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
-            T::write_le(&mut self[addr as usize..], val)
+        fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
+            self[addr as usize] = val;
+            Ok(())
         }
     }
 

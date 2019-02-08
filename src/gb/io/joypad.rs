@@ -1,5 +1,5 @@
 use super::dbg;
-use super::{MemR, MemRW, MemSize, MemW};
+use super::{MemR, MemRW, MemW};
 
 bitflags! {
     pub struct JoypadState: u8 {
@@ -58,7 +58,7 @@ impl Joypad {
 }
 
 impl MemR for Joypad {
-    fn read<T: MemSize>(&self, _addr: u16) -> Result<T, dbg::TraceEvent> {
+    fn read(&self, _addr: u16) -> Result<u8, dbg::TraceEvent> {
         // Assign upper, lower or no half of state depending on the selection bits
         let res = if !self.joyp.contains(JoyP::SEL_BTNS) {
             self.state.bits()
@@ -75,7 +75,7 @@ impl MemR for Joypad {
 }
 
 impl MemW for Joypad {
-    fn write<T: MemSize>(&mut self, _addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
+    fn write(&mut self, _addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         (&mut self.joyp).write(0, val)
     }
 }

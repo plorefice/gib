@@ -1,6 +1,6 @@
 use super::dbg;
 use super::{InterruptSource, IrqSource};
-use super::{IoReg, MemR, MemRW, MemSize, MemW};
+use super::{IoReg, MemR, MemRW, MemW};
 
 /// A Tile is the bit representation of an 8x8 sprite or BG tile,
 /// with a color depth of 4 colors/gray shades.
@@ -64,36 +64,37 @@ impl Default for SpriteAttributes {
 }
 
 impl<'a> MemR for &'a [Sprite] {
-    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         let s = &self[usize::from(addr >> 2)];
 
-        match addr % 4 {
-            0 => T::read_le(&[s.y]),
-            1 => T::read_le(&[s.x]),
-            2 => T::read_le(&[s.tid]),
-            3 => (&s.attributes).read(0),
+        Ok(match addr % 4 {
+            0 => s.y,
+            1 => s.x,
+            2 => s.tid,
+            3 => (&s.attributes).read(0)?,
             _ => unreachable!(),
-        }
+        })
     }
 }
 
 impl<'a> MemR for &'a mut [Sprite] {
-    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         (&*self as &[Sprite]).read(addr)
     }
 }
 
 impl<'a> MemW for &'a mut [Sprite] {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         let s = &mut self[usize::from(addr >> 2)];
 
         match addr % 4 {
-            0 => T::write_mut_le(&mut [&mut s.y], val),
-            1 => T::write_mut_le(&mut [&mut s.x], val),
-            2 => T::write_mut_le(&mut [&mut s.tid], val),
-            3 => (&mut s.attributes).write(0, val),
+            0 => s.y = val,
+            1 => s.x = val,
+            2 => s.tid = val,
+            3 => (&mut s.attributes).write(0, val)?,
             _ => unreachable!(),
-        }
+        };
+        Ok(())
     }
 }
 
@@ -425,12 +426,11 @@ impl PPU {
     /// Initiates a new DMA transfer from RAM or ROM to OAM.
     ///
     /// The transfer lasts 160 cycles, during which the CPU can only access HRAM.
-    fn prepare_dma_xfer<T: MemSize>(&mut self, val: T) -> Result<(), dbg::TraceEvent> {
+    fn prepare_dma_xfer(&mut self, val: u8) {
         if self.dma_xfer_cycle == 0 {
-            self.dma_reg.0 = val.low();
+            self.dma_reg.0 = val;
             self.dma_xfer_cycle = 160;
         }
-        Ok(())
     }
 
     /// Returns the actual gray shade associated with a pixel value in a palette.
@@ -485,65 +485,67 @@ impl InterruptSource for PPU {
 }
 
 impl MemR for PPU {
-    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
-        match addr {
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
+        Ok(match addr {
             0x8000..=0x97FF => {
                 let addr = addr - 0x8000;
                 let tid = usize::from(addr >> 4);
                 let bid = usize::from(addr & 0xF);
-                T::read_le(&self.tdt[tid].data()[bid..])
+                self.tdt[tid].data()[bid]
             }
-            0x9800..=0x9BFF => T::read_le(&self.bgtm0[usize::from(addr - 0x9800)..]),
-            0x9C00..=0x9FFF => T::read_le(&self.bgtm1[usize::from(addr - 0x9C00)..]),
+            0x9800..=0x9BFF => self.bgtm0[usize::from(addr - 0x9800)],
+            0x9C00..=0x9FFF => self.bgtm1[usize::from(addr - 0x9C00)],
 
-            0xFE00..=0xFE9F => (&self.oam[..]).read(addr - 0xFE00),
+            0xFE00..=0xFE9F => (&self.oam[..]).read(addr - 0xFE00)?,
 
-            0xFF40 => (&self.lcdc_reg).read(addr),
-            0xFF41 => (&self.stat_reg).read(addr),
-            0xFF42 => T::read_le(&[self.scy_reg.0]),
-            0xFF43 => T::read_le(&[self.scx_reg.0]),
-            0xFF44 => T::read_le(&[self.ly_reg.0]),
-            0xFF45 => T::read_le(&[self.lyc_reg.0]),
-            0xFF46 => T::read_le(&[0xFF]),
-            0xFF47 => T::read_le(&[self.bgp_reg.0]),
-            0xFF48 => T::read_le(&[self.obp0_reg.0]),
-            0xFF49 => T::read_le(&[self.obp1_reg.0]),
-            0xFF4A => T::read_le(&[self.wy_reg.0]),
-            0xFF4B => T::read_le(&[self.wx_reg.0]),
+            0xFF40 => (&self.lcdc_reg).read(addr)?,
+            0xFF41 => (&self.stat_reg).read(addr)?,
+            0xFF42 => self.scy_reg.0,
+            0xFF43 => self.scx_reg.0,
+            0xFF44 => self.ly_reg.0,
+            0xFF45 => self.lyc_reg.0,
+            0xFF46 => 0xFF,
+            0xFF47 => self.bgp_reg.0,
+            0xFF48 => self.obp0_reg.0,
+            0xFF49 => self.obp1_reg.0,
+            0xFF4A => self.wy_reg.0,
+            0xFF4B => self.wx_reg.0,
 
             _ => unreachable!(),
-        }
+        })
     }
 }
 
 impl MemW for PPU {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
             0x8000..=0x97FF => {
                 let addr = addr - 0x8000;
                 let tid = usize::from(addr >> 4);
                 let bid = usize::from(addr & 0xF);
-                T::write_le(&mut self.tdt[tid].data_mut()[bid..], val)
+                self.tdt[tid].data_mut()[bid] = val;
             }
-            0x9800..=0x9BFF => T::write_le(&mut self.bgtm0[usize::from(addr - 0x9800)..], val),
-            0x9C00..=0x9FFF => T::write_le(&mut self.bgtm1[usize::from(addr - 0x9C00)..], val),
+            0x9800..=0x9BFF => self.bgtm0[usize::from(addr - 0x9800)] = val,
+            0x9C00..=0x9FFF => self.bgtm1[usize::from(addr - 0x9C00)] = val,
 
-            0xFE00..=0xFE9F => (&mut self.oam[..]).write(addr - 0xFE00, val),
+            0xFE00..=0xFE9F => (&mut self.oam[..]).write(addr - 0xFE00, val)?,
 
-            0xFF40 => (&mut self.lcdc_reg).write(0, val),
-            0xFF41 => (&mut self.stat_reg).write(0, val),
-            0xFF42 => T::write_mut_le(&mut [&mut self.scy_reg.0], val),
-            0xFF43 => T::write_mut_le(&mut [&mut self.scx_reg.0], val),
-            0xFF44 => Ok(()),
-            0xFF45 => T::write_mut_le(&mut [&mut self.lyc_reg.0], val),
+            0xFF40 => (&mut self.lcdc_reg).write(0, val)?,
+            0xFF41 => (&mut self.stat_reg).write(0, val)?,
+            0xFF42 => self.scy_reg.0 = val,
+            0xFF43 => self.scx_reg.0 = val,
+            0xFF44 => (),
+            0xFF45 => self.lyc_reg.0 = val,
             0xFF46 => self.prepare_dma_xfer(val),
-            0xFF47 => T::write_mut_le(&mut [&mut self.bgp_reg.0], val),
-            0xFF48 => T::write_mut_le(&mut [&mut self.obp0_reg.0], val),
-            0xFF49 => T::write_mut_le(&mut [&mut self.obp1_reg.0], val),
-            0xFF4A => T::write_mut_le(&mut [&mut self.wy_reg.0], val),
-            0xFF4B => T::write_mut_le(&mut [&mut self.wx_reg.0], val),
+            0xFF47 => self.bgp_reg.0 = val,
+            0xFF48 => self.obp0_reg.0 = val,
+            0xFF49 => self.obp1_reg.0 = val,
+            0xFF4A => self.wy_reg.0 = val,
+            0xFF4B => self.wx_reg.0 = val,
 
             _ => unreachable!(),
-        }
+        };
+
+        Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use super::dbg;
 use super::{InterruptSource, IoReg, IrqSource};
-use super::{MemR, MemRW, MemSize, MemW};
+use super::{MemR, MemRW, MemW};
 
 pub struct Timer {
     pub sys_counter: IoReg<u16>,
@@ -93,8 +93,8 @@ impl Timer {
         self.sys_counter.0 = 0;
     }
 
-    fn write_to_tac<T: MemSize>(&mut self, val: T) {
-        let val = IoReg(val.low());
+    fn write_to_tac(&mut self, val: u8) {
+        let val = IoReg(val);
 
         // HW BUG: when changing TAC register value, if the old selected bit
         // by the multiplexer was 0, the new one is 1, and the new enable bit
@@ -142,28 +142,25 @@ impl InterruptSource for Timer {
 }
 
 impl MemR for Timer {
-    fn read<T: MemSize>(&self, addr: u16) -> Result<T, dbg::TraceEvent> {
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         match addr {
-            0xFF04 => T::read_le(&[self.div().0]),
-            0xFF05 => T::read_le(&[self.tima.0]),
-            0xFF06 => T::read_le(&[self.tma.0]),
-            0xFF07 => T::read_le(&[self.tac.0 | 0xF8]),
-            _ => Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr)),
+            0xFF04 => Ok(self.div().0),
+            0xFF05 => Ok(self.tima.0),
+            0xFF06 => Ok(self.tma.0),
+            0xFF07 => Ok(self.tac.0 | 0xF8),
+            _ => unreachable!(),
         }
     }
 }
 
 impl MemW for Timer {
-    fn write<T: MemSize>(&mut self, addr: u16, val: T) -> Result<(), dbg::TraceEvent> {
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
-            0xFF04 => {
-                self.reset_sys_counter();
-                Ok(())
-            }
+            0xFF04 => self.reset_sys_counter(),
             0xFF05 => {
                 // During the reload cycle, writes to TIMA are ignored.
                 if !self.tima_is_being_reloaded {
-                    T::write_mut_le(&mut [&mut self.tima.0], val)?;
+                    self.tima.0 = val;
 
                     // If a write to TIMA happens in the cycle during which an overflow happens,
                     // the reload is canceled: TIMA gets set to the written value and the
@@ -172,24 +169,21 @@ impl MemW for Timer {
                         self.tima_reload_scheduled = false;
                     }
                 }
-                Ok(())
             }
             0xFF06 => {
-                T::write_mut_le(&mut [&mut self.tma.0], val)?;
+                self.tma.0 = val;
 
                 // If a write to TMA happens while TIMA is being reloaded,
                 // the new value should be loaded instead.
                 if self.tima_is_being_reloaded {
                     self.tima = self.tma;
                 }
-                Ok(())
             }
-            0xFF07 => {
-                self.write_to_tac(val);
-                Ok(())
-            }
-            _ => Err(dbg::TraceEvent::IoFault(dbg::Peripheral::TIM, addr)),
-        }
+            0xFF07 => self.write_to_tac(val),
+            _ => unreachable!(),
+        };
+
+        Ok(())
     }
 }
 
