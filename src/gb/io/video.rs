@@ -225,11 +225,7 @@ impl PPU {
 
     /// Advances the LCD controller state machine by a single M-cycle.
     pub fn tick(&mut self) {
-        // No tick should be performed if the LCD display is disabled
-        if !self.lcdc_reg.contains(LCDC::DISP_EN) {
-            return;
-        }
-
+        // Update ticks
         self.tstate = (self.tstate + 4) % 70224;
         let tstate = self.tstate % 456;
         let v_line = self.tstate / 456;
