@@ -339,11 +339,6 @@ impl PPU {
             let x = i16::from(sprite.x) - 8 - scx;
             let attr = sprite.attributes;
 
-            // TODO implement nice sprite features
-            if attr.contains(SpriteAttributes::BG_PRIO) {
-                unimplemented!();
-            }
-
             let tile = self.get_sprite_tile(sprite.tid.into());
 
             // The palette used in rasterizing the srpite depends on its attributes
@@ -366,6 +361,9 @@ impl PPU {
             } else {
                 0
             };
+
+            // TODO put the sprite behind BG colors 1-3
+            let _behind_bg = attr.contains(SpriteAttributes::BG_PRIO);
 
             // Clip to currently visible area
             for py in y.max(0)..(y + 8).min(144) {
