@@ -46,8 +46,8 @@ struct Sprite {
 bitflags! {
     struct SpriteAttributes: u8 {
         const BG_PRIO = 0b_1000_0000;
-        const FLIP_X  = 0b_0100_0000;
-        const FLIP_Y  = 0b_0010_0000;
+        const FLIP_Y  = 0b_0100_0000;
+        const FLIP_X  = 0b_0010_0000;
         const PAL_NUM = 0b_0001_0000;
 
         const DEFAULT = 0b_0000_0000;
