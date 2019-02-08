@@ -9,6 +9,7 @@ for ROM debugging and development.
 It is still a WIP, but some simple ROMs have been tested and are (mostly) playable:
 
 * Tetris (JP) (Nintendo)
+* Dr. Mario (JP) (Nintendo)
 
 ## Building the project
 
