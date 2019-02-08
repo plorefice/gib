@@ -6,7 +6,9 @@
 Original Gameboy (DMG) emulator written in Rust, also featuring several tools
 for ROM debugging and development.
 
-**NOTE**: This is still a WIP, no ROM playable yet.
+It is still a WIP, but some simple ROMs have been tested and are (mostly) playable:
+
+* Tetris (JP) (Nintendo)
 
 ## Building the project
 
@@ -50,16 +52,16 @@ are shown below.
 
 ### Progress
 
-| Peripheral | Progress | Notes                                |
-| ---------- | -------- | ------------------------------------ |
-| CPU        | 100%     | Timings verification still missing   |
-| Video      | 10%      | BG support and screen blanking only  |
-| Sound      | 0%       | Not implemented yet                  |
-| Joypad     | 0%       | Not implemented yet                  |
-| Link cable | 0%       | Not implemented yet                  |
-| Timers     | 100%     | Passes all Gekkio's acceptance tests |
-| Interrupts | 90%      | Need to work on time accuracy        |
-| MBC        | 20%      | Support for some functions of MBC1   |
+| Peripheral | Progress | Notes                                 |
+| ---------- | -------- | ------------------------------------- |
+| CPU        | 100%     | Timings verification still missing    |
+| Video      | 40%      | BG, Sprite and IRQ support, no Window |
+| Sound      | 0%       | Not implemented yet                   |
+| Joypad     | 80%      | IRQ support missing                   |
+| Link cable | 0%       | Not implemented yet                   |
+| Timers     | 100%     | Passes all Gekkio's acceptance tests  |
+| Interrupts | 90%      | Need to work on time accuracy         |
+| MBC        | 20%      | Support for some functions of MBC1    |
 
 ### Blargg's Test ROMs
 
@@ -93,11 +95,11 @@ The passing tests are also integrated in the emulator's test suite.
 
 ## Resources
 
-- [GBDev Wiki](http://gbdev.gg8.se/wiki/articles/Main_Page)
-- [The PanDocs](http://bgb.bircd.org/pandocs.htm)
-- [Pastraiser's Gameboy CPU (LR35902) instruction set](http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
-- [GameBoy Opcode Summary](http://www.devrs.com/gb/files/opcodes.html)
-- [gbz80](https://rednex.github.io/rgbds/gbz80.7.html)
-- [Gekkio's mooneye-gb test ROM sources](https://github.com/Gekkio/mooneye-gb/tree/master/tests)
+* [GBDev Wiki](http://gbdev.gg8.se/wiki/articles/Main_Page)
+* [The PanDocs](http://bgb.bircd.org/pandocs.htm)
+* [Pastraiser's Gameboy CPU (LR35902) instruction set](http://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
+* [GameBoy Opcode Summary](http://www.devrs.com/gb/files/opcodes.html)
+* [gbz80](https://rednex.github.io/rgbds/gbz80.7.html)
+* [Gekkio's mooneye-gb test ROM sources](https://github.com/Gekkio/mooneye-gb/tree/master/tests)
 
 ... and any other brave soul posting any kind of GB info on the Internet :pray:
