@@ -40,6 +40,14 @@ fn passes_gekkio_acceptance_boot_hwio() {
 }
 
 #[test]
+fn passes_gekkio_acceptance_di_timing() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/di_timing-GS.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/di_timing-GS.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_div_timing() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/div_timing.gb")).must_run_and_match(
         4_000_000u64,
