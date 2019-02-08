@@ -1,7 +1,7 @@
 use super::bus::Bus;
 use super::cpu::CPU;
 use super::dbg;
-use super::io::InterruptSource;
+use super::io::{InterruptSource, JoypadState};
 
 const CPU_CLOCK: u64 = 4_194_304; // Hz
 const HSYNC_CLOCK: u64 = 9_198; // Hz
@@ -118,6 +118,16 @@ impl GameBoy {
             self.step()?;
         }
         Ok(())
+    }
+
+    /// Marks the given key as pressed.
+    pub fn press_key(&mut self, key: JoypadState) {
+        self.bus.joy.set_pressed_keys(key);
+    }
+
+    /// Marks the given key as not pressed.
+    pub fn release_key(&mut self, key: JoypadState) {
+        self.bus.joy.set_release_keys(key);
     }
 
     pub fn rasterize(&self, vbuf: &mut [u8]) {

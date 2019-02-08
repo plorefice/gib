@@ -1,4 +1,4 @@
-use super::gb;
+use super::gb::{self, io::JoypadState};
 
 mod ctx;
 mod state;
@@ -15,6 +15,7 @@ use failure::Error;
 
 use glium::{
     backend::Facade,
+    glutin::VirtualKeyCode as Key,
     texture::{ClientFormat, RawImage2d},
     Texture2d,
 };
@@ -29,6 +30,18 @@ use std::time::Instant;
 
 const EMU_X_RES: usize = 160;
 const EMU_Y_RES: usize = 144;
+
+/// Mapping between VirtualKey and joypad button
+const KEYMAP: [(Key, JoypadState); 8] = [
+    (Key::Up, JoypadState::UP),
+    (Key::Down, JoypadState::DOWN),
+    (Key::Left, JoypadState::LEFT),
+    (Key::Right, JoypadState::RIGHT),
+    (Key::Z, JoypadState::B),
+    (Key::X, JoypadState::A),
+    (Key::Back, JoypadState::SELECT),
+    (Key::Return, JoypadState::START),
+];
 
 pub struct GuiState {
     debug: bool,
@@ -126,6 +139,15 @@ impl EmuUi {
             last_frame = now;
 
             if let Some(ref mut emu) = self.emu {
+                // Handle keypresses
+                for (vk, js) in KEYMAP.iter() {
+                    if ctx.is_key_pressed(*vk) {
+                        emu.gameboy_mut().press_key(*js);
+                    } else {
+                        emu.gameboy_mut().release_key(*js);
+                    }
+                }
+
                 emu.do_step(&mut self.vpu_buffer[..]);
 
                 let new_screen = Texture2d::new(

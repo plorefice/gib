@@ -92,6 +92,10 @@ impl EmuState {
         &self.gb
     }
 
+    pub fn gameboy_mut(&mut self) -> &mut GameBoy {
+        &mut self.gb
+    }
+
     pub fn cpu(&self) -> &CPU {
         self.gb.cpu()
     }
