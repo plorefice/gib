@@ -177,6 +177,7 @@ pub struct PPU {
 
     // DMA register & counter
     dma_reg: IoReg<u8>,
+    dma_xfer_base: u16,
     dma_xfer_cycle: u64,
 
     // Timings
@@ -210,6 +211,7 @@ impl Default for PPU {
             obp1_reg: IoReg(0xFF),
 
             dma_reg: IoReg(0x00),
+            dma_xfer_base: 0,
             dma_xfer_cycle: 0,
 
             tstate: 70164,
@@ -248,7 +250,7 @@ impl PPU {
         if self.dma_xfer_cycle > 0 {
             let n = (160 - self.dma_xfer_cycle) as u16;
 
-            let src = (u16::from(self.dma_reg.0) << 8) + n;
+            let src = self.dma_xfer_base + n;
             let dst = 0xFE00 + n;
 
             self.dma_xfer_cycle -= 1;
@@ -426,9 +428,13 @@ impl PPU {
     /// Initiates a new DMA transfer from RAM or ROM to OAM.
     ///
     /// The transfer lasts 160 cycles, during which the CPU can only access HRAM.
+    /// The DMA address register is always updated, but this does not change the current
+    /// DMA transfer.
     fn prepare_dma_xfer(&mut self, val: u8) {
+        self.dma_reg.0 = val;
+
         if self.dma_xfer_cycle == 0 {
-            self.dma_reg.0 = val;
+            self.dma_xfer_base = u16::from(val) << 8;
             self.dma_xfer_cycle = 160;
         }
     }
@@ -504,7 +510,7 @@ impl MemR for PPU {
             0xFF43 => self.scx_reg.0,
             0xFF44 => self.ly_reg.0,
             0xFF45 => self.lyc_reg.0,
-            0xFF46 => 0xFF,
+            0xFF46 => self.dma_reg.0,
             0xFF47 => self.bgp_reg.0,
             0xFF48 => self.obp0_reg.0,
             0xFF49 => self.obp1_reg.0,

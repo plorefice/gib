@@ -153,6 +153,17 @@ fn passes_gekkio_acceptance_oam_dma_basic() {
     );
 }
 
+#[test]
+fn passes_gekkio_acceptance_oam_dma_reg_read() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/oam_dma/reg_read.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/oam_dma/reg_read.bin"),
+    );
+}
+
 /*
  * Gekkio's TIMER acceptance tests
  */
