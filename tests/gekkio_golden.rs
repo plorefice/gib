@@ -164,6 +164,17 @@ fn passes_gekkio_acceptance_oam_dma_reg_read() {
     );
 }
 
+#[test]
+fn passes_gekkio_acceptance_oam_dma_sources() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/oam_dma/sources-dmgABCmgbS.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/oam_dma/sources-dmgABCmgbS.bin"),
+    );
+}
+
 /*
  * Gekkio's TIMER acceptance tests
  */

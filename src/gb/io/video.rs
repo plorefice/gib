@@ -428,10 +428,15 @@ impl PPU {
     /// Initiates a new DMA transfer from RAM or ROM to OAM.
     ///
     /// The transfer lasts 160 cycles, during which the CPU can only access HRAM.
-    /// The DMA address register is always updated, but this does not change the current
-    /// DMA transfer.
+    /// Only the range 0x0000 - 0xF19F should be used the source of a DMA transfer,
+    /// but apparently higher addresses can be used too.
     fn prepare_dma_xfer(&mut self, val: u8) {
+        // The DMA address register is always updated
         self.dma_reg.0 = val;
+
+        // Access WRAM directly instead of ECHO RAM. This is due to the fact that a portion
+        // of ECHO RAM is taken by OAM, and it looks like DMA bypasses this memory mapping.
+        let val = if val >= 0xE0 { val - 0x20 } else { val };
 
         if self.dma_xfer_cycle == 0 {
             self.dma_xfer_base = u16::from(val) << 8;
