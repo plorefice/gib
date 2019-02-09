@@ -7,6 +7,17 @@ use common::RomTest;
  */
 
 #[test]
+fn passes_gekkio_acceptance_add_sp_e_timing() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/add_sp_e_timing.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/add_sp_e_timing.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_boot_div() {
     RomTest::new(include_bytes!(
         "../roms/gekkio/acceptance/boot_div-dmgABCmgb.gb"
@@ -91,6 +102,47 @@ fn passes_gekkio_acceptance_ei_timing() {
 }
 
 #[test]
+fn passes_gekkio_acceptance_halt_ime0_ei() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/halt_ime0_ei.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/halt_ime0_ei.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_halt_ime0_nointr_timing() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/halt_ime0_nointr_timing.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/halt_ime0_nointr_timing.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_halt_ime1_timing() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/halt_ime1_timing.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/halt_ime1_timing.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_halt_ime1_timing2() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/halt_ime1_timing2-GS.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/halt_ime1_timing2-GS.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_if_ie_registers() {
     RomTest::new(include_bytes!(
         "../roms/gekkio/acceptance/if_ie_registers.gb"
@@ -122,6 +174,17 @@ fn passes_gekkio_acceptance_jp_timing() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/jp_timing.gb")).must_run_and_match(
         4_000_000u64,
         include_bytes!("gekkio/acceptance/jp_timing.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_ld_hl_sp_e_timing() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/ld_hl_sp_e_timing.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/ld_hl_sp_e_timing.bin"),
     );
 }
 
@@ -160,6 +223,17 @@ fn passes_gekkio_acceptance_rapid_di_ei() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/rapid_di_ei.gb")).must_run_and_match(
         4_000_000u64,
         include_bytes!("gekkio/acceptance/rapid_di_ei.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_reti_intr_timing() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/reti_intr_timing.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/reti_intr_timing.bin"),
     );
 }
 
