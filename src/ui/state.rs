@@ -85,6 +85,10 @@ impl EmuState {
         for b in bkps.iter() {
             self.cpu_mut().set_breakpoint(*b);
         }
+
+        // Default to running state
+        self.set_running();
+
         Ok(())
     }
 

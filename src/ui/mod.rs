@@ -31,6 +31,11 @@ use std::time::Instant;
 const EMU_X_RES: usize = 160;
 const EMU_Y_RES: usize = 144;
 
+/// Emulator window width (in gaming mode)
+const EMU_WIN_X_RES: f64 = (EMU_X_RES * 2) as f64;
+/// Emulator window height (in gaming mode)
+const EMU_WIN_Y_RES: f64 = (EMU_Y_RES * 2) as f64 + 19.5;
+
 /// Mapping between VirtualKey and joypad button
 const KEYMAP: [(Key, JoypadState); 8] = [
     (Key::Up, JoypadState::UP),
@@ -75,7 +80,12 @@ impl EmuUi {
         let mut gui = GuiState::default();
         gui.debug = debug;
 
-        let mut ctx = UiContext::new();
+        // In debug mode, the interface is much more cluttered, so default to a bigger size
+        let mut ctx = if debug {
+            UiContext::new(1440.0, 720.0)
+        } else {
+            UiContext::new(EMU_WIN_X_RES, EMU_WIN_Y_RES)
+        };
 
         let vpu_buffer = vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4];
         let vpu_texture = ctx.renderer.textures().insert(
@@ -107,16 +117,20 @@ impl EmuUi {
         if self.gui.debug {
             let views = &mut self.gui.views;
 
+            // Start a new UI from scratch
+            views.clear();
+
             views.insert(View::Disassembly, box DisassemblyView::new());
             views.insert(View::Debugger, box DebuggerView::new());
             views.insert(View::MemEditor, box MemEditView::new());
             views.insert(View::MemMap, box MemMapView::new());
             views.insert(View::Peripherals, box PeripheralView::new());
-
-            if let Some(ref mut emu) = self.emu {
-                emu.set_running();
-            }
         }
+
+        if let Some(ref mut emu) = self.emu {
+            emu.set_running();
+        }
+
         Ok(())
     }
 
@@ -166,15 +180,57 @@ impl EmuUi {
                     .replace(self.vpu_texture, new_screen);
             }
 
-            ctx.render(delta_s, |ui| self.draw(delta_s, ui));
+            ctx.render(delta_s, |ui| {
+                if self.gui.debug {
+                    self.draw_debug_ui(delta_s, ui)
+                } else {
+                    self.draw_game_ui(delta_s, ui)
+                }
+            });
         }
     }
 
-    fn draw(&mut self, delta_s: f32, ui: &Ui) {
+    /// Draws the gaming-mode interface, with just a simple menu bar
+    /// and a fullscreen emulator screen view.
+    fn draw_game_ui(&mut self, delta_s: f32, ui: &Ui) {
+        use imgui::{ImGuiWindowFlags, ImVec2, StyleVar};
+
+        self.draw_menu_bar(delta_s, ui);
+
+        // Do not show window borders
+        let style_vars = [
+            StyleVar::WindowBorderSize(0.0),
+            StyleVar::WindowRounding(0.0),
+            StyleVar::WindowPadding(ImVec2::new(0.0, 0.0)),
+        ];
+
+        let win_x = EMU_WIN_X_RES as f32;
+        let win_y = EMU_WIN_Y_RES as f32 - 18.0; // account for menu bar
+
+        ui.with_style_vars(&style_vars, || {
+            ui.window(im_str!("Screen"))
+                .size((win_x, win_y), ImGuiCond::FirstUseEver)
+                .position((0.0, 19.5), ImGuiCond::FirstUseEver)
+                .flags(
+                    // Disable any window feature
+                    ImGuiWindowFlags::NoTitleBar
+                        | ImGuiWindowFlags::NoResize
+                        | ImGuiWindowFlags::NoMove
+                        | ImGuiWindowFlags::NoScrollbar
+                        | ImGuiWindowFlags::NoScrollWithMouse,
+                )
+                .build(|| {
+                    ui.image(self.vpu_texture, (win_x, win_y)).build();
+                });
+        });
+    }
+
+    /// Draws the debug-mode interface
+    fn draw_debug_ui(&mut self, delta_s: f32, ui: &Ui) {
         self.draw_menu_bar(delta_s, ui);
 
         if self.emu.is_some() {
-            self.draw_screen(ui);
+            self.draw_screen_window(ui);
         }
 
         if let Some(ref mut emu) = self.emu {
@@ -208,64 +264,67 @@ impl EmuUi {
                 self.gui.should_quit = ui.menu_item(im_str!("Exit")).build();
             });
 
-            ui.menu(im_str!("Hardware")).build(|| {
-                if ui
-                    .menu_item(im_str!("Memory Map"))
-                    .enabled(emu_running)
-                    .build()
-                {
-                    self.gui
-                        .views
-                        .entry(View::MemMap)
-                        .or_insert_with(|| box MemMapView::new());
-                }
+            // Show debug-related menus in debug mode only
+            if self.gui.debug {
+                ui.menu(im_str!("Hardware")).build(|| {
+                    if ui
+                        .menu_item(im_str!("Memory Map"))
+                        .enabled(emu_running)
+                        .build()
+                    {
+                        self.gui
+                            .views
+                            .entry(View::MemMap)
+                            .or_insert_with(|| box MemMapView::new());
+                    }
 
-                if ui
-                    .menu_item(im_str!("Peripherals"))
-                    .enabled(emu_running)
-                    .build()
-                {
-                    self.gui
-                        .views
-                        .entry(View::Peripherals)
-                        .or_insert_with(|| box PeripheralView::new());
-                }
-            });
+                    if ui
+                        .menu_item(im_str!("Peripherals"))
+                        .enabled(emu_running)
+                        .build()
+                    {
+                        self.gui
+                            .views
+                            .entry(View::Peripherals)
+                            .or_insert_with(|| box PeripheralView::new());
+                    }
+                });
 
-            ui.menu(im_str!("Debugging")).build(|| {
-                if ui
-                    .menu_item(im_str!("Debugger"))
-                    .enabled(emu_running)
-                    .build()
-                {
-                    self.gui
-                        .views
-                        .entry(View::Debugger)
-                        .or_insert_with(|| box DebuggerView::new());
-                }
+                ui.menu(im_str!("Debugging")).build(|| {
+                    if ui
+                        .menu_item(im_str!("Debugger"))
+                        .enabled(emu_running)
+                        .build()
+                    {
+                        self.gui
+                            .views
+                            .entry(View::Debugger)
+                            .or_insert_with(|| box DebuggerView::new());
+                    }
 
-                if ui
-                    .menu_item(im_str!("Disassembler"))
-                    .enabled(emu_running)
-                    .build()
-                {
-                    self.gui
-                        .views
-                        .entry(View::Disassembly)
-                        .or_insert_with(|| box DisassemblyView::new());
-                }
+                    if ui
+                        .menu_item(im_str!("Disassembler"))
+                        .enabled(emu_running)
+                        .build()
+                    {
+                        self.gui
+                            .views
+                            .entry(View::Disassembly)
+                            .or_insert_with(|| box DisassemblyView::new());
+                    }
 
-                if ui
-                    .menu_item(im_str!("Memory Editor"))
-                    .enabled(emu_running)
-                    .build()
-                {
-                    self.gui
-                        .views
-                        .entry(View::MemEditor)
-                        .or_insert_with(|| box MemEditView::new());
-                }
-            })
+                    if ui
+                        .menu_item(im_str!("Memory Editor"))
+                        .enabled(emu_running)
+                        .build()
+                    {
+                        self.gui
+                            .views
+                            .entry(View::MemEditor)
+                            .or_insert_with(|| box MemEditView::new());
+                    }
+                })
+            }
         });
     }
 
@@ -293,7 +352,7 @@ impl EmuUi {
         }
     }
 
-    fn draw_screen(&mut self, ui: &Ui) {
+    fn draw_screen_window(&mut self, ui: &Ui) {
         use imgui::{ImStr, ImString};
 
         ui.window(ImStr::new(&ImString::from(format!(

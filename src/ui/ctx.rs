@@ -32,13 +32,14 @@ pub struct UiContext {
 }
 
 impl UiContext {
-    pub fn new() -> UiContext {
+    /// Creates a new UI context with a window size of (width, height).
+    pub fn new(width: f64, height: f64) -> UiContext {
         let events_loop = glutin::EventsLoop::new();
 
         let context = glutin::ContextBuilder::new().with_vsync(true);
         let builder = glutin::WindowBuilder::new()
             .with_title("gib")
-            .with_dimensions(glutin::dpi::LogicalSize::new(1440.0, 720.0));
+            .with_dimensions(glutin::dpi::LogicalSize::new(width, height));
 
         let display = Display::new(builder, context, &events_loop).unwrap();
 
