@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 use super::dbg;
 use super::{MemR, MemRW, MemW};
 

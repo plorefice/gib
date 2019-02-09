@@ -19,7 +19,7 @@ use glium::{
     texture::{ClientFormat, RawImage2d},
     Texture2d,
 };
-use imgui::{ImGuiCond, Ui};
+use imgui::{im_str, ImGuiCond, Ui};
 
 use std::borrow::Cow;
 use std::cell::RefCell;

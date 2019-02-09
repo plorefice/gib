@@ -2,7 +2,7 @@ use super::gb::dbg::MemoryType;
 use super::utils;
 use super::{EmuState, WindowView};
 
-use imgui::{ImGuiCol, ImGuiCond, ImStr, ImString, Ui};
+use imgui::{im_str, ImGuiCol, ImGuiCond, ImStr, ImString, Ui};
 
 pub struct MemMapView(Vec<(MemoryType, ImString)>);
 

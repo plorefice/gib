@@ -4,7 +4,7 @@ use super::{EmuState, WindowView};
 
 use std::collections::BTreeMap;
 
-use imgui::{ImGuiCol, ImGuiCond, ImStr, ImString, StyleVar, Ui};
+use imgui::{im_str, ImGuiCol, ImGuiCond, ImStr, ImString, StyleVar, Ui};
 
 pub struct DisassemblyView {
     section: dbg::MemoryType,

@@ -1,3 +1,5 @@
+use failure::Fail;
+
 use std::fmt;
 use std::ops::RangeInclusive;
 

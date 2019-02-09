@@ -4,14 +4,6 @@
 #![feature(range_contains)]
 #![feature(try_from)]
 
-#[macro_use]
-extern crate bitflags;
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate imgui;
-extern crate imgui_sys;
-
 mod gb;
 mod ui;
 

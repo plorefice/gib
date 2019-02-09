@@ -1,4 +1,4 @@
-use imgui::{ImStr, ImString, Ui};
+use imgui::{im_str, ImStr, ImString, Ui};
 
 use std::ops::Range;
 use std::path::PathBuf;

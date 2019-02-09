@@ -1,7 +1,7 @@
 use super::EmuState;
 use super::WindowView;
 
-use imgui::{ImGuiCond, Ui};
+use imgui::{im_str, ImGuiCond, Ui};
 
 pub struct MemEditView;
 

@@ -2,7 +2,7 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
-use imgui::{ImGuiCol, ImGuiCond, Ui};
+use imgui::{im_str, ImGuiCol, ImGuiCond, Ui};
 
 pub struct DebuggerView;
 
