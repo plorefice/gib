@@ -1,6 +1,4 @@
-extern crate gb_rs;
-
-use gb_rs::GameBoy;
+use gib::GameBoy;
 
 pub struct RomTest {
     gb: GameBoy,

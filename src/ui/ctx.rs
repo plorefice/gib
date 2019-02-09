@@ -37,7 +37,7 @@ impl UiContext {
 
         let context = glutin::ContextBuilder::new().with_vsync(true);
         let builder = glutin::WindowBuilder::new()
-            .with_title("gb-rs")
+            .with_title("gib")
             .with_dimensions(glutin::dpi::LogicalSize::new(1440.0, 720.0));
 
         let display = Display::new(builder, context, &events_loop).unwrap();

@@ -1,5 +1,5 @@
 [package]
-name = "gb-rs"
+name = "gib"
 version = "0.4.1"
 authors = ["Pietro Lorefice <pietro.lorefice@gmail.com>"]
 edition = "2018"

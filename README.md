@@ -1,6 +1,6 @@
-# gb-rs
+# gib
 
-[![CircleCI](https://circleci.com/gh/plorefice/gb-rs.svg?style=shield)](https://circleci.com/gh/plorefice/gb-rs)
+[![CircleCI](https://circleci.com/gh/plorefice/gib.svg?style=shield)](https://circleci.com/gh/plorefice/gib)
 [![License: MIT/Apache-2.0](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 
 Original Gameboy (DMG) emulator written in Rust, also featuring several tools
@@ -16,8 +16,8 @@ It is still a WIP, but some simple ROMs have been tested and are (mostly) playab
 After installing Rust (you can use [rustup](https://rustup.rs) for that), run:
 
 ```shell
-git clone git@github.com:plorefice/gb-rs
-cd gb-rs/
+git clone git@github.com:plorefice/gib
+cd gib/
 cargo +nightly build --release
 ```
 
