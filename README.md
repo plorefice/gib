@@ -3,13 +3,12 @@
 [![CircleCI](https://circleci.com/gh/plorefice/gib.svg?style=shield)](https://circleci.com/gh/plorefice/gib)
 [![License: MIT/Apache-2.0](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 
-Original Gameboy (DMG) emulator written in Rust, also featuring several tools
-for ROM debugging and development.
+Gameboy (DMG) emulator written in Rust, also featuring several tools for ROM debugging and development.
 
 It is still a WIP, but some simple ROMs have been tested and are (mostly) playable:
 
-* Tetris (JP) (Nintendo)
-* Dr. Mario (JP) (Nintendo)
+* **Tetris** (JP) (Nintendo)
+* **Dr. Mario** (JP) (Nintendo)
 
 ## Building the project
 
