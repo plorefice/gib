@@ -87,12 +87,16 @@ The passing tests are also integrated in the emulator's test suite.
 
 The passing tests are also integrated in the emulator's test suite.
 
-| Test Suite        | Progress | Notes                               |
-| ----------------- | -------- | ----------------------------------- |
-| acceptance/timer  | 100%     | Full pass!                          |
-| acceptance/bits   | 100%     | Full pass!                          |
-| acceptance/instr  | 100%     | Full pass!                          |
-| acceptance/boot_* | 100%     | All default boot values are correct |
+| Test Suite             | Progress | Notes                               |
+| ---------------------- | -------- | ----------------------------------- |
+| acceptance/bits/       | 100%     | Full pass!                          |
+| acceptance/instr/      | 100%     | Full pass!                          |
+| acceptance/interrupts/ | 0%       | Not yet                             |
+| acceptance/oam_dma/    | 100%     | Full pass!                          |
+| acceptance/ppu/        | -        | Not tested yet                      |
+| acceptance/serial/     | -        | Not tested yet                      |
+| acceptance/timer/      | 100%     | Full pass!                          |
+| acceptance/boot_*      | 100%     | All default boot values are correct |
 
 ## Resources
 
