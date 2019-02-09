@@ -89,13 +89,13 @@ impl Bus {
 
     /// Advances the system peripheral/memory bus by a single M-cycle.
     pub fn tick(&mut self) -> Result<(), dbg::TraceEvent> {
-        self.ppu.tick();
-        self.tim.tick();
-
         if let Some((src, dst)) = self.ppu.advance_dma_xfer() {
             let b = self.read(src)?;
-            self.write(dst, b)?;
+            self.ppu.write_to_oam(dst, b)?;
         }
+
+        self.ppu.tick();
+        self.tim.tick();
 
         Ok(())
     }

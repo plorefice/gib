@@ -91,6 +91,36 @@ fn passes_gekkio_acceptance_intr_timing() {
 }
 
 #[test]
+fn passes_gekkio_acceptance_oam_dma_restart() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/oam_dma_restart.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/oam_dma_restart.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_oam_dma_start() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/oam_dma_start.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/oam_dma_start.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_oam_dma_timing() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/oam_dma_timing.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/oam_dma_timing.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_rapid_di_ei() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/rapid_di_ei.gb")).must_run_and_match(
         4_000_000u64,

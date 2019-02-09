@@ -151,6 +151,42 @@ bitflags! {
     }
 }
 
+/// A DMA transfer from ROM/RAM to OAM.
+struct DMATransfer {
+    src: u16,
+    dst: u16,
+    remaining: u64,
+}
+
+impl DMATransfer {
+    /// Creates a new transfer starting from from `base`.
+    pub fn new(base: u16) -> DMATransfer {
+        DMATransfer {
+            src: base,
+            dst: 0xFE00,
+            remaining: 160,
+        }
+    }
+
+    /// Advances the transfer by a single step.
+    ///
+    /// If the transfer is still active, this function returns the source and destination
+    /// addresses of the next step, otherwise None is returned.
+    pub fn advance(&mut self) -> Option<(u16, u16)> {
+        let xfer = if self.remaining > 0 {
+            Some((self.src, self.dst))
+        } else {
+            None
+        };
+
+        self.src += 1;
+        self.dst += 1;
+        self.remaining -= 1;
+
+        xfer
+    }
+}
+
 pub struct PPU {
     tdt: [Tile; 384],  // Tile Data Table
     oam: [Sprite; 40], // Object Attribute Memory
@@ -177,8 +213,8 @@ pub struct PPU {
 
     // DMA register & counter
     dma_reg: IoReg<u8>,
-    dma_xfer_base: u16,
-    dma_xfer_cycle: u64,
+    dma_xfer: Option<DMATransfer>,
+    dma_xfer_queue: [Option<DMATransfer>; 2],
 
     // Timings
     tstate: u64,
@@ -211,8 +247,8 @@ impl Default for PPU {
             obp1_reg: IoReg(0xFF),
 
             dma_reg: IoReg(0x00),
-            dma_xfer_base: 0,
-            dma_xfer_cycle: 0,
+            dma_xfer: None,
+            dma_xfer_queue: [None, None],
 
             tstate: 70164,
 
@@ -247,18 +283,34 @@ impl PPU {
     /// Returns a pair of source and destination addresses for DMA transfer
     /// if one is currently in progress, otherwise `None`.
     pub fn advance_dma_xfer(&mut self) -> Option<(u16, u16)> {
-        if self.dma_xfer_cycle > 0 {
-            let n = (160 - self.dma_xfer_cycle) as u16;
+        // If a queued transfer has become ready, replace the current one (if any)
+        if let Some(xfer) = self.dma_xfer_queue[0].take() {
+            self.dma_xfer = Some(xfer);
+        }
 
-            let src = self.dma_xfer_base + n;
-            let dst = 0xFE00 + n;
-
-            self.dma_xfer_cycle -= 1;
-
-            Some((src, dst))
+        let ret = if let Some(ref mut xfer) = self.dma_xfer {
+            xfer.advance()
         } else {
             None
+        };
+
+        // Check if we are done with the current transfer
+        if ret.is_none() {
+            self.dma_xfer = None;
         }
+
+        // Update the transfer queue
+        self.dma_xfer_queue[0] = self.dma_xfer_queue[1].take();
+
+        ret
+    }
+
+    /// Writes `val` to OAM. `addr` should be in range 0xFE00..=0xFE9F.
+    ///
+    /// This is a utility function that bypassed the OAM DMA access checks
+    /// in place when accessing the peripheral as a `MemR`.
+    pub fn write_to_oam(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
+        (&mut self.oam[..]).write(addr - 0xFE00, val)
     }
 
     /// Rasterizes the current contents of the Video RAM to the provided video buffer.
@@ -425,23 +477,21 @@ impl PPU {
         self.stat_reg = (self.stat_reg & !STAT::MOD_FLAG) | mode;
     }
 
-    /// Initiates a new DMA transfer from RAM or ROM to OAM.
+    /// Queues a new DMA transfer from RAM or ROM to OAM.
     ///
-    /// The transfer lasts 160 cycles, during which the CPU can only access HRAM.
+    /// A DMA transfer lasts 160 cycles, during which the CPU can only access HRAM.
     /// Only the range 0x0000 - 0xF19F should be used the source of a DMA transfer,
     /// but apparently higher addresses can be used too.
     fn prepare_dma_xfer(&mut self, val: u8) {
         // The DMA address register is always updated
         self.dma_reg.0 = val;
 
-        // Access WRAM directly instead of ECHO RAM. This is due to the fact that a portion
+        // NOTE: access WRAM directly instead of ECHO RAM. This is due to the fact that a portion
         // of ECHO RAM is taken by OAM, and it looks like DMA bypasses this memory mapping.
         let val = if val >= 0xE0 { val - 0x20 } else { val };
 
-        if self.dma_xfer_cycle == 0 {
-            self.dma_xfer_base = u16::from(val) << 8;
-            self.dma_xfer_cycle = 160;
-        }
+        // DMA transfer start is delayed by two cycles. Here we just prepare the new transfer.
+        self.dma_xfer_queue[1] = Some(DMATransfer::new(u16::from(val) << 8));
     }
 
     /// Returns the actual gray shade associated with a pixel value in a palette.
@@ -507,7 +557,15 @@ impl MemR for PPU {
             0x9800..=0x9BFF => self.bgtm0[usize::from(addr - 0x9800)],
             0x9C00..=0x9FFF => self.bgtm1[usize::from(addr - 0x9C00)],
 
-            0xFE00..=0xFE9F => (&self.oam[..]).read(addr - 0xFE00)?,
+            0xFE00..=0xFE9F => {
+                if self.dma_xfer.is_none() {
+                    (&self.oam[..]).read(addr - 0xFE00)?
+                } else {
+                    // If a OAM DMA transfer is in progress,
+                    // reading from OAM will yield 0xFF.
+                    0xFF
+                }
+            }
 
             0xFF40 => (&self.lcdc_reg).read(addr)?,
             0xFF41 => (&self.stat_reg).read(addr)?,
@@ -539,7 +597,12 @@ impl MemW for PPU {
             0x9800..=0x9BFF => self.bgtm0[usize::from(addr - 0x9800)] = val,
             0x9C00..=0x9FFF => self.bgtm1[usize::from(addr - 0x9C00)] = val,
 
-            0xFE00..=0xFE9F => (&mut self.oam[..]).write(addr - 0xFE00, val)?,
+            0xFE00..=0xFE9F => {
+                // OAM is accessible only if no DMA transfer is in progress
+                if self.dma_xfer.is_none() {
+                    self.write_to_oam(addr, val)?
+                }
+            }
 
             0xFF40 => (&mut self.lcdc_reg).write(0, val)?,
             0xFF41 => (&mut self.stat_reg).write(0, val)?,
