@@ -40,6 +40,25 @@ fn passes_gekkio_acceptance_boot_hwio() {
 }
 
 #[test]
+fn passes_gekkio_acceptance_call_cc_timing() {
+    RomTest::new(include_bytes!(
+        "../roms/gekkio/acceptance/call_cc_timing.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/call_cc_timing.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_call_timing() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/call_timing.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/call_timing.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_di_timing() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/di_timing-GS.gb")).must_run_and_match(
         4_000_000u64,
@@ -87,6 +106,22 @@ fn passes_gekkio_acceptance_intr_timing() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/intr_timing.gb")).must_run_and_match(
         4_000_000u64,
         include_bytes!("gekkio/acceptance/intr_timing.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_jp_cc_timing() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/jp_cc_timing.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/jp_cc_timing.bin"),
+    );
+}
+
+#[test]
+fn passes_gekkio_acceptance_jp_timing() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/jp_timing.gb")).must_run_and_match(
+        4_000_000u64,
+        include_bytes!("gekkio/acceptance/jp_timing.bin"),
     );
 }
 
