@@ -18,6 +18,15 @@ bitflags! {
 }
 
 bitflags! {
+    // NRx2 - Channel x Volume Envelope (R/W)
+    struct NRx2: u8 {
+        const START_VOL  = 0b_1111_0000;
+        const ENV_DIR    = 0b_0000_1000;
+        const ENV_PERIOD = 0b_0000_0111;
+    }
+}
+
+bitflags! {
     // NRx4 - Channel x Frequency hi data (R/W)
     struct NRx4: u8 {
         const TRIGGER = 0b_1000_0000;
@@ -31,20 +40,49 @@ bitflags! {
 struct ToneChannel {
     // Channel registers
     nrx1: NRx1,
-    nrx2: IoReg<u8>,
+    nrx2: NRx2,
     nrx3: IoReg<u8>,
     nrx4: NRx4,
 
-    // Internal enabled flag
+    volume: u8,
+    vol_ctr: u8,
+    vol_env_enabled: bool,
+
     enabled: bool,
 }
 
 impl ToneChannel {
+    /// Advances the volume envelope by 1/64th of a second.
+    fn tick_vol_env(&mut self) {
+        let period = (self.nrx2 & NRx2::ENV_PERIOD).bits();
+
+        // When the timer generates a clock and the envelope period is not zero,
+        // a new volume is calculated by adding or subtracting 1 from the current volume.
+        if self.vol_env_enabled && period > 0 {
+            self.nrx2 = (self.nrx2 & !NRx2::ENV_PERIOD) | NRx2::from_bits_truncate(period - 1);
+
+            let new_volume = if self.nrx2.contains(NRx2::ENV_DIR) {
+                self.volume + 1
+            } else {
+                self.volume - 1
+            };
+
+            // If this new volume within the 0 to 15 range, the volume is updated,
+            // otherwise it is left unchanged and no further automatic increments/decrements
+            // are made to the volume until the channel is triggered again.
+            if new_volume <= 15 {
+                self.volume = new_volume;
+            } else {
+                self.vol_env_enabled = false;
+            }
+        }
+    }
+
     /// Advances the length counter by 1/256th of a second.
-    pub fn tick_len_ctr(&mut self) {
+    fn tick_len_ctr(&mut self) {
         let len = (self.nrx1 & NRx1::SOUND_LEN).bits();
 
-        // When clocked while enabled by NRx4 and the counter is not zero, it is decremented
+        // When clocked while enabled by NRx4 and the counter is not zero, length is decremented
         if self.nrx4.contains(NRx4::LEN_EN) && len != 0 {
             let len = len - 1;
 
@@ -58,28 +96,37 @@ impl ToneChannel {
     }
 
     /// Returns the channel's current tone frequency.
-    pub fn get_frequency(&self) -> u16 {
+    fn get_frequency(&self) -> u16 {
         let hi = u32::from((self.nrx4 & NRx4::FREQ_HI).bits());
         let lo = u32::from(self.nrx3.0);
 
         (131_072 / (2048 - ((hi << 8) | lo))) as u16
     }
 
-    /// Returns 1 if the unit is enabled, 0 otherwise.
-    pub fn get_volume(&self) -> u16 {
-        u16::from(self.enabled)
+    /// Returns the channel's current volume.
+    fn get_volume(&self) -> u16 {
+        u16::from(self.enabled) * u16::from(self.volume)
     }
 
     /// Handles a write to the NRx4 register.
     fn write_to_nr4(&mut self, val: u8) {
         self.nrx4 = NRx4::from_bits_truncate(val);
 
+        // When a TRIGGER occurs, a number of things happen
         if self.nrx4.contains(NRx4::TRIGGER) {
+            // Channel is enabled
             self.enabled = true;
 
+            // If length counter is zero, it is set to 64 (256 for wave channel)
             if (self.nrx1 & NRx1::SOUND_LEN).bits() == 0 {
                 self.nrx1 |= NRx1::SOUND_LEN;
             }
+
+            // Volume envelope timer is reloaded with period and
+            // channel volume is reloaded from NRx2.
+            self.volume = (self.nrx2 & NRx2::START_VOL).bits() >> 4;
+            self.vol_ctr = (self.nrx2 & NRx2::ENV_PERIOD).bits();
+            self.vol_env_enabled = true;
         }
     }
 }
@@ -88,7 +135,7 @@ impl MemR for ToneChannel {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         Ok(match addr {
             0 => self.nrx1.bits() | 0x3F,
-            1 => self.nrx2.0,
+            1 => self.nrx2.bits(),
             2 => self.nrx3.0 | 0xFF,
             3 => self.nrx4.bits() | 0xBF,
             _ => unreachable!(),
@@ -100,7 +147,7 @@ impl MemW for ToneChannel {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
             0 => self.nrx1 = NRx1::from_bits_truncate(val),
-            1 => self.nrx2.0 = val,
+            1 => self.nrx2 = NRx2::from_bits_truncate(val),
             2 => self.nrx3.0 = val,
             3 => self.write_to_nr4(val),
             _ => unreachable!(),
@@ -158,9 +205,13 @@ impl Default for APU {
 
             ch2: ToneChannel {
                 nrx1: NRx1::from_bits_truncate(0x3F),
-                nrx2: IoReg(0x00),
+                nrx2: NRx2::from_bits_truncate(0x00),
                 nrx3: IoReg(0x00),
                 nrx4: NRx4::from_bits_truncate(0xBF),
+
+                volume: 0,
+                vol_ctr: 0,
+                vol_env_enabled: false,
                 enabled: false,
             },
 
@@ -205,6 +256,8 @@ impl APU {
         // Volume envelope clock tick
         if self.clk_64 == 0 {
             self.clk_64 = CLK_64_RELOAD;
+
+            self.ch2.tick_vol_env();
         }
 
         // Sweep clock tick
@@ -222,7 +275,12 @@ impl APU {
 
     /// Returns the output frequency of the sound mixer.
     pub fn get_mixer_output(&self) -> u16 {
-        self.ch2.get_volume() * self.ch2.get_frequency()
+        // TODO handle volume appropriately
+        if self.ch2.get_volume() > 0 {
+            self.ch2.get_frequency()
+        } else {
+            0
+        }
     }
 }
 
