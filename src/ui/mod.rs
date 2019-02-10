@@ -1,4 +1,4 @@
-use super::gb::{self, io::JoypadState};
+use gib_core::{self, io::JoypadState};
 
 mod ctx;
 mod state;

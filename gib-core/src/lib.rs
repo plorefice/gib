@@ -1,3 +1,5 @@
+#![feature(try_from)]
+
 pub mod bus;
 pub mod cpu;
 pub mod dbg;

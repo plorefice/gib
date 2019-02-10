@@ -5,14 +5,17 @@ description = "A Game Boy emulator written in Rust"
 authors = ["Pietro Lorefice <pietro.lorefice@gmail.com>"]
 edition = "2018"
 
+[workspace]
+members = ["gib-core"]
+
 [dependencies]
+gib-core = { path = "gib-core" }
 glium = { version = "0.22", default-features = true }
 glutin = "0.18"
 imgui = "0.0.21"
 imgui-sys = "0.0.21"
 imgui-glium-renderer = "0.0.21"
 failure = "0.1.5"
-bitflags = "1.0.4"
 clap = "2.32.0"
 
 [profile.dev]

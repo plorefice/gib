@@ -1,4 +1,5 @@
-use super::gb::{cpu::Immediate, dbg};
+use gib_core::{cpu::Immediate, dbg};
+
 use super::utils;
 use super::{EmuState, WindowView};
 

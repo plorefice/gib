@@ -1,4 +1,4 @@
-use super::gb::{bus::Bus, cpu::CPU, dbg, GameBoy};
+use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
 
 use failure::Error;
 

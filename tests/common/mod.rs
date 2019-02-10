@@ -1,4 +1,4 @@
-use gib::GameBoy;
+use gib_core::GameBoy;
 
 pub struct RomTest {
     gb: GameBoy,

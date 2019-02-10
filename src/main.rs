@@ -4,7 +4,6 @@
 #![feature(range_contains)]
 #![feature(try_from)]
 
-mod gb;
 mod ui;
 
 fn main() {

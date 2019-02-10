@@ -1,4 +1,5 @@
-use super::gb::dbg::MemoryType;
+use gib_core::dbg::MemoryType;
+
 use super::utils;
 use super::{EmuState, WindowView};
 

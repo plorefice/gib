@@ -10,7 +10,6 @@ pub use memedit::*;
 pub use memmap::*;
 pub use peripherals::*;
 
-use super::gb;
 use super::utils;
 use super::EmuState;
 
