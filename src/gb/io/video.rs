@@ -329,47 +329,88 @@ impl PPU {
 
         // Draw BG, Window and sprites
         self.rasterize_bg(vbuf);
+        self.rasterize_window(vbuf);
         self.rasterize_sprites(vbuf);
     }
 
     /// Rasterizes the current background map to the video buffer.
     fn rasterize_bg(&self, vbuf: &mut [u8]) {
-        // When BG displaying is disabled, show a white background
         if !self.lcdc_reg.contains(LCDC::BG_DISP) {
+            // When BG displaying is disabled, show a white background
             for b in vbuf.iter_mut() {
                 *b = 0xFF;
             }
             return;
         }
 
-        // TODO: implement Window support
-        if self.lcdc_reg.contains(LCDC::WIN_DISP_EN) {
-            unimplemented!();
-        }
+        // The active area is displayed from coordinates (SCX, SCY) in the BG area
+        let scy = u16::from(self.scy_reg.0);
+        let scx = u16::from(self.scx_reg.0);
 
         // Iterate over each pixel in the screen
-        for py in 0usize..144 {
-            for px in 0usize..160 {
-                // Wrap to the top-left in case the scroll registers cause any overflows
-                let y = (py + usize::from(self.scy_reg.0)) % 256;
-                let x = (px + usize::from(self.scx_reg.0)) % 256;
+        for py in 0u16..144 {
+            for px in 0u16..160 {
+                // Compute the corresponding logical pixel.
+                // Wrap to the top-left in case the scroll registers cause any overflows.
+                let ly = usize::from(py + scy) % 256;
+                let lx = usize::from(px + scx) % 256;
 
-                // Retrieve the tile corresponding to pixel (x,y) by partitioning the
-                // screen area in 8x8 tiles
-                let tile = self.get_bg_tile(((y >> 3) << 5) + (x >> 3));
-
-                // Obtain the color of the tile's pixel corresponding to (x,y)
-                let pixel = tile.pixel((x & 0x07) as u8, (y & 0x7) as u8);
-                let shade = self.get_shade(self.bgp_reg.0, pixel);
-
-                // Compute the index in the video buffer
-                let pid = (py * (160 * 4)) + (px * 4);
-
-                vbuf[pid] = shade;
-                vbuf[pid + 1] = shade;
-                vbuf[pid + 2] = shade;
+                self.rasterize_tile(
+                    self.get_bg_tile(lx, ly),
+                    (lx, ly),
+                    (px as usize, py as usize),
+                    vbuf,
+                );
             }
         }
+    }
+
+    /// Rasterizes the current window map to the video buffer, if enabled.
+    fn rasterize_window(&self, vbuf: &mut [u8]) {
+        if !self.lcdc_reg.contains(LCDC::WIN_DISP_EN) {
+            return;
+        }
+
+        // The window is displayed from coordinates (WX-7, WY) in the active area
+        let wy = i16::from(self.wy_reg.0);
+        let wx = i16::from(self.wx_reg.0) - 7;
+
+        // Iterate over each physical pixel in the window area
+        for py in wy.max(0)..(wy + 144).min(144) {
+            for px in wx.max(0)..(wx + 160).min(160) {
+                // Compute the corresponding logical pixel in the BG map
+                let ly = (py - wy) as usize % 256;
+                let lx = (px - wx) as usize % 256;
+
+                self.rasterize_tile(
+                    self.get_win_tile(lx, ly),
+                    (lx, ly),
+                    (px as usize, py as usize),
+                    vbuf,
+                );
+            }
+        }
+    }
+
+    /// Rasterizes the `tile` located at logical coordinates `(lx, ly)` to the video buffer
+    /// at physical coordinates `(px, py)`.
+    fn rasterize_tile(
+        &self,
+        tile: &Tile,
+        (lx, ly): (usize, usize),
+        (px, py): (usize, usize),
+        vbuf: &mut [u8],
+    ) {
+        // Obtain the color of the tile's pixel corresponding to (lx, ly)
+        let pixel = tile.pixel((lx & 0x07) as u8, (ly & 0x7) as u8);
+        let shade = self.get_shade(self.bgp_reg.0, pixel);
+
+        // Compute the index in the video buffer
+        let pid = (py as usize) * 160 * 4 + (px as usize) * 4;
+
+        vbuf[pid] = shade;
+        vbuf[pid + 1] = shade;
+        vbuf[pid + 2] = shade;
     }
 
     /// Rasterizes any visible sprite to the video buffer.
@@ -527,11 +568,27 @@ impl PPU {
     }
 
     /// Returns the BG tile corresponding to the given ID.
+    fn get_bg_tile(&self, x: usize, y: usize) -> &Tile {
+        self.get_bg_win_tile(
+            ((y >> 3) << 5) + (x >> 3), // coords to 8x8 tile ID
+            self.lcdc_reg.contains(LCDC::BG_DISP_SEL),
+        )
+    }
+
+    /// Returns the Window tile corresponding to the given ID.
+    fn get_win_tile(&self, x: usize, y: usize) -> &Tile {
+        self.get_bg_win_tile(
+            ((y >> 3) << 5) + (x >> 3), // coords to 8x8 tile ID
+            self.lcdc_reg.contains(LCDC::WIN_DISP_SEL),
+        )
+    }
+
+    /// Returns the BG or Window tile corresponding to the given ID.
     ///
-    /// The resulting Tile depends on the selected BG Tile Map and addressing mode
-    /// in LCDC register.
-    fn get_bg_tile(&self, id: usize) -> &Tile {
-        let tile_id = if self.lcdc_reg.contains(LCDC::BG_DISP_SEL) {
+    /// The resulting Tile depends on the selected BG/Window Tile Map
+    /// and addressing mode in LCDC register.
+    fn get_bg_win_tile(&self, id: usize, disp_sel: bool) -> &Tile {
+        let tile_id = if disp_sel {
             self.bgtm1[id]
         } else {
             self.bgtm0[id]
