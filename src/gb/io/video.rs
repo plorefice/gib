@@ -379,58 +379,80 @@ impl PPU {
             return;
         }
 
-        // TODO implement 8x16 sprites
-        if self.lcdc_reg.contains(LCDC::OBJ_SIZE) {
-            unimplemented!();
-        }
+        let is_8x16 = self.lcdc_reg.contains(LCDC::OBJ_SIZE);
 
         for sprite in self.oam.iter() {
             let y = i16::from(sprite.y) - 16;
             let x = i16::from(sprite.x) - 8;
             let attr = sprite.attributes;
 
-            let tile = self.get_sprite_tile(sprite.tid.into());
-
-            // The palette used in rasterizing the srpite depends on its attributes
-            let palette = if attr.contains(SpriteAttributes::PAL_NUM) {
-                self.obp1_reg.0
+            // In 8x16 mode, the upper 8x8 tile is "tid & 0xFE",
+            // and the lower 8x8 tile is "tid | 0x01".
+            let tile = if is_8x16 {
+                self.get_sprite_tile((sprite.tid & 0xFE).into())
             } else {
-                self.obp0_reg.0
+                self.get_sprite_tile(sprite.tid.into())
             };
 
-            // Flip sprite horizontally
-            let off_x = if attr.contains(SpriteAttributes::FLIP_X) {
-                7
-            } else {
-                0
-            };
+            self.rasterize_sprite(tile, x, y, attr, vbuf);
 
-            // Flip sprite vertically
-            let off_y = if attr.contains(SpriteAttributes::FLIP_Y) {
-                7
-            } else {
-                0
-            };
+            // In 8x16 mode, rasterize the lower sprite too
+            if is_8x16 {
+                let tile = self.get_sprite_tile((sprite.tid | 0x01).into());
 
-            // TODO put the sprite behind BG colors 1-3
-            let _behind_bg = attr.contains(SpriteAttributes::BG_PRIO);
+                self.rasterize_sprite(tile, x, y + 8, attr, vbuf);
+            }
+        }
+    }
 
-            // Clip to currently visible area
-            for py in y.max(0)..(y + 8).min(144) {
-                for px in x.max(0)..(x + 8).min(160) {
-                    let x = (off_x - (px - x) as i16).abs() as u8;
-                    let y = (off_y - (py - y) as i16).abs() as u8;
+    /// Rasterizes a single sprite to screen at coordinates `(x,y)`.
+    fn rasterize_sprite(
+        &self,
+        tile: &Tile,
+        x: i16,
+        y: i16,
+        attr: SpriteAttributes,
+        vbuf: &mut [u8],
+    ) {
+        // The palette used in rasterizing the srpite depends on its attributes
+        let palette = if attr.contains(SpriteAttributes::PAL_NUM) {
+            self.obp1_reg.0
+        } else {
+            self.obp0_reg.0
+        };
 
-                    let pixel = tile.pixel(x, y);
-                    let shade = self.get_shade(palette, pixel);
+        // Flip sprite horizontally
+        let off_x = if attr.contains(SpriteAttributes::FLIP_X) {
+            7
+        } else {
+            0
+        };
 
-                    let pid = (py as usize) * 160 * 4 + (px as usize) * 4;
+        // Flip sprite vertically
+        let off_y = if attr.contains(SpriteAttributes::FLIP_Y) {
+            7
+        } else {
+            0
+        };
 
-                    if pixel != 0 {
-                        vbuf[pid] = shade;
-                        vbuf[pid + 1] = shade;
-                        vbuf[pid + 2] = shade;
-                    }
+        // TODO put the sprite behind BG colors 1-3
+        let _behind_bg = attr.contains(SpriteAttributes::BG_PRIO);
+
+        // Clip to currently visible area
+        for py in y.max(0)..(y + 8).min(144) {
+            for px in x.max(0)..(x + 8).min(160) {
+                let x = (off_x - (px - x) as i16).abs() as u8;
+                let y = (off_y - (py - y) as i16).abs() as u8;
+
+                let pixel = tile.pixel(x, y);
+                let shade = self.get_shade(palette, pixel);
+
+                let pid = (py as usize) * 160 * 4 + (px as usize) * 4;
+
+                if pixel != 0 {
+                    vbuf[pid] = shade;
+                    vbuf[pid + 1] = shade;
+                    vbuf[pid + 2] = shade;
                 }
             }
         }
