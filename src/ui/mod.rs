@@ -26,7 +26,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
-use std::time::Instant;
+use std::thread;
+use std::time::{Duration, Instant};
 
 const EMU_X_RES: usize = 160;
 const EMU_Y_RES: usize = 144;
@@ -35,6 +36,9 @@ const EMU_Y_RES: usize = 144;
 const EMU_WIN_X_RES: f64 = (EMU_X_RES * 2) as f64;
 /// Emulator window height (in gaming mode)
 const EMU_WIN_Y_RES: f64 = (EMU_Y_RES * 2) as f64 + 19.5;
+
+/// Duration of a Game Boy frame
+const FRAME_DURATION: Duration = Duration::from_nanos(1_000_000_000 / 60);
 
 /// Mapping between VirtualKey and joypad button
 const KEYMAP: [(Key, JoypadState); 8] = [
@@ -136,6 +140,7 @@ impl EmuUi {
 
     pub fn run(&mut self) -> Result<(), Error> {
         let mut last_frame = Instant::now();
+        let mut render_duration = Duration::new(0, 0);
 
         loop {
             let ctx = self.ctx.clone();
@@ -147,10 +152,11 @@ impl EmuUi {
                 return Ok(());
             }
 
-            let now = Instant::now();
-            let delta = now - last_frame;
+            // Compute time elapsed since last frame
+            let frame_start = Instant::now();
+            let delta = frame_start - last_frame;
             let delta_s = delta.as_secs() as f32 + delta.subsec_nanos() as f32 / 1_000_000_000.0;
-            last_frame = now;
+            last_frame = frame_start;
 
             if let Some(ref mut emu) = self.emu {
                 // Handle keypresses
@@ -162,8 +168,17 @@ impl EmuUi {
                     }
                 }
 
-                emu.do_step(&mut self.vpu_buffer[..]);
+                if ctx.is_key_pressed(Key::Space) {
+                    // If the TURBO key is pressed, emulates as many V-blanks as possible
+                    // without dropping _too much_ below 60 FPS, accounting for render time
+                    emu.run_for(FRAME_DURATION - render_duration, &mut self.vpu_buffer[..]);
+                } else {
+                    emu.do_step(&mut self.vpu_buffer[..]);
+                }
+            }
 
+            // Measure how long it takes to render a frame. This is used in TURBO mode.
+            render_duration = utils::measure_exec_time(|| {
                 let new_screen = Texture2d::new(
                     ctx.display.get_context(),
                     RawImage2d {
@@ -178,15 +193,22 @@ impl EmuUi {
                 ctx.renderer
                     .textures()
                     .replace(self.vpu_texture, new_screen);
-            }
 
-            ctx.render(delta_s, |ui| {
-                if self.gui.debug {
-                    self.draw_debug_ui(delta_s, ui)
-                } else {
-                    self.draw_game_ui(delta_s, ui)
-                }
+                ctx.render(delta_s, |ui| {
+                    if self.gui.debug {
+                        self.draw_debug_ui(delta_s, ui)
+                    } else {
+                        self.draw_game_ui(delta_s, ui)
+                    }
+                });
             });
+
+            // Pace the emulation to the correct frame duration
+            thread::sleep(
+                FRAME_DURATION
+                    .checked_sub(Instant::now() - frame_start)
+                    .unwrap_or_default(),
+            );
         }
     }
 

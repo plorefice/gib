@@ -46,6 +46,7 @@ The joypad is mapped to the keyboard according to this table:
 | A      | X         |
 | Select | Backspace |
 | Start  | Return    |
+| Turbo  | Space     |
 
 ## Running tests
 
