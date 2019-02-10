@@ -17,6 +17,7 @@ imgui-sys = "0.0.21"
 imgui-glium-renderer = "0.0.21"
 failure = "0.1.5"
 clap = "2.32.0"
+cpal = "0.8.2"
 
 [profile.dev]
 overflow-checks = false

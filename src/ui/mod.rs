@@ -1,11 +1,13 @@
-use gib_core::{self, io::JoypadState};
+use gib_core::{self, io::Channel, io::JoypadState};
 
 mod ctx;
+mod sound;
 mod state;
 mod utils;
 mod views;
 
 use ctx::UiContext;
+use sound::SoundEngine;
 use state::EmuState;
 use views::{
     DebuggerView, DisassemblyView, MemEditView, MemMapView, PeripheralView, View, WindowView,
@@ -72,6 +74,7 @@ impl Default for GuiState {
 
 pub struct EmuUi {
     ctx: Rc<RefCell<UiContext>>,
+    snd: SoundEngine,
     gui: GuiState,
 
     emu: Option<EmuState>,
@@ -107,6 +110,7 @@ impl EmuUi {
 
         EmuUi {
             ctx: Rc::from(RefCell::from(ctx)),
+            snd: SoundEngine::start().unwrap(),
             gui,
 
             emu: None,
@@ -175,6 +179,11 @@ impl EmuUi {
                 } else {
                     emu.do_step(&mut self.vpu_buffer[..]);
                 }
+
+                // Push sound update
+                self.snd
+                    .push_new_sample(emu.gameboy().get_channel_frequency(Channel::Ch2))
+                    .unwrap();
             }
 
             // Measure how long it takes to render a frame. This is used in TURBO mode.

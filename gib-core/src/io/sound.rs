@@ -3,6 +3,15 @@ use super::IoReg;
 use super::{InterruptSource, IrqSource};
 use super::{MemR, MemW};
 
+/// One of Game Boy's four sound channels.
+#[derive(Debug, Copy, Clone)]
+pub enum Channel {
+    Ch1,
+    Ch2,
+    Ch3,
+    Ch4,
+}
+
 pub struct APU {
     // Channel 1 registers
     ch1_swp_reg: IoReg<u8>,
@@ -76,6 +85,18 @@ impl APU {
     pub fn new() -> APU {
         APU::default()
     }
+
+    /// Returns the current tone frequency of a sound channel.
+    pub fn get_frequency(&self, ch: Channel) -> u16 {
+        let f = match ch {
+            Channel::Ch2 => {
+                u32::from(self.ch2_fhi_reg.0 & 0x7) << 8 | u32::from(self.ch2_flo_reg.0)
+            }
+            _ => unimplemented!(),
+        };
+
+        (131_072 / (2048 - f)) as u16
+    }
 }
 
 impl InterruptSource for APU {
@@ -86,7 +107,6 @@ impl InterruptSource for APU {
 
 impl MemR for APU {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
-        // TODO: it's gonna be a while before sound is implemented :)
         Ok(match addr {
             0xFF10 => self.ch1_swp_reg.0 | 0x80,
             0xFF11 => self.ch1_len_reg.0 | 0x3F,
@@ -124,7 +144,6 @@ impl MemR for APU {
 
 impl MemW for APU {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
-        // TODO: it's gonna be a while before sound is implemented :)
         match addr {
             0xFF10 => self.ch1_swp_reg.0 = val,
             0xFF11 => self.ch1_len_reg.0 = val,
