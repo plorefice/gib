@@ -34,6 +34,19 @@ cargo +nightly run --release [rom-file]
 where the optional `[rom-file]` argument can be used to load a ROM directly from
 the command line. Alternatively, you can use the in-app menus.
 
+The joypad is mapped to the keyboard according to this table:
+
+| Joypad | Keyboard  |
+| ------ | --------- |
+| Up     | Up        |
+| Down   | Down      |
+| Left   | Left      |
+| Right  | Right     |
+| B      | Z         |
+| A      | X         |
+| Select | Backspace |
+| Start  | Return    |
+
 ## Running tests
 
 Currently, unit tests exist for opcode size and timings, along with some peripherals.
