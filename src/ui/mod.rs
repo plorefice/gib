@@ -193,7 +193,7 @@ impl EmuUi {
     /// Draws the gaming-mode interface, with just a simple menu bar
     /// and a fullscreen emulator screen view.
     fn draw_game_ui(&mut self, delta_s: f32, ui: &Ui) {
-        use imgui::{ImGuiWindowFlags, ImVec2, StyleVar};
+        use imgui::{ImGuiCol, ImGuiWindowFlags, ImVec2, StyleVar};
 
         self.draw_menu_bar(delta_s, ui);
 
@@ -220,6 +220,15 @@ impl EmuUi {
                         | ImGuiWindowFlags::NoScrollWithMouse,
                 )
                 .build(|| {
+                    // Display event, if any
+                    if let Some(ref emu) = self.emu {
+                        if let Some(ref evt) = emu.last_event() {
+                            ui.with_color_var(ImGuiCol::Text, utils::RED, || {
+                                ui.text(&format!("{}", evt))
+                            });
+                        }
+                    }
+
                     ui.image(self.vpu_texture, (win_x, win_y)).build();
                 });
         });
