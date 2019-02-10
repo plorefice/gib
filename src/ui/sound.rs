@@ -47,6 +47,7 @@ impl SoundEngine {
                     (sample_clock * sample_frequency * 2.0 * std::f32::consts::PI / sample_rate)
                         .sin()
                         .signum()
+                        * 0.01
                 };
 
                 // Push the new sample to the stream in all possible formats
