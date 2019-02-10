@@ -9,6 +9,7 @@ It is still a WIP, but some simple ROMs have been tested and are (mostly) playab
 
 * **Tetris** (JP) (Nintendo)
 * **Dr. Mario** (JP) (Nintendo)
+* **The Legend of Zelda: Link's Awakening** (US) (Nintendo)
 
 ## Building the project
 

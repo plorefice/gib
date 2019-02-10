@@ -1,6 +1,6 @@
 [package]
 name = "gib"
-version = "0.4.2"
+version = "0.4.3"
 description = "A Game Boy emulator written in Rust"
 authors = ["Pietro Lorefice <pietro.lorefice@gmail.com>"]
 edition = "2018"
