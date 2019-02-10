@@ -12,6 +12,53 @@ pub enum Channel {
     Ch4,
 }
 
+/// A sound channel able to produce quadrangular wave patterns
+/// with optional sweep and envelope functions.
+struct ToneChannel {
+    // Channel registers
+    len_reg: IoReg<u8>,
+    vol_reg: IoReg<u8>,
+    flo_reg: IoReg<u8>,
+    fhi_reg: IoReg<u8>,
+}
+
+impl ToneChannel {
+    /// Advances the channel state machine by a single M-cycle.
+    pub fn tick(&mut self) {}
+
+    /// Returns the channel's current tone frequency.
+    pub fn get_frequency(&self) -> u16 {
+        let f = u32::from(self.fhi_reg.0 & 0x7) << 8 | u32::from(self.flo_reg.0);
+        (131_072 / (2048 - f)) as u16
+    }
+}
+
+impl MemR for ToneChannel {
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
+        Ok(match addr {
+            0 => self.len_reg.0 | 0x3F,
+            1 => self.vol_reg.0,
+            2 => self.flo_reg.0 | 0xFF,
+            3 => self.fhi_reg.0 | 0xBF,
+            _ => unreachable!(),
+        })
+    }
+}
+
+impl MemW for ToneChannel {
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
+        match addr {
+            0 => self.len_reg.0 = val,
+            1 => self.vol_reg.0 = val,
+            2 => self.flo_reg.0 = val,
+            3 => self.fhi_reg.0 = val,
+            _ => unreachable!(),
+        };
+
+        Ok(())
+    }
+}
+
 pub struct APU {
     // Channel 1 registers
     ch1_swp_reg: IoReg<u8>,
@@ -20,11 +67,8 @@ pub struct APU {
     ch1_flo_reg: IoReg<u8>,
     ch1_fhi_reg: IoReg<u8>,
 
-    // Channel 2 registers
-    ch2_len_reg: IoReg<u8>,
-    ch2_vol_reg: IoReg<u8>,
-    ch2_flo_reg: IoReg<u8>,
-    ch2_fhi_reg: IoReg<u8>,
+    // Channel 2
+    ch2: ToneChannel,
 
     // Channel 3 registers
     ch3_snd_reg: IoReg<u8>,
@@ -56,10 +100,12 @@ impl Default for APU {
             ch1_flo_reg: IoReg(0x00),
             ch1_fhi_reg: IoReg(0xBF),
 
-            ch2_len_reg: IoReg(0x3F),
-            ch2_vol_reg: IoReg(0x00),
-            ch2_flo_reg: IoReg(0x00),
-            ch2_fhi_reg: IoReg(0xBF),
+            ch2: ToneChannel {
+                len_reg: IoReg(0x3F),
+                vol_reg: IoReg(0x00),
+                flo_reg: IoReg(0x00),
+                fhi_reg: IoReg(0xBF),
+            },
 
             ch3_snd_reg: IoReg(0x7F),
             ch3_len_reg: IoReg(0xFF),
@@ -86,16 +132,17 @@ impl APU {
         APU::default()
     }
 
+    /// Advances the sound controller state machine by a single M-cycle.
+    pub fn tick(&mut self) {
+        self.ch2.tick();
+    }
+
     /// Returns the current tone frequency of a sound channel.
     pub fn get_frequency(&self, ch: Channel) -> u16 {
-        let f = match ch {
-            Channel::Ch2 => {
-                u32::from(self.ch2_fhi_reg.0 & 0x7) << 8 | u32::from(self.ch2_flo_reg.0)
-            }
+        match ch {
+            Channel::Ch2 => self.ch2.get_frequency(),
             _ => unimplemented!(),
-        };
-
-        (131_072 / (2048 - f)) as u16
+        }
     }
 }
 
@@ -114,10 +161,7 @@ impl MemR for APU {
             0xFF13 => self.ch1_flo_reg.0 | 0xFF,
             0xFF14 => self.ch1_fhi_reg.0 | 0xBF,
 
-            0xFF16 => self.ch2_len_reg.0 | 0x3F,
-            0xFF17 => self.ch2_vol_reg.0,
-            0xFF18 => self.ch2_flo_reg.0 | 0xFF,
-            0xFF19 => self.ch2_fhi_reg.0 | 0xBF,
+            0xFF16..=0xFF19 => self.ch2.read(addr - 0xFF16)?,
 
             0xFF1A => self.ch3_snd_reg.0 | 0x7F,
             0xFF1B => self.ch3_len_reg.0,
@@ -151,10 +195,7 @@ impl MemW for APU {
             0xFF13 => self.ch1_flo_reg.0 = val,
             0xFF14 => self.ch1_fhi_reg.0 = val,
 
-            0xFF16 => self.ch2_len_reg.0 = val,
-            0xFF17 => self.ch2_vol_reg.0 = val,
-            0xFF18 => self.ch2_flo_reg.0 = val,
-            0xFF19 => self.ch2_fhi_reg.0 = val,
+            0xFF16..=0xFF19 => self.ch2.write(addr - 0xFF16, val)?,
 
             0xFF1A => self.ch3_snd_reg.0 = val,
             0xFF1B => self.ch3_len_reg.0 = val,
