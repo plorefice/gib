@@ -53,16 +53,16 @@ are shown below.
 
 ### Progress
 
-| Peripheral | Progress | Notes                                 |
-| ---------- | -------- | ------------------------------------- |
-| CPU        | 100%     | Timings verification still missing    |
-| Video      | 40%      | BG, Sprite and IRQ support, no Window |
-| Sound      | 0%       | Not implemented yet                   |
-| Joypad     | 80%      | IRQ support missing                   |
-| Link cable | 0%       | Not implemented yet                   |
-| Timers     | 100%     | Passes all Gekkio's acceptance tests  |
-| Interrupts | 90%      | Need to work on time accuracy         |
-| MBC        | 20%      | Support for some functions of MBC1    |
+| Peripheral | Progress | Notes                                |
+| ---------- | -------- | ------------------------------------ |
+| CPU        | 100%     | Timings verification still missing   |
+| Video      | 80%      | BG, Sprite, Window and IRQ support   |
+| Sound      | 0%       | Not implemented yet                  |
+| Joypad     | 80%      | IRQ support missing                  |
+| Link cable | 0%       | Not implemented yet                  |
+| Timers     | 100%     | Passes all Gekkio's acceptance tests |
+| Interrupts | 90%      | Need to work on time accuracy        |
+| MBC        | 20%      | Support for some functions of MBC1   |
 
 ### Blargg's Test ROMs
 
