@@ -24,4 +24,4 @@ jobs:
           command: cargo +nightly build --release
       - run:
           name: Run tests
-          command: cargo +nightly test --release
+          command: cargo +nightly test --release --all
