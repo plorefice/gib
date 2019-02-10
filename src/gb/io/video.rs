@@ -384,12 +384,9 @@ impl PPU {
             unimplemented!();
         }
 
-        let scy = i16::from(self.scy_reg.0);
-        let scx = i16::from(self.scx_reg.0);
-
         for sprite in self.oam.iter() {
-            let y = i16::from(sprite.y) - 16 - scy;
-            let x = i16::from(sprite.x) - 8 - scx;
+            let y = i16::from(sprite.y) - 16;
+            let x = i16::from(sprite.x) - 8;
             let attr = sprite.attributes;
 
             let tile = self.get_sprite_tile(sprite.tid.into());
