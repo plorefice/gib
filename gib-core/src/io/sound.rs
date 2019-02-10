@@ -1,45 +1,96 @@
+use bitflags::bitflags;
+
 use super::dbg;
 use super::IoReg;
 use super::{InterruptSource, IrqSource};
 use super::{MemR, MemW};
 
-/// One of Game Boy's four sound channels.
-#[derive(Debug, Copy, Clone)]
-pub enum Channel {
-    Ch1,
-    Ch2,
-    Ch3,
-    Ch4,
+const CLK_64_RELOAD: u32 = 4_194_304 / 64;
+const CLK_128_RELOAD: u32 = 4_194_304 / 128;
+const CLK_256_RELOAD: u32 = 4_194_304 / 256;
+
+bitflags! {
+    // NRx1 - Channel x Sound Length/Wave Pattern Duty (R/W)
+    struct NRx1: u8 {
+        const WAVE_DUTY = 0b_1100_0000;
+        const SOUND_LEN = 0b_0011_1111;
+    }
+}
+
+bitflags! {
+    // NRx4 - Channel x Frequency hi data (R/W)
+    struct NRx4: u8 {
+        const TRIGGER = 0b_1000_0000;
+        const LEN_EN  = 0b_0100_0000;
+        const FREQ_HI = 0b_0000_0111;
+    }
 }
 
 /// A sound channel able to produce quadrangular wave patterns
 /// with optional sweep and envelope functions.
 struct ToneChannel {
     // Channel registers
-    len_reg: IoReg<u8>,
-    vol_reg: IoReg<u8>,
-    flo_reg: IoReg<u8>,
-    fhi_reg: IoReg<u8>,
+    nrx1: NRx1,
+    nrx2: IoReg<u8>,
+    nrx3: IoReg<u8>,
+    nrx4: NRx4,
+
+    // Internal enabled flag
+    enabled: bool,
 }
 
 impl ToneChannel {
-    /// Advances the channel state machine by a single M-cycle.
-    pub fn tick(&mut self) {}
+    /// Advances the length counter by 1/256th of a second.
+    pub fn tick_len_ctr(&mut self) {
+        let len = (self.nrx1 & NRx1::SOUND_LEN).bits();
+
+        // When clocked while enabled by NRx4 and the counter is not zero, it is decremented
+        if self.nrx4.contains(NRx4::LEN_EN) && len != 0 {
+            let len = len - 1;
+
+            self.nrx1 = (self.nrx1 & !NRx1::SOUND_LEN) | NRx1::from_bits_truncate(len);
+
+            // If it becomes zero, the channel is disabled
+            if len == 0 {
+                self.enabled = false;
+            }
+        }
+    }
 
     /// Returns the channel's current tone frequency.
     pub fn get_frequency(&self) -> u16 {
-        let f = u32::from(self.fhi_reg.0 & 0x7) << 8 | u32::from(self.flo_reg.0);
-        (131_072 / (2048 - f)) as u16
+        let hi = u32::from((self.nrx4 & NRx4::FREQ_HI).bits());
+        let lo = u32::from(self.nrx3.0);
+
+        (131_072 / (2048 - ((hi << 8) | lo))) as u16
+    }
+
+    /// Returns 1 if the unit is enabled, 0 otherwise.
+    pub fn get_volume(&self) -> u16 {
+        u16::from(self.enabled)
+    }
+
+    /// Handles a write to the NRx4 register.
+    fn write_to_nr4(&mut self, val: u8) {
+        self.nrx4 = NRx4::from_bits_truncate(val);
+
+        if self.nrx4.contains(NRx4::TRIGGER) {
+            self.enabled = true;
+
+            if (self.nrx1 & NRx1::SOUND_LEN).bits() == 0 {
+                self.nrx1 |= NRx1::SOUND_LEN;
+            }
+        }
     }
 }
 
 impl MemR for ToneChannel {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         Ok(match addr {
-            0 => self.len_reg.0 | 0x3F,
-            1 => self.vol_reg.0,
-            2 => self.flo_reg.0 | 0xFF,
-            3 => self.fhi_reg.0 | 0xBF,
+            0 => self.nrx1.bits() | 0x3F,
+            1 => self.nrx2.0,
+            2 => self.nrx3.0 | 0xFF,
+            3 => self.nrx4.bits() | 0xBF,
             _ => unreachable!(),
         })
     }
@@ -48,10 +99,10 @@ impl MemR for ToneChannel {
 impl MemW for ToneChannel {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
-            0 => self.len_reg.0 = val,
-            1 => self.vol_reg.0 = val,
-            2 => self.flo_reg.0 = val,
-            3 => self.fhi_reg.0 = val,
+            0 => self.nrx1 = NRx1::from_bits_truncate(val),
+            1 => self.nrx2.0 = val,
+            2 => self.nrx3.0 = val,
+            3 => self.write_to_nr4(val),
             _ => unreachable!(),
         };
 
@@ -89,6 +140,11 @@ pub struct APU {
     ctrl_snd_en_reg: IoReg<u8>,
 
     wave_ram: [u8; 16],
+
+    // Frame sequencer clocks
+    clk_64: u32,
+    clk_128: u32,
+    clk_256: u32,
 }
 
 impl Default for APU {
@@ -101,10 +157,11 @@ impl Default for APU {
             ch1_fhi_reg: IoReg(0xBF),
 
             ch2: ToneChannel {
-                len_reg: IoReg(0x3F),
-                vol_reg: IoReg(0x00),
-                flo_reg: IoReg(0x00),
-                fhi_reg: IoReg(0xBF),
+                nrx1: NRx1::from_bits_truncate(0x3F),
+                nrx2: IoReg(0x00),
+                nrx3: IoReg(0x00),
+                nrx4: NRx4::from_bits_truncate(0xBF),
+                enabled: false,
             },
 
             ch3_snd_reg: IoReg(0x7F),
@@ -123,6 +180,13 @@ impl Default for APU {
             ctrl_snd_en_reg: IoReg(0xF1),
 
             wave_ram: [0; 16],
+
+            // TODO according to [1] these clocks are slightly out of phase,
+            // initialization and ticking should be fixed accordingly.
+            // [1] http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Frame_Sequencer
+            clk_64: CLK_64_RELOAD,
+            clk_128: CLK_128_RELOAD,
+            clk_256: CLK_256_RELOAD,
         }
     }
 }
@@ -134,15 +198,31 @@ impl APU {
 
     /// Advances the sound controller state machine by a single M-cycle.
     pub fn tick(&mut self) {
-        self.ch2.tick();
+        self.clk_64 -= 4;
+        self.clk_128 -= 4;
+        self.clk_256 -= 4;
+
+        // Volume envelope clock tick
+        if self.clk_64 == 0 {
+            self.clk_64 = CLK_64_RELOAD;
+        }
+
+        // Sweep clock tick
+        if self.clk_128 == 0 {
+            self.clk_128 = CLK_128_RELOAD;
+        }
+
+        // Lenght counter clock tick
+        if self.clk_256 == 0 {
+            self.clk_256 = CLK_256_RELOAD;
+
+            self.ch2.tick_len_ctr();
+        }
     }
 
-    /// Returns the current tone frequency of a sound channel.
-    pub fn get_frequency(&self, ch: Channel) -> u16 {
-        match ch {
-            Channel::Ch2 => self.ch2.get_frequency(),
-            _ => unimplemented!(),
-        }
+    /// Returns the output frequency of the sound mixer.
+    pub fn get_mixer_output(&self) -> u16 {
+        self.ch2.get_volume() * self.ch2.get_frequency()
     }
 }
 

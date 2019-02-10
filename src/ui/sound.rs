@@ -35,8 +35,10 @@ impl SoundEngine {
             event_loop.run(move |_, data| {
                 // Before a new sample is produced, see if a new one has been received
                 if let Ok(new_sample) = receiver.try_recv() {
-                    // IMPORTANT: this prevents popping, leave it here!
-                    sample_clock *= sample_frequency / f32::from(new_sample);
+                    if new_sample != 0 {
+                        // IMPORTANT: this prevents popping, leave it here!
+                        sample_clock *= sample_frequency / f32::from(new_sample);
+                    }
                     sample_frequency = f32::from(new_sample);
                 }
 

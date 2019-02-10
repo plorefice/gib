@@ -95,6 +95,7 @@ impl Bus {
         }
 
         self.ppu.tick();
+        self.apu.tick();
         self.tim.tick();
 
         Ok(())

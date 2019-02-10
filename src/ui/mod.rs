@@ -1,4 +1,4 @@
-use gib_core::{self, io::Channel, io::JoypadState};
+use gib_core::{self, io::JoypadState};
 
 mod ctx;
 mod sound;
@@ -182,7 +182,7 @@ impl EmuUi {
 
                 // Push sound update
                 self.snd
-                    .push_new_sample(emu.gameboy().get_channel_frequency(Channel::Ch2))
+                    .push_new_sample(emu.gameboy().get_current_tone())
                     .unwrap();
             }
 

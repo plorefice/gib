@@ -1,7 +1,7 @@
 use super::bus::Bus;
 use super::cpu::CPU;
 use super::dbg;
-use super::io::{Channel, InterruptSource, JoypadState};
+use super::io::{InterruptSource, JoypadState};
 
 const CPU_CLOCK: u64 = 4_194_304; // Hz
 const HSYNC_CLOCK: u64 = 9_198; // Hz
@@ -120,9 +120,9 @@ impl GameBoy {
         Ok(())
     }
 
-    /// Returns the tone frequency for a sound channel.
-    pub fn get_channel_frequency(&self, ch: Channel) -> u16 {
-        self.bus.apu.get_frequency(ch)
+    /// Returns the tone currently being output by the mixer.
+    pub fn get_current_tone(&self) -> u16 {
+        self.bus.apu.get_mixer_output()
     }
 
     /// Marks the given key as pressed.
