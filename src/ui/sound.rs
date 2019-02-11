@@ -38,10 +38,8 @@ impl SoundEngine {
             event_loop.run(move |_, data| {
                 // Before a new sample is produced, see if a new one has been received
                 if let Ok(MixerOut { frequency, volume }) = receiver.try_recv() {
-                    if frequency != 0 {
-                        // IMPORTANT: this prevents popping, leave it here!
-                        sample_clock *= sample_frequency / f32::from(frequency);
-                    }
+                    // IMPORTANT: this prevents popping, leave it here!
+                    sample_clock *= sample_frequency / f32::from(frequency);
                     sample_frequency = f32::from(frequency);
                     sample_volume = f32::from(volume) / 100.0;
                 }
