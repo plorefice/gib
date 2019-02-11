@@ -8,6 +8,9 @@ jobs:
       - run:
           name: Install devtools
           command: |
+            sudo apt update
+            sudo apt install libasound2-dev
+
             rustup install nightly
             rustup component add --toolchain nightly rustfmt
       - run:
