@@ -71,7 +71,7 @@ are shown below.
 | ---------- | -------- | ------------------------------------ |
 | CPU        | 100%     | Timings verification still missing   |
 | Video      | 80%      | BG, Sprite, Window and IRQ support   |
-| Sound      | 0%       | Not implemented yet                  |
+| Sound      | 15%      | Partial channel 2 support            |
 | Joypad     | 80%      | IRQ support missing                  |
 | Link cable | 0%       | Not implemented yet                  |
 | Timers     | 100%     | Passes all Gekkio's acceptance tests |
