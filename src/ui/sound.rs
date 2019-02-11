@@ -1,3 +1,5 @@
+use gib_core::io::MixerOut;
+
 use failure::format_err;
 use failure::Error;
 
@@ -5,7 +7,7 @@ use std::sync::mpsc;
 
 /// Component responsible for audio playback.
 pub struct SoundEngine {
-    sample_updates: mpsc::Sender<u16>,
+    sample_updates: mpsc::Sender<MixerOut>,
 }
 
 impl SoundEngine {
@@ -31,15 +33,17 @@ impl SoundEngine {
 
             let mut sample_clock = 0f32;
             let mut sample_frequency = 0f32;
+            let mut sample_volume = 0f32;
 
             event_loop.run(move |_, data| {
                 // Before a new sample is produced, see if a new one has been received
-                if let Ok(new_sample) = receiver.try_recv() {
-                    if new_sample != 0 {
+                if let Ok(MixerOut { frequency, volume }) = receiver.try_recv() {
+                    if frequency != 0 {
                         // IMPORTANT: this prevents popping, leave it here!
-                        sample_clock *= sample_frequency / f32::from(new_sample);
+                        sample_clock *= sample_frequency / f32::from(frequency);
                     }
-                    sample_frequency = f32::from(new_sample);
+                    sample_frequency = f32::from(frequency);
+                    sample_volume = f32::from(volume) / 100.0;
                 }
 
                 // TODO right now, a 50% square wave is produced. This should be configurable
@@ -49,7 +53,7 @@ impl SoundEngine {
                     (sample_clock * sample_frequency * 2.0 * std::f32::consts::PI / sample_rate)
                         .sin()
                         .signum()
-                        * 0.01
+                        * sample_volume
                 };
 
                 // Push the new sample to the stream in all possible formats
@@ -96,7 +100,7 @@ impl SoundEngine {
     }
 
     /// Pushes a new audio sample to the engine for playback.
-    pub fn push_new_sample(&mut self, sample: u16) -> Result<(), Error> {
+    pub fn push_new_sample(&mut self, sample: MixerOut) -> Result<(), Error> {
         self.sample_updates.send(sample)?;
         Ok(())
     }

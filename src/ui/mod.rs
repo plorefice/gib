@@ -182,7 +182,7 @@ impl EmuUi {
 
                 // Push sound update
                 self.snd
-                    .push_new_sample(emu.gameboy().get_current_tone())
+                    .push_new_sample(emu.gameboy().get_sound_output())
                     .unwrap();
             }
 

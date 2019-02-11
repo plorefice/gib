@@ -9,6 +9,12 @@ const CLK_64_RELOAD: u32 = 4_194_304 / 64;
 const CLK_128_RELOAD: u32 = 4_194_304 / 128;
 const CLK_256_RELOAD: u32 = 4_194_304 / 256;
 
+/// The output of the mixer unit at a given instant.
+pub struct MixerOut {
+    pub frequency: u16,
+    pub volume: u16,
+}
+
 bitflags! {
     // NRx1 - Channel x Sound Length/Wave Pattern Duty (R/W)
     struct NRx1: u8 {
@@ -274,12 +280,11 @@ impl APU {
     }
 
     /// Returns the output frequency of the sound mixer.
-    pub fn get_mixer_output(&self) -> u16 {
-        // TODO handle volume appropriately
-        if self.ch2.get_volume() > 0 {
-            self.ch2.get_frequency()
-        } else {
-            0
+    pub fn get_mixer_output(&self) -> MixerOut {
+        // TODO mix all channels together
+        MixerOut {
+            frequency: self.ch2.get_frequency(),
+            volume: self.ch2.get_volume(),
         }
     }
 }
