@@ -139,13 +139,19 @@ impl UiContext {
             if let Event::WindowEvent { event, .. } = event {
                 match event {
                     Focused(focus) => self.focused = focus,
-                    Resized(_) => {
+                    Resized(size) => {
                         gfx_window_glutin::update_views(
                             &self.window,
                             &mut self.main_color,
                             &mut self.main_depth,
                         );
                         self.renderer.update_render_target(self.main_color.clone());
+
+                        // **This is required on macOS!**
+                        self.window.resize(glutin::dpi::PhysicalSize::from_logical(
+                            size,
+                            self.hidpi_factor,
+                        ));
                     }
                     CloseRequested => {
                         self.should_quit = true;
