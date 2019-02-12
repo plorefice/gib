@@ -133,8 +133,7 @@ where
     F: FnMut(Range<usize>),
 {
     use imgui_sys::{
-        ImGuiListClipper, ImGuiListClipper_Begin, ImGuiListClipper_End,
-        ImGuiListClipper_GetDisplayEnd, ImGuiListClipper_GetDisplayStart, ImGuiListClipper_Step,
+        ImGuiListClipper, ImGuiListClipper_Begin, ImGuiListClipper_End, ImGuiListClipper_Step,
     };
 
     let font_height = ui.get_text_line_height_with_spacing();
@@ -157,13 +156,7 @@ where
     }
 
     while unsafe { ImGuiListClipper_Step(&mut clipper as *mut ImGuiListClipper) } {
-        let (start, end) = unsafe {
-            (
-                ImGuiListClipper_GetDisplayStart(&mut clipper as *mut ImGuiListClipper) as usize,
-                ImGuiListClipper_GetDisplayEnd(&mut clipper as *mut ImGuiListClipper) as usize,
-            )
-        };
-        f(start..end);
+        f(clipper.display_start as usize..clipper.display_end as usize);
     }
 
     unsafe {

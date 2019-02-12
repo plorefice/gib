@@ -15,15 +15,12 @@ use views::{
 
 use failure::Error;
 
-use glium::{
-    backend::Facade,
-    glutin::VirtualKeyCode as Key,
-    texture::{ClientFormat, RawImage2d},
-    Texture2d,
-};
+use gfx::texture::{FilterMethod, SamplerInfo, WrapMode};
+use gfx_core::factory::Factory;
+use glutin::VirtualKeyCode as Key;
+
 use imgui::{im_str, ImGuiCond, Ui};
 
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::Path;
@@ -95,18 +92,25 @@ impl EmuUi {
         };
 
         let vpu_buffer = vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4];
-        let vpu_texture = ctx.renderer.textures().insert(
-            Texture2d::new(
-                ctx.display.get_context(),
-                RawImage2d {
-                    data: Cow::Borrowed(&vpu_buffer[..]),
-                    width: EMU_X_RES as u32,
-                    height: EMU_Y_RES as u32,
-                    format: ClientFormat::U8U8U8U8,
-                },
+        let texture = ctx
+            .factory
+            .create_texture_immutable_u8::<gfx::format::Rgba8>(
+                gfx::texture::Kind::D2(
+                    EMU_X_RES as u16,
+                    EMU_Y_RES as u16,
+                    gfx::texture::AaMode::Single,
+                ),
+                gfx::texture::Mipmap::Provided,
+                &[&vpu_buffer[..]],
             )
-            .unwrap(),
-        );
+            .unwrap()
+            .1;
+
+        let sampler = ctx
+            .factory
+            .create_sampler(SamplerInfo::new(FilterMethod::Scale, WrapMode::Clamp));
+
+        let vpu_texture = ctx.renderer.textures().insert((texture, sampler));
 
         EmuUi {
             ctx: Rc::from(RefCell::from(ctx)),
@@ -188,20 +192,27 @@ impl EmuUi {
 
             // Measure how long it takes to render a frame. This is used in TURBO mode.
             render_duration = utils::measure_exec_time(|| {
-                let new_screen = Texture2d::new(
-                    ctx.display.get_context(),
-                    RawImage2d {
-                        data: Cow::Borrowed(&self.vpu_buffer[..]),
-                        width: EMU_X_RES as u32,
-                        height: EMU_Y_RES as u32,
-                        format: ClientFormat::U8U8U8U8,
-                    },
-                )
-                .unwrap();
+                let new_screen = ctx
+                    .factory
+                    .create_texture_immutable_u8::<gfx::format::Rgba8>(
+                        gfx::texture::Kind::D2(
+                            EMU_X_RES as u16,
+                            EMU_Y_RES as u16,
+                            gfx::texture::AaMode::Single,
+                        ),
+                        gfx::texture::Mipmap::Provided,
+                        &[&self.vpu_buffer[..]],
+                    )
+                    .unwrap()
+                    .1;
+
+                let sampler = ctx
+                    .factory
+                    .create_sampler(SamplerInfo::new(FilterMethod::Scale, WrapMode::Clamp));
 
                 ctx.renderer
                     .textures()
-                    .replace(self.vpu_texture, new_screen);
+                    .replace(self.vpu_texture, (new_screen, sampler));
 
                 ctx.render(delta_s, |ui| {
                     if self.gui.debug {
