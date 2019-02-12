@@ -1,10 +1,14 @@
+use crossbeam::queue::ArrayQueue;
+
 use super::bus::Bus;
 use super::cpu::CPU;
 use super::dbg;
-use super::io::{InterruptSource, JoypadState, MixerOut};
+use super::io::{InterruptSource, JoypadState};
 
-const CPU_CLOCK: u64 = 4_194_304; // Hz
-const HSYNC_CLOCK: u64 = 9_198; // Hz
+use std::sync::Arc;
+
+pub const CPU_CLOCK: u64 = 4_194_304; // Hz
+pub const HSYNC_CLOCK: u64 = 9_198; // Hz
 
 const CYCLES_PER_HSYNC: u64 = CPU_CLOCK / HSYNC_CLOCK;
 
@@ -27,8 +31,12 @@ impl Default for GameBoy {
 }
 
 impl GameBoy {
-    pub fn new() -> GameBoy {
-        GameBoy::default()
+    /// Create a new Game Boy instance producing audio sample at the given rate.
+    /// This is very useful for "sync-by-audio"-style emulator.
+    pub fn new(snd_sample_rate: f32) -> GameBoy {
+        let mut gb = GameBoy::default();
+        gb.bus.apu.set_sample_rate(snd_sample_rate);
+        gb
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
@@ -120,9 +128,9 @@ impl GameBoy {
         Ok(())
     }
 
-    /// Returns the tone currently being output by the mixer.
-    pub fn get_sound_output(&self) -> MixerOut {
-        self.bus.apu.get_mixer_output()
+    /// Returns the audio sample channel output by the mixer.
+    pub fn get_sound_output(&self) -> Arc<ArrayQueue<i8>> {
+        self.bus.apu.get_sample_channel()
     }
 
     /// Marks the given key as pressed.

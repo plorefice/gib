@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 failure = "0.1.5"
 bitflags = "1.0.4"
+crossbeam = "0.7.1"

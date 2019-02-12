@@ -1,19 +1,16 @@
 use bitflags::bitflags;
+use crossbeam::queue::ArrayQueue;
 
 use super::dbg;
 use super::IoReg;
 use super::{InterruptSource, IrqSource};
 use super::{MemR, MemW};
 
+use std::sync::Arc;
+
 const CLK_64_RELOAD: u32 = 4_194_304 / 64;
 const CLK_128_RELOAD: u32 = 4_194_304 / 128;
 const CLK_256_RELOAD: u32 = 4_194_304 / 256;
-
-/// The output of the mixer unit at a given instant.
-pub struct MixerOut {
-    pub frequency: u16,
-    pub volume: u16,
-}
 
 bitflags! {
     // NRx1 - Channel x Sound Length/Wave Pattern Duty (R/W)
@@ -50,14 +47,51 @@ struct ToneChannel {
     nrx3: IoReg<u8>,
     nrx4: NRx4,
 
-    volume: u8,
+    // Internal state and timer counter
+    enabled: bool,
+    timer_counter: u32,
+
+    // Volume control
+    volume: i8,
     vol_ctr: u8,
     vol_env_enabled: bool,
 
-    enabled: bool,
+    // Channel outpu fed as input to the mixer
+    waveform_level: i8,
 }
 
 impl ToneChannel {
+    /// Creates a tone channel with the initial register state provided.
+    fn new(nrx1: NRx1, nrx2: NRx2, nrx3: IoReg<u8>, nrx4: NRx4) -> ToneChannel {
+        ToneChannel {
+            nrx1,
+            nrx2,
+            nrx3,
+            nrx4,
+
+            enabled: false,
+            timer_counter: 0,
+
+            volume: 0,
+            vol_ctr: 0,
+            vol_env_enabled: false,
+
+            waveform_level: 1,
+        }
+    }
+
+    /// Advances the internal timer state by one M-cycle.
+    fn tick(&mut self) {
+        // The timer generates an output clock every N input clocks,
+        // where N is the timer's period.
+        if self.timer_counter < 4 {
+            self.waveform_level = if self.waveform_level > 0 { -1 } else { 1 };
+            self.timer_counter = ((2048 - self.get_frequency()) << 4) - self.timer_counter;
+        } else {
+            self.timer_counter -= 4;
+        }
+    }
+
     /// Advances the volume envelope by 1/64th of a second.
     fn tick_vol_env(&mut self) {
         let period = (self.nrx2 & NRx2::ENV_PERIOD).bits();
@@ -102,16 +136,20 @@ impl ToneChannel {
     }
 
     /// Returns the channel's current tone frequency.
-    fn get_frequency(&self) -> u16 {
+    fn get_frequency(&self) -> u32 {
         let hi = u32::from((self.nrx4 & NRx4::FREQ_HI).bits());
         let lo = u32::from(self.nrx3.0);
-
-        (131_072 / (2048 - ((hi << 8) | lo))) as u16
+        (hi << 8) | lo
     }
 
     /// Returns the channel's current volume.
-    fn get_volume(&self) -> u16 {
-        u16::from(self.enabled) * u16::from(self.volume)
+    fn get_volume(&self) -> i8 {
+        i8::from(self.enabled) * self.volume
+    }
+
+    /// Returns the channel's current output level, ready to be fed to the mixer.
+    fn get_channel_out(&self) -> i8 {
+        self.waveform_level * self.get_volume() as i8
     }
 
     /// Handles a write to the NRx4 register.
@@ -130,7 +168,7 @@ impl ToneChannel {
 
             // Volume envelope timer is reloaded with period and
             // channel volume is reloaded from NRx2.
-            self.volume = (self.nrx2 & NRx2::START_VOL).bits() >> 4;
+            self.volume = ((self.nrx2 & NRx2::START_VOL).bits() >> 4) as i8;
             self.vol_ctr = (self.nrx2 & NRx2::ENV_PERIOD).bits();
             self.vol_env_enabled = true;
         }
@@ -198,6 +236,11 @@ pub struct APU {
     clk_64: u32,
     clk_128: u32,
     clk_256: u32,
+
+    // Audio sample channel
+    sample_rate_counter: f32,
+    sample_channel: Arc<ArrayQueue<i8>>,
+    sample_period: f32,
 }
 
 impl Default for APU {
@@ -209,17 +252,12 @@ impl Default for APU {
             ch1_flo_reg: IoReg(0x00),
             ch1_fhi_reg: IoReg(0xBF),
 
-            ch2: ToneChannel {
-                nrx1: NRx1::from_bits_truncate(0x3F),
-                nrx2: NRx2::from_bits_truncate(0x00),
-                nrx3: IoReg(0x00),
-                nrx4: NRx4::from_bits_truncate(0xBF),
-
-                volume: 0,
-                vol_ctr: 0,
-                vol_env_enabled: false,
-                enabled: false,
-            },
+            ch2: ToneChannel::new(
+                NRx1::from_bits_truncate(0x3F),
+                NRx2::from_bits_truncate(0x00),
+                IoReg(0x00),
+                NRx4::from_bits_truncate(0xBF),
+            ),
 
             ch3_snd_reg: IoReg(0x7F),
             ch3_len_reg: IoReg(0xFF),
@@ -244,13 +282,22 @@ impl Default for APU {
             clk_64: CLK_64_RELOAD,
             clk_128: CLK_128_RELOAD,
             clk_256: CLK_256_RELOAD,
+
+            // Create a sample channel that can hold up to 1024 samples.
+            // At 44.1KHz, this is about 23ms worth of audio.
+            sample_channel: Arc::new(ArrayQueue::new(1024)),
+            sample_rate_counter: 0f32,
+            sample_period: std::f32::INFINITY,
         }
     }
 }
 
 impl APU {
-    pub fn new() -> APU {
-        APU::default()
+    /// Instantiates a new APU producing samples at a frequency of `sample_rate`.
+    pub fn new(sample_rate: f32) -> APU {
+        let mut apu = APU::default();
+        apu.set_sample_rate(sample_rate);
+        apu
     }
 
     /// Advances the sound controller state machine by a single M-cycle.
@@ -258,6 +305,9 @@ impl APU {
         self.clk_64 -= 4;
         self.clk_128 -= 4;
         self.clk_256 -= 4;
+
+        // Internal timer clock tick
+        self.ch2.tick();
 
         // Volume envelope clock tick
         if self.clk_64 == 0 {
@@ -277,15 +327,26 @@ impl APU {
 
             self.ch2.tick_len_ctr();
         }
+
+        // Update the audio channel
+        self.sample_rate_counter += 4.0;
+        if self.sample_rate_counter > self.sample_period {
+            self.sample_rate_counter -= self.sample_period;
+            self.sample_channel
+                .push(self.ch2.get_channel_out())
+                .unwrap_or(());
+        }
     }
 
-    /// Returns the output frequency of the sound mixer.
-    pub fn get_mixer_output(&self) -> MixerOut {
-        // TODO mix all channels together
-        MixerOut {
-            frequency: self.ch2.get_frequency(),
-            volume: self.ch2.get_volume(),
-        }
+    /// Changes the current sample rate.
+    pub fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_period = (crate::CPU_CLOCK as f32) / sample_rate;
+        self.sample_rate_counter = 0f32;
+    }
+
+    /// Returns a copy of the audio sample channel.
+    pub fn get_sample_channel(&self) -> Arc<ArrayQueue<i8>> {
+        self.sample_channel.clone()
     }
 }
 

@@ -22,7 +22,7 @@ fn main() {
         .arg(Arg::with_name("ROM").help("ROM file to run").index(1))
         .get_matches();
 
-    let mut emu = ui::EmuUi::new(matches.is_present("devel"));
+    let mut emu = ui::EmuUi::new(matches.is_present("devel")).unwrap();
 
     if let Some(ref rom) = matches.value_of("ROM") {
         emu.load_rom(rom).expect("error loading rom");

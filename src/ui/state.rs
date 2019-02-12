@@ -10,6 +10,7 @@ use std::time::Duration;
 pub struct EmuState {
     gb: GameBoy,
     rom_file: PathBuf,
+    snd_sample_rate: f32,
 
     step_to_next: bool,
     run_to_breakpoint: bool,
@@ -17,8 +18,8 @@ pub struct EmuState {
 }
 
 impl EmuState {
-    pub fn new<P: AsRef<Path>>(rom: P) -> Result<EmuState, Error> {
-        let mut gb = GameBoy::new();
+    pub fn new<P: AsRef<Path>>(rom: P, snd_sample_rate: f32) -> Result<EmuState, Error> {
+        let mut gb = GameBoy::new(snd_sample_rate);
         let rom_buf = std::fs::read(rom.as_ref())?;
 
         gb.load_rom(&rom_buf[..])?;
@@ -26,6 +27,7 @@ impl EmuState {
         Ok(EmuState {
             gb,
             rom_file: rom.as_ref().to_path_buf(),
+            snd_sample_rate,
 
             step_to_next: false,
             run_to_breakpoint: false,
@@ -107,7 +109,7 @@ impl EmuState {
         // Save breakpoints to restore after reset
         let bkps = self.cpu().breakpoints().clone();
 
-        *self = EmuState::new(&self.rom_file)?;
+        *self = EmuState::new(&self.rom_file, self.snd_sample_rate)?;
         for b in bkps.iter() {
             self.cpu_mut().set_breakpoint(*b);
         }

@@ -1,57 +1,53 @@
-use gib_core::io::MixerOut;
-
+use crossbeam::queue::ArrayQueue;
 use failure::format_err;
 use failure::Error;
 
-use std::sync::mpsc;
+use std::sync::Arc;
 
 /// Component responsible for audio playback.
 pub struct SoundEngine {
-    sample_updates: mpsc::Sender<MixerOut>,
+    device: cpal::Device,
+    format: cpal::Format,
 }
 
 impl SoundEngine {
-    /// Creates and starts a new sound engine.
-    ///
-    /// An error is returned if an output device cannot be found or opened.
-    pub fn start() -> Result<SoundEngine, Error> {
+    /// Creates a new instance of the sound engine using the system's default output device.
+    pub fn new() -> Result<SoundEngine, Error> {
         // Open the system's default output device
         let device =
             cpal::default_output_device().ok_or_else(|| format_err!("no output device found"))?;
         let format = device.default_output_format()?;
 
+        Ok(SoundEngine { device, format })
+    }
+
+    /// Returns the engine's current sample rate.
+    pub fn get_sample_rate(&self) -> f32 {
+        self.format.sample_rate.0 as f32
+    }
+
+    /// Starts the sound engine. The audio playback happens in a seprate thread,
+    /// with audio samples being received from the provided sample queue.
+    ///
+    /// An error is returned if a new audio stream cannot be created.
+    pub fn start(&mut self, sample_queue: Arc<ArrayQueue<i8>>) -> Result<(), Error> {
         // Create and start a new stream
         let event_loop = cpal::EventLoop::new();
-        let stream_id = event_loop.build_output_stream(&device, &format)?;
-        event_loop.play_stream(stream_id.clone());
+        let stream_id = event_loop.build_output_stream(&self.device, &self.format)?;
+        let format = self.format.clone();
 
-        let (sender, receiver) = mpsc::channel();
+        event_loop.play_stream(stream_id.clone());
 
         // Run the stream's blocking event loop in a separate thread
         std::thread::spawn(move || {
-            let sample_rate = format.sample_rate.0 as f32;
-
-            let mut sample_clock = 0f32;
-            let mut sample_frequency = 0f32;
-            let mut sample_volume = 0f32;
+            let mut last_sample = 0f32;
 
             event_loop.run(move |_, data| {
-                // Before a new sample is produced, see if a new one has been received
-                if let Ok(MixerOut { frequency, volume }) = receiver.try_recv() {
-                    // IMPORTANT: this prevents popping, leave it here!
-                    sample_clock *= sample_frequency / f32::from(frequency);
-                    sample_frequency = f32::from(frequency);
-                    sample_volume = f32::from(volume) / 100.0;
-                }
-
-                // TODO right now, a 50% square wave is produced. This should be configurable
-                // to the supported intervals of 12.5%, 25%, 50% and 75%.
                 let mut next_value = || {
-                    sample_clock = (sample_clock + 1.0) % sample_rate;
-                    (sample_clock * sample_frequency * 2.0 * std::f32::consts::PI / sample_rate)
-                        .sin()
-                        .signum()
-                        * sample_volume
+                    if let Ok(sample) = sample_queue.pop() {
+                        last_sample = f32::from(sample) * 0.01;
+                    }
+                    last_sample
                 };
 
                 // Push the new sample to the stream in all possible formats
@@ -92,14 +88,6 @@ impl SoundEngine {
             });
         });
 
-        Ok(SoundEngine {
-            sample_updates: sender,
-        })
-    }
-
-    /// Pushes a new audio sample to the engine for playback.
-    pub fn push_new_sample(&mut self, sample: MixerOut) -> Result<(), Error> {
-        self.sample_updates.send(sample)?;
         Ok(())
     }
 }

@@ -53,7 +53,7 @@ impl Default for Bus {
             wram_00: Memory::new(0x1000),
             wram_nn: Memory::new(0x1000),
 
-            apu: APU::new(),
+            apu: APU::default(),
             ppu: PPU::new(),
             tim: Timer::new(),
             sdt: Serial::new(),
