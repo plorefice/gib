@@ -35,9 +35,6 @@ const EMU_WIN_X_RES: f64 = (EMU_X_RES * 2) as f64;
 /// Emulator window height (in gaming mode)
 const EMU_WIN_Y_RES: f64 = (EMU_Y_RES * 2) as f64 + 19.5;
 
-/// Duration of a Game Boy frame
-const FRAME_DURATION: Duration = Duration::from_nanos(1_000_000_000 / 60);
-
 /// Mapping between VirtualKey and joypad button
 const KEYMAP: [(Key, JoypadState); 8] = [
     (Key::Up, JoypadState::UP),
@@ -68,14 +65,16 @@ impl Default for GuiState {
     }
 }
 
+use std::sync::{Arc, Mutex};
+
 pub struct EmuUi {
     ctx: Rc<RefCell<UiContext>>,
     snd: SoundEngine,
     gui: GuiState,
 
-    emu: Option<EmuState>,
+    emu: Option<Arc<Mutex<EmuState>>>,
     vpu_buffer: Vec<u8>,
-    vpu_texture: imgui::ImTexture,
+    vpu_texture: Option<imgui::ImTexture>,
 }
 
 impl EmuUi {
@@ -84,32 +83,11 @@ impl EmuUi {
         gui.debug = debug;
 
         // In debug mode, the interface is much more cluttered, so default to a bigger size
-        let mut ctx = if debug {
+        let ctx = if debug {
             UiContext::new(1440.0, 720.0)
         } else {
             UiContext::new(EMU_WIN_X_RES, EMU_WIN_Y_RES)
         };
-
-        let vpu_buffer = vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4];
-        let texture = ctx
-            .factory
-            .create_texture_immutable_u8::<gfx::format::Rgba8>(
-                gfx::texture::Kind::D2(
-                    EMU_X_RES as u16,
-                    EMU_Y_RES as u16,
-                    gfx::texture::AaMode::Single,
-                ),
-                gfx::texture::Mipmap::Provided,
-                &[&vpu_buffer[..]],
-            )
-            .unwrap()
-            .1;
-
-        let sampler = ctx
-            .factory
-            .create_sampler(SamplerInfo::new(FilterMethod::Scale, WrapMode::Clamp));
-
-        let vpu_texture = ctx.renderer.textures().insert((texture, sampler));
 
         Ok(EmuUi {
             ctx: Rc::from(RefCell::from(ctx)),
@@ -117,13 +95,14 @@ impl EmuUi {
             gui,
 
             emu: None,
-            vpu_buffer,
-            vpu_texture,
+            vpu_buffer: vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4],
+            vpu_texture: None,
         })
     }
 
+    /// Loads the ROM file and starts the emulation.
     pub fn load_rom<P: AsRef<Path>>(&mut self, rom: P) -> Result<(), Error> {
-        self.emu = Some(EmuState::new(rom, self.snd.get_sample_rate())?);
+        let emu = Arc::new(Mutex::new(EmuState::new(rom, self.snd.get_sample_rate())?));
 
         if self.gui.debug {
             let views = &mut self.gui.views;
@@ -138,7 +117,43 @@ impl EmuUi {
             views.insert(View::Peripherals, box PeripheralView::new());
         }
 
-        if let Some(ref mut emu) = self.emu {
+        // Spawn and start the emulation thread.
+        //
+        // TODO there really needs to be a way to stop this thread.
+        {
+            let emu = emu.clone();
+
+            std::thread::spawn(move || {
+                let audio_queue = emu.lock().unwrap().gameboy().get_sound_output();
+
+                loop {
+                    // Do something only if the audio queue is at less-than-half capacity.
+                    // If not, yield the thread to the OS.
+
+                    if audio_queue.len() < audio_queue.capacity() / 2 {
+                        let emu = &mut emu.lock().unwrap();
+
+                        while audio_queue.len() < audio_queue.capacity() {
+                            emu.gameboy_mut().step().unwrap();
+                        }
+                    } else {
+                        std::thread::yield_now();
+                    }
+
+                    // if ctx.is_key_pressed(Key::Space) {
+                    //     // If the TURBO key is pressed, emulates as many V-blanks as possible
+                    //     // without dropping _too much_ below 60 FPS, accounting for render time
+                    //     emu.run_for(FRAME_DURATION - render_duration, &mut self.vpu_buffer[..]);
+                    // } else {
+                    //     emu.do_step(&mut self.vpu_buffer[..]);
+                    // }
+                }
+            });
+        }
+
+        {
+            let emu = &mut emu.lock().unwrap();
+
             emu.set_running();
 
             // Start the sound thread
@@ -146,16 +161,16 @@ impl EmuUi {
             self.snd.start(sample_ch)?;
         }
 
+        self.emu = Some(emu);
+
         Ok(())
     }
 
+    /// Run the emulator UI.
+    ///
+    /// This function loops until the window is closed or an error occurs.
     pub fn run(&mut self) -> Result<(), Error> {
         let mut last_frame = Instant::now();
-        let mut render_duration = Duration::new(0, 0);
-
-        let mut lag = Duration::new(0, 0);
-
-        let time_per_update = Duration::new(0, 1_000_000_000 / 128);
 
         loop {
             let ctx = self.ctx.clone();
@@ -164,10 +179,11 @@ impl EmuUi {
             // Compute time elapsed since last frame
             let frame_start = Instant::now();
             let delta = frame_start - last_frame;
-            let delta_s = delta.as_secs() as f32 + delta.subsec_nanos() as f32 / 1_000_000_000.0;
             last_frame = frame_start;
 
-            lag += delta;
+            /*
+             * Event handling phase
+             */
 
             ctx.poll_events();
 
@@ -175,8 +191,14 @@ impl EmuUi {
                 return Ok(());
             }
 
+            /*
+             * Emulator syncing phase
+             */
+
             if let Some(ref mut emu) = self.emu {
-                // Handle keypresses
+                let emu = &mut emu.lock().unwrap();
+
+                // Forward keypresses to the emulator
                 for (vk, js) in KEYMAP.iter() {
                     if ctx.is_key_pressed(*vk) {
                         emu.gameboy_mut().press_key(*js);
@@ -184,65 +206,57 @@ impl EmuUi {
                         emu.gameboy_mut().release_key(*js);
                     }
                 }
-            }
 
-            while lag >= time_per_update {
-                if let Some(ref mut emu) = self.emu {
-                    // if ctx.is_key_pressed(Key::Space) {
-                    //     // If the TURBO key is pressed, emulates as many V-blanks as possible
-                    //     // without dropping _too much_ below 60 FPS, accounting for render time
-                    //     emu.run_for(FRAME_DURATION - render_duration, &mut self.vpu_buffer[..]);
-                    // } else {
-                    //     emu.do_step(&mut self.vpu_buffer[..]);
-                    // }
-
-                    let until = emu.gameboy().clock_cycles() + 4194304 / 128;
-
-                    while emu.gameboy().clock_cycles() < until {
-                        emu.gameboy_mut().step().unwrap();
-                    }
-                }
-
-                lag -= time_per_update;
-            }
-
-            if let Some(ref mut emu) = self.emu {
+                // TODO this really needs to be done only if some changes
+                // have happened in the last interval.
                 emu.gameboy().rasterize(&mut self.vpu_buffer[..]);
             }
 
-            let new_screen = ctx
-                .factory
-                .create_texture_immutable_u8::<gfx::format::Rgba8>(
-                    gfx::texture::Kind::D2(
-                        EMU_X_RES as u16,
-                        EMU_Y_RES as u16,
-                        gfx::texture::AaMode::Single,
-                    ),
-                    gfx::texture::Mipmap::Provided,
-                    &[&self.vpu_buffer[..]],
-                )
-                .unwrap()
-                .1;
+            /*
+             * Rendering phase
+             */
 
-            let sampler = ctx
-                .factory
-                .create_sampler(SamplerInfo::new(FilterMethod::Scale, WrapMode::Clamp));
+            self.prepare_screen_texture(&mut *ctx);
 
-            ctx.renderer
-                .textures()
-                .replace(self.vpu_texture, (new_screen, sampler));
-
-            ctx.render(delta_s, |ui| {
+            ctx.render(delta.as_float_secs() as f32, |ui| {
                 if self.gui.debug {
-                    self.draw_debug_ui(delta_s, ui)
+                    self.draw_debug_ui(delta.as_float_secs() as f32, ui)
                 } else {
-                    self.draw_game_ui(delta_s, ui)
+                    self.draw_game_ui(delta.as_float_secs() as f32, ui)
                 }
             });
+        }
+    }
 
-            if render_duration > FRAME_DURATION {
-                println!("{:?}", render_duration);
-            }
+    /// Creates a new texture displaying the currently emulated screen,
+    /// ready to be presented during the next rendering step.
+    fn prepare_screen_texture(&mut self, ctx: &mut UiContext) {
+        let texture = ctx
+            .factory
+            .create_texture_immutable_u8::<gfx::format::Rgba8>(
+                gfx::texture::Kind::D2(
+                    EMU_X_RES as u16,
+                    EMU_Y_RES as u16,
+                    gfx::texture::AaMode::Single,
+                ),
+                gfx::texture::Mipmap::Provided,
+                &[&self.vpu_buffer[..]],
+            )
+            .unwrap()
+            .1;
+
+        let sampler = ctx
+            .factory
+            .create_sampler(SamplerInfo::new(FilterMethod::Scale, WrapMode::Clamp));
+
+        let texture = (texture, sampler);
+
+        // If this is the first time rendering, insert the new texture, otherwise
+        // replace an existing one.
+        if let Some(ref vpu_texture) = self.vpu_texture {
+            ctx.renderer.textures().replace(*vpu_texture, texture);
+        } else {
+            self.vpu_texture = Some(ctx.renderer.textures().insert(texture));
         }
     }
 
@@ -278,14 +292,16 @@ impl EmuUi {
                 .build(|| {
                     // Display event, if any
                     if let Some(ref emu) = self.emu {
-                        if let Some(ref evt) = emu.last_event() {
+                        if let Some(ref evt) = emu.lock().unwrap().last_event() {
                             ui.with_color_var(ImGuiCol::Text, utils::RED, || {
                                 ui.text(&format!("{}", evt))
                             });
                         }
                     }
 
-                    ui.image(self.vpu_texture, (win_x, win_y)).build();
+                    if let Some(texture) = self.vpu_texture {
+                        ui.image(texture, (win_x, win_y)).build();
+                    }
                 });
         });
     }
@@ -299,6 +315,7 @@ impl EmuUi {
         }
 
         if let Some(ref mut emu) = self.emu {
+            let emu = &mut emu.lock().unwrap();
             self.gui.views.retain(|_, view| view.draw(ui, emu));
         }
     }
@@ -322,7 +339,7 @@ impl EmuUi {
 
                 if ui.menu_item(im_str!("Reset")).enabled(emu_running).build() {
                     if let Some(ref mut emu) = self.emu {
-                        emu.reset().expect("error during reset");
+                        emu.lock().unwrap().reset().expect("error during reset");
                     }
                 }
 
@@ -431,8 +448,10 @@ impl EmuUi {
         .position((745.0, 30.0), ImGuiCond::FirstUseEver)
         .resizable(false)
         .build(|| {
-            ui.image(self.vpu_texture, (EMU_X_RES as f32, EMU_Y_RES as f32))
-                .build();
+            if let Some(texture) = self.vpu_texture {
+                ui.image(texture, (EMU_X_RES as f32, EMU_Y_RES as f32))
+                    .build();
+            }
         });
     }
 }
