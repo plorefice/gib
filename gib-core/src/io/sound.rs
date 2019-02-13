@@ -13,6 +13,15 @@ const CLK_128_RELOAD: u32 = 4_194_304 / 128;
 const CLK_256_RELOAD: u32 = 4_194_304 / 256;
 
 bitflags! {
+    // NRx0 - Channel x Sweep register (R/W)
+    struct NRx0: u8 {
+        const SWEEP_TIME  = 0b_0111_0000;
+        const SWEEP_NEG   = 0b_0000_1000;
+        const SWEEP_SHIFT = 0b_0000_0111;
+    }
+}
+
+bitflags! {
     // NRx1 - Channel x Sound Length/Wave Pattern Duty (R/W)
     struct NRx1: u8 {
         const WAVE_DUTY = 0b_1100_0000;
@@ -42,6 +51,7 @@ bitflags! {
 /// with optional sweep and envelope functions.
 struct ToneChannel {
     // Channel registers
+    nrx0: NRx0,
     nrx1: NRx1,
     nrx2: NRx2,
     nrx3: IoReg<u8>,
@@ -62,8 +72,9 @@ struct ToneChannel {
 
 impl ToneChannel {
     /// Creates a tone channel with the initial register state provided.
-    fn new(nrx1: NRx1, nrx2: NRx2, nrx3: IoReg<u8>, nrx4: NRx4) -> ToneChannel {
+    fn new(nrx0: NRx0, nrx1: NRx1, nrx2: NRx2, nrx3: IoReg<u8>, nrx4: NRx4) -> ToneChannel {
         ToneChannel {
+            nrx0,
             nrx1,
             nrx2,
             nrx3,
@@ -199,10 +210,11 @@ impl ToneChannel {
 impl MemR for ToneChannel {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         Ok(match addr {
-            0 => self.nrx1.bits() | 0x3F,
-            1 => self.nrx2.bits(),
-            2 => self.nrx3.0 | 0xFF,
-            3 => self.nrx4.bits() | 0xBF,
+            0 => self.nrx0.bits() | 0x80,
+            1 => self.nrx1.bits() | 0x3F,
+            2 => self.nrx2.bits(),
+            3 => self.nrx3.0 | 0xFF,
+            4 => self.nrx4.bits() | 0xBF,
             _ => unreachable!(),
         })
     }
@@ -211,10 +223,11 @@ impl MemR for ToneChannel {
 impl MemW for ToneChannel {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
-            0 => self.nrx1 = NRx1::from_bits_truncate(val),
-            1 => self.nrx2 = NRx2::from_bits_truncate(val),
-            2 => self.nrx3.0 = val,
-            3 => self.write_to_nr4(val),
+            0 => self.nrx0 = NRx0::from_bits_truncate(val),
+            1 => self.nrx1 = NRx1::from_bits_truncate(val),
+            2 => self.nrx2 = NRx2::from_bits_truncate(val),
+            3 => self.nrx3.0 = val,
+            4 => self.write_to_nr4(val),
             _ => unreachable!(),
         };
 
@@ -223,14 +236,8 @@ impl MemW for ToneChannel {
 }
 
 pub struct APU {
-    // Channel 1 registers
-    ch1_swp_reg: IoReg<u8>,
-    ch1_len_reg: IoReg<u8>,
-    ch1_vol_reg: IoReg<u8>,
-    ch1_flo_reg: IoReg<u8>,
-    ch1_fhi_reg: IoReg<u8>,
-
-    // Channel 2
+    // Channels 1/2
+    ch1: ToneChannel,
     ch2: ToneChannel,
 
     // Channel 3 registers
@@ -267,13 +274,16 @@ pub struct APU {
 impl Default for APU {
     fn default() -> APU {
         APU {
-            ch1_swp_reg: IoReg(0x80),
-            ch1_len_reg: IoReg(0x8F),
-            ch1_vol_reg: IoReg(0xF3),
-            ch1_flo_reg: IoReg(0x00),
-            ch1_fhi_reg: IoReg(0xBF),
+            ch1: ToneChannel::new(
+                NRx0::from_bits_truncate(0x80),
+                NRx1::from_bits_truncate(0x8F),
+                NRx2::from_bits_truncate(0xF3),
+                IoReg(0x00),
+                NRx4::from_bits_truncate(0xBF),
+            ),
 
             ch2: ToneChannel::new(
+                NRx0::from_bits_truncate(0xFF),
                 NRx1::from_bits_truncate(0x3F),
                 NRx2::from_bits_truncate(0x00),
                 IoReg(0x00),
@@ -380,13 +390,8 @@ impl InterruptSource for APU {
 impl MemR for APU {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         Ok(match addr {
-            0xFF10 => self.ch1_swp_reg.0 | 0x80,
-            0xFF11 => self.ch1_len_reg.0 | 0x3F,
-            0xFF12 => self.ch1_vol_reg.0,
-            0xFF13 => self.ch1_flo_reg.0 | 0xFF,
-            0xFF14 => self.ch1_fhi_reg.0 | 0xBF,
-
-            0xFF16..=0xFF19 => self.ch2.read(addr - 0xFF16)?,
+            0xFF10..=0xFF14 => self.ch1.read(addr - 0xFF10)?,
+            0xFF15..=0xFF19 => self.ch2.read(addr - 0xFF15)?,
 
             0xFF1A => self.ch3_snd_reg.0 | 0x7F,
             0xFF1B => self.ch3_len_reg.0,
@@ -414,13 +419,8 @@ impl MemR for APU {
 impl MemW for APU {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
-            0xFF10 => self.ch1_swp_reg.0 = val,
-            0xFF11 => self.ch1_len_reg.0 = val,
-            0xFF12 => self.ch1_vol_reg.0 = val,
-            0xFF13 => self.ch1_flo_reg.0 = val,
-            0xFF14 => self.ch1_fhi_reg.0 = val,
-
-            0xFF16..=0xFF19 => self.ch2.write(addr - 0xFF16, val)?,
+            0xFF10..=0xFF14 => self.ch1.write(addr - 0xFF10, val)?,
+            0xFF15..=0xFF19 => self.ch2.write(addr - 0xFF15, val)?,
 
             0xFF1A => self.ch3_snd_reg.0 = val,
             0xFF1B => self.ch3_len_reg.0 = val,
