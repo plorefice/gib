@@ -82,14 +82,35 @@ impl ToneChannel {
 
     /// Advances the internal timer state by one M-cycle.
     fn tick(&mut self) {
+        let period = (2048 - self.get_frequency()) << 5;
+
         // The timer generates an output clock every N input clocks,
         // where N is the timer's period.
         if self.timer_counter < 4 {
-            self.waveform_level = if self.waveform_level > 0 { -1 } else { 1 };
-            self.timer_counter = ((2048 - self.get_frequency()) << 4) - self.timer_counter;
+            self.timer_counter = period - self.timer_counter;
         } else {
             self.timer_counter -= 4;
         }
+
+        // Duty   Waveform    Ratio
+        // -------------------------
+        // 0      00000001    12.5%
+        // 1      10000001    25%
+        // 2      10000111    50%
+        // 3      01111110    75%
+        let threshold = match (self.nrx1 & NRx1::WAVE_DUTY).bits() >> 6 {
+            0 => period / 8,
+            1 => period / 4,
+            2 => period / 2,
+            3 => period * 3 / 4,
+            _ => unreachable!(),
+        };
+
+        self.waveform_level = if self.timer_counter < threshold {
+            1
+        } else {
+            -1
+        };
     }
 
     /// Advances the volume envelope by 1/64th of a second.
