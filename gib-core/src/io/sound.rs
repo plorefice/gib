@@ -338,12 +338,14 @@ impl APU {
         self.clk_256 -= 4;
 
         // Internal timer clock tick
+        self.ch1.tick();
         self.ch2.tick();
 
         // Volume envelope clock tick
         if self.clk_64 == 0 {
             self.clk_64 = CLK_64_RELOAD;
 
+            self.ch1.tick_vol_env();
             self.ch2.tick_vol_env();
         }
 
@@ -356,6 +358,7 @@ impl APU {
         if self.clk_256 == 0 {
             self.clk_256 = CLK_256_RELOAD;
 
+            self.ch1.tick_len_ctr();
             self.ch2.tick_len_ctr();
         }
 
@@ -364,7 +367,7 @@ impl APU {
         if self.sample_rate_counter > self.sample_period {
             self.sample_rate_counter -= self.sample_period;
             self.sample_channel
-                .push(self.ch2.get_channel_out())
+                .push(self.ch1.get_channel_out() + self.ch2.get_channel_out())
                 .unwrap_or(());
         }
     }
