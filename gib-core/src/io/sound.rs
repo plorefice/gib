@@ -35,6 +35,8 @@ bitflags! {
         const START_VOL  = 0b_1111_0000;
         const ENV_DIR    = 0b_0000_1000;
         const ENV_PERIOD = 0b_0000_0111;
+
+        const DAC_ON     = 0b_1111_1000;
     }
 }
 
@@ -44,6 +46,41 @@ bitflags! {
         const TRIGGER = 0b_1000_0000;
         const LEN_EN  = 0b_0100_0000;
         const FREQ_HI = 0b_0000_0111;
+    }
+}
+
+bitflags! {
+    // NR50 - Channel control / ON-OFF / Volume (R/W)
+    struct NR50: u8 {
+        const VIN_L_EN  = 0b_1000_0000;
+        const LEFT_VOL  = 0b_0111_0000;
+        const VIN_R_EN  = 0b_0000_1000;
+        const RIGHT_VOL = 0b_0000_0111;
+    }
+}
+
+bitflags! {
+    // NR51 - Selection of Sound output terminal (R/W)
+    struct NR51: u8 {
+        const OUT4_L = 0b_1000_0000;
+        const OUT3_L = 0b_0100_0000;
+        const OUT2_L = 0b_0010_0000;
+        const OUT1_L = 0b_0001_0000;
+        const OUT4_R = 0b_0000_1000;
+        const OUT3_R = 0b_0000_0100;
+        const OUT2_R = 0b_0000_0010;
+        const OUT1_R = 0b_0000_0001;
+    }
+}
+
+bitflags! {
+    // NR52 - Sound on/off
+    struct NR52: u8 {
+        const PWR_CTRL = 0b_1000_0000;
+        const OUT_4_EN = 0b_0000_1000;
+        const OUT_3_EN = 0b_0000_0100;
+        const OUT_2_EN = 0b_0000_0010;
+        const OUT_1_EN = 0b_0000_0001;
     }
 }
 
@@ -63,12 +100,12 @@ struct ToneChannel {
     timer_counter: u32,
 
     // Volume control
-    volume: i8,
+    volume: i16,
     vol_ctr: u8,
     vol_env_enabled: bool,
 
     // Channel outpu fed as input to the mixer
-    waveform_level: i8,
+    waveform_level: i16,
 }
 
 impl ToneChannel {
@@ -126,11 +163,7 @@ impl ToneChannel {
             _ => unreachable!(),
         };
 
-        self.waveform_level = if self.timer_counter < threshold {
-            1
-        } else {
-            -1
-        };
+        self.waveform_level = if self.timer_counter < threshold { 1 } else { 0 };
     }
 
     /// Advances the volume envelope by 1/64th of a second.
@@ -184,13 +217,17 @@ impl ToneChannel {
     }
 
     /// Returns the channel's current volume.
-    fn get_volume(&self) -> i8 {
-        i8::from(self.enabled) * self.volume
+    fn get_volume(&self) -> i16 {
+        i16::from(self.enabled) * self.volume
     }
 
     /// Returns the channel's current output level, ready to be fed to the mixer.
-    fn get_channel_out(&self) -> i8 {
-        self.waveform_level * self.get_volume() as i8
+    fn get_channel_out(&self) -> i16 {
+        if (self.nrx2 & NRx2::DAC_ON).bits() != 0 {
+            (self.waveform_level * 2 * self.get_volume() as i16) - 15
+        } else {
+            0
+        }
     }
 
     /// Handles a write to the NRx4 register.
@@ -209,7 +246,7 @@ impl ToneChannel {
 
             // Volume envelope timer is reloaded with period and
             // channel volume is reloaded from NRx2.
-            self.volume = ((self.nrx2 & NRx2::START_VOL).bits() >> 4) as i8;
+            self.volume = ((self.nrx2 & NRx2::START_VOL).bits() >> 4) as i16;
             self.vol_ctr = (self.nrx2 & NRx2::ENV_PERIOD).bits();
             self.vol_env_enabled = true;
         }
@@ -250,6 +287,77 @@ impl MemW for ToneChannel {
     }
 }
 
+struct Mixer {
+    // Control registers
+    nr50: NR50,
+    nr51: NR51,
+    nr52: NR52,
+
+    // Audio sample channel
+    sample_rate_counter: f32,
+    sample_channel: Arc<ArrayQueue<i16>>,
+    sample_period: f32,
+}
+
+impl Default for Mixer {
+    fn default() -> Mixer {
+        Mixer {
+            nr50: NR50::from_bits_truncate(0x77),
+            nr51: NR51::from_bits_truncate(0xF3),
+            nr52: NR52::from_bits_truncate(0xF1),
+
+            // Create a sample channel that can hold up to 1024 samples.
+            // At 44.1KHz, this is about 23ms worth of audio.
+            sample_rate_counter: 0f32,
+            sample_channel: Arc::new(ArrayQueue::new(1024)),
+            sample_period: std::f32::INFINITY,
+        }
+    }
+}
+
+impl Mixer {
+    fn tick(&mut self, ch1: i16, ch2: i16) {
+        self.sample_rate_counter += 4.0;
+
+        // Update the audio channel
+        if self.sample_rate_counter > self.sample_period {
+            self.sample_rate_counter -= self.sample_period;
+
+            let mut so2 = 0;
+            let mut so1 = 0;
+
+            // If the peripheral is disabled, no sound is emitted.
+            if !self.nr52.contains(NR52::PWR_CTRL) {
+                self.sample_channel.push(0).unwrap_or(());
+            } else {
+                // Update LEFT speaker
+                if self.nr51.contains(NR51::OUT1_L) {
+                    so2 += ch1;
+                }
+                if self.nr51.contains(NR51::OUT2_L) {
+                    so2 += ch2;
+                }
+
+                // Update RIGHT speaker
+                if self.nr51.contains(NR51::OUT1_R) {
+                    so1 += ch1;
+                }
+                if self.nr51.contains(NR51::OUT2_R) {
+                    so1 += ch2;
+                }
+
+                // Adjust master volumes
+                so2 *= 1 + ((self.nr50 & NR50::LEFT_VOL).bits() >> 4) as i16;
+                so1 *= 1 + (self.nr50 & NR50::RIGHT_VOL).bits() as i16;
+
+                // Produce a sample which is an average of the two channels.
+                // TODO implement true stero sound.
+                self.sample_channel.push((so1 + so2) / 2).unwrap_or(());
+            }
+        }
+    }
+}
+
 pub struct APU {
     // Channels 1/2
     ch1: ToneChannel,
@@ -268,10 +376,8 @@ pub struct APU {
     ch4_cnt_reg: IoReg<u8>,
     ch4_ini_reg: IoReg<u8>,
 
-    // Control registers
-    ctrl_master_reg: IoReg<u8>,
-    ctrl_output_reg: IoReg<u8>,
-    ctrl_snd_en_reg: IoReg<u8>,
+    // Mixer
+    mixer: Mixer,
 
     wave_ram: [u8; 16],
 
@@ -279,11 +385,6 @@ pub struct APU {
     clk_64: u32,
     clk_128: u32,
     clk_256: u32,
-
-    // Audio sample channel
-    sample_rate_counter: f32,
-    sample_channel: Arc<ArrayQueue<i8>>,
-    sample_period: f32,
 }
 
 impl Default for APU {
@@ -318,9 +419,7 @@ impl Default for APU {
             ch4_cnt_reg: IoReg(0x00),
             ch4_ini_reg: IoReg(0xBF),
 
-            ctrl_master_reg: IoReg(0x77),
-            ctrl_output_reg: IoReg(0xF3),
-            ctrl_snd_en_reg: IoReg(0xF1),
+            mixer: Mixer::default(),
 
             wave_ram: [0; 16],
 
@@ -330,12 +429,6 @@ impl Default for APU {
             clk_64: CLK_64_RELOAD,
             clk_128: CLK_128_RELOAD,
             clk_256: CLK_256_RELOAD,
-
-            // Create a sample channel that can hold up to 1024 samples.
-            // At 44.1KHz, this is about 23ms worth of audio.
-            sample_channel: Arc::new(ArrayQueue::new(1024)),
-            sample_rate_counter: 0f32,
-            sample_period: std::f32::INFINITY,
         }
     }
 }
@@ -379,25 +472,19 @@ impl APU {
             self.ch2.tick_len_ctr();
         }
 
-        // Update the audio channel
-        self.sample_rate_counter += 4.0;
-        if self.sample_rate_counter > self.sample_period {
-            self.sample_rate_counter -= self.sample_period;
-            self.sample_channel
-                .push(self.ch1.get_channel_out() + self.ch2.get_channel_out())
-                .unwrap_or(());
-        }
+        self.mixer
+            .tick(self.ch1.get_channel_out(), self.ch2.get_channel_out());
     }
 
     /// Changes the current sample rate.
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
-        self.sample_period = (crate::CPU_CLOCK as f32) / sample_rate;
-        self.sample_rate_counter = 0f32;
+        self.mixer.sample_period = (crate::CPU_CLOCK as f32) / sample_rate;
+        self.mixer.sample_rate_counter = 0f32;
     }
 
     /// Returns a copy of the audio sample channel.
-    pub fn get_sample_channel(&self) -> Arc<ArrayQueue<i8>> {
-        self.sample_channel.clone()
+    pub fn get_sample_channel(&self) -> Arc<ArrayQueue<i16>> {
+        self.mixer.sample_channel.clone()
     }
 }
 
@@ -424,9 +511,9 @@ impl MemR for APU {
             0xFF22 => self.ch4_cnt_reg.0,
             0xFF23 => self.ch4_ini_reg.0 | 0xBF,
 
-            0xFF24 => self.ctrl_master_reg.0,
-            0xFF25 => self.ctrl_output_reg.0,
-            0xFF26 => self.ctrl_snd_en_reg.0 | 0x70,
+            0xFF24 => self.mixer.nr50.bits(),
+            0xFF25 => self.mixer.nr51.bits(),
+            0xFF26 => self.mixer.nr52.bits() | 0x70,
 
             0xFF30..=0xFF3F => self.wave_ram[usize::from(addr) - 0xFF30],
 
@@ -453,9 +540,9 @@ impl MemW for APU {
             0xFF22 => self.ch4_cnt_reg.0 = val,
             0xFF23 => self.ch4_ini_reg.0 = val,
 
-            0xFF24 => self.ctrl_master_reg.0 = val,
-            0xFF25 => self.ctrl_output_reg.0 = val,
-            0xFF26 => self.ctrl_snd_en_reg.0 = val,
+            0xFF24 => self.mixer.nr50 = NR50::from_bits_truncate(val),
+            0xFF25 => self.mixer.nr51 = NR51::from_bits_truncate(val),
+            0xFF26 => self.mixer.nr52 = NR52::from_bits_truncate(val),
 
             0xFF30..=0xFF3F => self.wave_ram[usize::from(addr) - 0xFF30] = val,
 

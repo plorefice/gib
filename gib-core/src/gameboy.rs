@@ -129,7 +129,7 @@ impl GameBoy {
     }
 
     /// Returns the audio sample channel output by the mixer.
-    pub fn get_sound_output(&self) -> Arc<ArrayQueue<i8>> {
+    pub fn get_sound_output(&self) -> Arc<ArrayQueue<i16>> {
         self.bus.apu.get_sample_channel()
     }
 

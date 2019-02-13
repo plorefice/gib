@@ -30,7 +30,7 @@ impl SoundEngine {
     /// with audio samples being received from the provided sample queue.
     ///
     /// An error is returned if a new audio stream cannot be created.
-    pub fn start(&mut self, sample_queue: Arc<ArrayQueue<i8>>) -> Result<(), Error> {
+    pub fn start(&mut self, sample_queue: Arc<ArrayQueue<i16>>) -> Result<(), Error> {
         // Create and start a new stream
         let event_loop = cpal::EventLoop::new();
         let stream_id = event_loop.build_output_stream(&self.device, &self.format)?;
@@ -45,7 +45,7 @@ impl SoundEngine {
             event_loop.run(move |_, data| {
                 let mut next_value = || {
                     if let Ok(sample) = sample_queue.pop() {
-                        last_sample = f32::from(sample) * 0.01;
+                        last_sample = f32::from(sample) * 0.001;
                     }
                     last_sample
                 };
