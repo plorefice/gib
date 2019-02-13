@@ -59,6 +59,7 @@ struct ToneChannel {
 
     // Internal state and timer counter
     enabled: bool,
+    sweep_support: bool,
     timer_counter: u32,
 
     // Volume control
@@ -72,7 +73,14 @@ struct ToneChannel {
 
 impl ToneChannel {
     /// Creates a tone channel with the initial register state provided.
-    fn new(nrx0: NRx0, nrx1: NRx1, nrx2: NRx2, nrx3: IoReg<u8>, nrx4: NRx4) -> ToneChannel {
+    fn new(
+        nrx0: NRx0,
+        nrx1: NRx1,
+        nrx2: NRx2,
+        nrx3: IoReg<u8>,
+        nrx4: NRx4,
+        sweep_support: bool,
+    ) -> ToneChannel {
         ToneChannel {
             nrx0,
             nrx1,
@@ -81,6 +89,7 @@ impl ToneChannel {
             nrx4,
 
             enabled: false,
+            sweep_support,
             timer_counter: 0,
 
             volume: 0,
@@ -210,7 +219,13 @@ impl ToneChannel {
 impl MemR for ToneChannel {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         Ok(match addr {
-            0 => self.nrx0.bits() | 0x80,
+            0 => {
+                if self.sweep_support {
+                    self.nrx0.bits() | 0x80
+                } else {
+                    0xFF
+                }
+            }
             1 => self.nrx1.bits() | 0x3F,
             2 => self.nrx2.bits(),
             3 => self.nrx3.0 | 0xFF,
@@ -280,6 +295,7 @@ impl Default for APU {
                 NRx2::from_bits_truncate(0xF3),
                 IoReg(0x00),
                 NRx4::from_bits_truncate(0xBF),
+                true,
             ),
 
             ch2: ToneChannel::new(
@@ -288,6 +304,7 @@ impl Default for APU {
                 NRx2::from_bits_truncate(0x00),
                 IoReg(0x00),
                 NRx4::from_bits_truncate(0xBF),
+                false,
             ),
 
             ch3_snd_reg: IoReg(0x7F),
