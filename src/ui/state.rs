@@ -9,6 +9,7 @@ pub struct EmuState {
     rom_file: PathBuf,
     snd_sample_rate: f32,
 
+    turbo_mode: bool,
     step_to_next: bool,
     run_to_breakpoint: bool,
     trace_event: Option<dbg::TraceEvent>,
@@ -26,6 +27,7 @@ impl EmuState {
             rom_file: rom.as_ref().to_path_buf(),
             snd_sample_rate,
 
+            turbo_mode: false,
             step_to_next: false,
             run_to_breakpoint: false,
             trace_event: None,
@@ -33,6 +35,7 @@ impl EmuState {
     }
 
     pub fn pause(&mut self) {
+        self.turbo_mode = false;
         self.step_to_next = false;
         self.run_to_breakpoint = false;
         self.gb.cpu_mut().pause();
@@ -55,6 +58,8 @@ impl EmuState {
             let r = self.gb.step();
             self.pause();
             r
+        } else if self.turbo_mode {
+            self.gb.run_for_vblank()
         } else if self.run_to_breakpoint {
             self.run_to_audio_sync()
         } else {
@@ -91,8 +96,21 @@ impl EmuState {
         self.run_to_breakpoint = true;
     }
 
+    /// Sets or resets turbo mode.
+    ///
+    /// In turbo mode, the emulator runs to video-sync rather than audio-sync,
+    /// likely dropping audio samples.
+    pub fn set_turbo(&mut self, enable: bool) {
+        self.turbo_mode = enable;
+    }
+
     pub fn paused(&mut self) -> bool {
         self.gb.cpu().paused() && !(self.step_to_next || self.run_to_breakpoint)
+    }
+
+    /// Returns true if turbo mode is enabled, false otherwise.
+    pub fn turbo(&mut self) -> bool {
+        self.turbo_mode
     }
 
     pub fn reset(&mut self) -> Result<(), Error> {

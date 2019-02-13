@@ -127,16 +127,15 @@ impl EmuUi {
                 loop {
                     emu.lock().unwrap().do_step();
 
-                    // After each step, we can sleep for a fraction of the audio buffer.
-                    std::thread::sleep(Duration::from_millis(5));
-
-                    // if ctx.is_key_pressed(Key::Space) {
-                    //     // If the TURBO key is pressed, emulates as many V-blanks as possible
-                    //     // without dropping _too much_ below 60 FPS, accounting for render time
-                    //     emu.run_for(FRAME_DURATION - render_duration, &mut self.vpu_buffer[..]);
-                    // } else {
-                    //     emu.do_step(&mut self.vpu_buffer[..]);
-                    // }
+                    // After each step, we can sleep for a fraction of the audio buffer,
+                    // or for much less if not in audio sync mode.
+                    //
+                    // TODO this is ugly, find a better paradigm to synchronize everything.
+                    if !emu.lock().unwrap().turbo() {
+                        std::thread::sleep(Duration::from_millis(5));
+                    } else {
+                        std::thread::sleep(Duration::from_micros(1));
+                    }
                 }
             });
         }
@@ -196,6 +195,9 @@ impl EmuUi {
                         emu.gameboy_mut().release_key(*js);
                     }
                 }
+
+                // Enable/disable turbo mode
+                emu.set_turbo(ctx.is_key_pressed(Key::Space));
 
                 // TODO this really needs to be done only if some changes
                 // have happened in the last interval.
