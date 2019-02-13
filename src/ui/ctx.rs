@@ -44,7 +44,7 @@ impl UiContext {
 
         let events_loop = EventsLoop::new();
 
-        let context = ContextBuilder::new();
+        let context = ContextBuilder::new().with_vsync(true);
         let builder = WindowBuilder::new()
             .with_title("gib")
             .with_dimensions(LogicalSize::new(width, height));

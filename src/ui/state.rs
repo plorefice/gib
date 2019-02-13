@@ -1,11 +1,8 @@
 use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
 
-use super::utils;
-
 use failure::Error;
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 pub struct EmuState {
     gb: GameBoy,
@@ -41,7 +38,13 @@ impl EmuState {
         self.gb.cpu_mut().pause();
     }
 
-    pub fn do_step(&mut self, vbuf: &mut [u8]) {
+    /// Performs a single emulation step, depending on the emulator's state:
+    ///
+    /// * if we are in step mode, execute a single instruction
+    /// * if we are in run mode, run to audio sync (ie. audio queue full)
+    ///
+    /// In both cases, if an event happens, pause the emulator.
+    pub fn do_step(&mut self) {
         if self.paused() {
             return;
         }
@@ -53,7 +56,7 @@ impl EmuState {
             self.pause();
             r
         } else if self.run_to_breakpoint {
-            self.gb.run_for_vblank()
+            self.run_to_audio_sync()
         } else {
             Ok(())
         };
@@ -62,31 +65,18 @@ impl EmuState {
             self.trace_event = Some(*evt);
             self.pause();
         };
-
-        self.gb.rasterize(vbuf);
     }
 
-    /// Emulates as many V-blanks as possible withing the allotted time slot.
-    /// It stops whenever a `TraceEvent` is fired or time has run out.
-    pub fn run_for(&mut self, mut available_time: Duration, vbuf: &mut [u8]) {
-        let mut last_frame_time;
+    /// Runs the emulator until the audio queue is full, to avoid dropping
+    /// audio samples and cause skipping/popping.
+    fn run_to_audio_sync(&mut self) -> Result<(), dbg::TraceEvent> {
+        let audio_queue = self.gb.get_sound_output();
 
-        loop {
-            last_frame_time = utils::measure_exec_time(|| {
-                if let Err(ref evt) = self.gb.run_for_vblank() {
-                    self.trace_event = Some(*evt);
-                    self.pause();
-                }
-            });
-
-            if self.trace_event.is_some() || available_time < last_frame_time {
-                break;
-            }
-
-            available_time -= last_frame_time;
+        while audio_queue.len() < audio_queue.capacity() {
+            self.gb.step()?;
         }
 
-        self.gb.rasterize(vbuf);
+        Ok(())
     }
 
     pub fn last_event(&self) -> &Option<dbg::TraceEvent> {

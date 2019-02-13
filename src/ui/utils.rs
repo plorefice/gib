@@ -183,16 +183,3 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
 
     *val = u16::from_str_radix(buf.to_str(), 16).ok();
 }
-
-pub fn measure_exec_time<F>(mut f: F) -> Duration
-where
-    F: FnMut(),
-{
-    use std::time::Instant;
-
-    let before = Instant::now();
-
-    f();
-
-    Instant::now() - before
-}

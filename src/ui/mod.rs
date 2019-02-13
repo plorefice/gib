@@ -124,21 +124,11 @@ impl EmuUi {
             let emu = emu.clone();
 
             std::thread::spawn(move || {
-                let audio_queue = emu.lock().unwrap().gameboy().get_sound_output();
-
                 loop {
-                    // Do something only if the audio queue is at less-than-half capacity.
-                    // If not, yield the thread to the OS.
+                    emu.lock().unwrap().do_step();
 
-                    if audio_queue.len() < audio_queue.capacity() / 2 {
-                        let emu = &mut emu.lock().unwrap();
-
-                        while audio_queue.len() < audio_queue.capacity() {
-                            emu.gameboy_mut().step().unwrap();
-                        }
-                    } else {
-                        std::thread::yield_now();
-                    }
+                    // After each step, we can sleep for a fraction of the audio buffer.
+                    std::thread::sleep(Duration::from_millis(5));
 
                     // if ctx.is_key_pressed(Key::Space) {
                     //     // If the TURBO key is pressed, emulates as many V-blanks as possible
