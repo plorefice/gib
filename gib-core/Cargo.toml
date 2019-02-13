@@ -1,6 +1,6 @@
 [package]
 name = "gib-core"
-version = "0.5.0"
+version = "0.5.1"
 description = "A low-level, cycle-accurate Game Boy emulation library"
 authors = ["Pietro Lorefice <pietro.lorefice@gmail.com>"]
 edition = "2018"
