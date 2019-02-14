@@ -18,6 +18,8 @@ bitflags! {
         const SWEEP_TIME  = 0b_0111_0000;
         const SWEEP_NEG   = 0b_0000_1000;
         const SWEEP_SHIFT = 0b_0000_0111;
+
+        const WAVE_DAC_ON = 0b_1000_0000;
     }
 }
 
@@ -26,6 +28,8 @@ bitflags! {
     struct NRx1: u8 {
         const WAVE_DUTY = 0b_1100_0000;
         const SOUND_LEN = 0b_0011_1111;
+
+        const WAVE_SOUND_LEN = 0b_1111_1111;
     }
 }
 
@@ -37,6 +41,8 @@ bitflags! {
         const ENV_PERIOD = 0b_0000_0111;
 
         const DAC_ON     = 0b_1111_1000;
+
+        const WAVE_VOLUME = 0b_0110_0000;
     }
 }
 
@@ -109,7 +115,7 @@ struct ToneChannel {
     vol_ctr: u8,
     vol_env_enabled: bool,
 
-    // Channel outpu fed as input to the mixer
+    // Channel output fed as input to the mixer
     waveform_level: i16,
 }
 
@@ -148,7 +154,7 @@ impl ToneChannel {
 
     /// Advances the internal timer state by one M-cycle.
     fn tick(&mut self) {
-        let period = u32::from(2048 - self.get_frequency()) << 5;
+        let period = self.get_period();
 
         // The timer generates an output clock every N input clocks,
         // where N is the timer's period.
@@ -272,6 +278,11 @@ impl ToneChannel {
         new_freq as u16
     }
 
+    /// Returns the channel's period.
+    fn get_period(&self) -> u32 {
+        u32::from(2048 - self.get_frequency()) << 5
+    }
+
     /// Sets the channel's current tone frequency.
     fn set_frequency(&mut self, freq: u16) {
         self.nrx3.0 = freq as u8;
@@ -313,6 +324,9 @@ impl ToneChannel {
                 self.nrx1 |= NRx1::SOUND_LEN;
             }
 
+            // Frequency timer is reloaded with period
+            self.timer_counter = self.get_period();
+
             // Volume envelope timer is reloaded with period and
             // channel volume is reloaded from NRx2.
             self.volume = i16::from((self.nrx2 & NRx2::START_VOL).bits() >> 4);
@@ -329,6 +343,12 @@ impl ToneChannel {
             self.sweep_enabled = sweep_shift != 0 || sweep_period != 0;
             if sweep_shift != 0 {
                 self.do_sweep_calc();
+            }
+
+            // Note that if the channel's DAC is off, after the above actions occur
+            // the channel will be immediately disabled again.
+            if (self.nrx2 & NRx2::DAC_ON).bits() == 0 {
+                self.enabled = false;
             }
         }
     }
@@ -354,6 +374,166 @@ impl MemR for ToneChannel {
 }
 
 impl MemW for ToneChannel {
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
+        match addr {
+            0 => self.nrx0 = NRx0::from_bits_truncate(val),
+            1 => self.nrx1 = NRx1::from_bits_truncate(val),
+            2 => self.nrx2 = NRx2::from_bits_truncate(val),
+            3 => self.nrx3.0 = val,
+            4 => self.write_to_nr4(val),
+            _ => unreachable!(),
+        };
+
+        Ok(())
+    }
+}
+
+struct WaveChannel {
+    // Channel registers
+    nrx0: NRx0,
+    nrx1: NRx1,
+    nrx2: NRx2,
+    nrx3: IoReg<u8>,
+    nrx4: NRx4,
+
+    // Internal state and timer counter
+    enabled: bool,
+    timer_counter: u32,
+
+    // Wave functions
+    wave_ram: [u8; 16],
+    sample_buffer: u8,
+    position_counter: usize,
+}
+
+impl Default for WaveChannel {
+    fn default() -> WaveChannel {
+        WaveChannel {
+            nrx0: NRx0::from_bits_truncate(0x7F),
+            nrx1: NRx1::from_bits_truncate(0xFF),
+            nrx2: NRx2::from_bits_truncate(0x9F),
+            nrx3: IoReg(0x00),
+            nrx4: NRx4::from_bits_truncate(0xBF),
+
+            enabled: false,
+            timer_counter: 0,
+
+            wave_ram: [0; 16],
+            sample_buffer: 0,
+            position_counter: 0,
+        }
+    }
+}
+
+// TODO there is a lot of code shared between WaveChannel and ToneChannel.
+// It should be aggregated without impacting too much on performance.
+impl WaveChannel {
+    /// Advances the internal timer state by one M-cycle.
+    fn tick(&mut self) {
+        // Every N input clocks, advance the position counter and latch the new sample.
+        if self.timer_counter < 4 {
+            self.timer_counter = self.get_period() - self.timer_counter;
+
+            self.position_counter = (self.position_counter + 1) % 32;
+            self.sample_buffer = self.wave_ram[self.position_counter >> 1];
+
+            // Select the correct nibble
+            if self.position_counter & 0x1 == 0 {
+                self.sample_buffer >>= 4;
+            } else {
+                self.sample_buffer &= 0x0F;
+            }
+        } else {
+            self.timer_counter -= 4;
+        }
+    }
+
+    /// Advances the length counter unit by 1/256th of a second.
+    fn tick_len_ctr(&mut self) {
+        let len = (self.nrx1 & NRx1::WAVE_SOUND_LEN).bits();
+
+        // When clocked while enabled by NRx4 and the counter is not zero, length is decremented
+        if self.nrx4.contains(NRx4::LEN_EN) && len != 0 {
+            let len = len - 1;
+
+            self.nrx1 = (self.nrx1 & !NRx1::WAVE_SOUND_LEN) | NRx1::from_bits_truncate(len);
+
+            // If it becomes zero, the channel is disabled
+            if len == 0 {
+                self.enabled = false;
+            }
+        }
+    }
+
+    /// Returns the channel's period.
+    fn get_period(&self) -> u32 {
+        u32::from(2048 - self.get_frequency()) << 1
+    }
+
+    /// Returns the channel's current tone frequency.
+    fn get_frequency(&self) -> u16 {
+        let hi = u16::from((self.nrx4 & NRx4::FREQ_HI).bits());
+        let lo = u16::from(self.nrx3.0);
+        (hi << 8) | lo
+    }
+
+    /// Returns the channel's current volume.
+    fn get_volume(&self) -> u8 {
+        u8::from(self.enabled) * ((self.nrx2 & NRx2::WAVE_VOLUME).bits() >> 5)
+    }
+
+    /// Returns the channel's current output level, ready to be fed to the mixer.
+    fn get_channel_out(&self) -> i16 {
+        if self.nrx0.contains(NRx0::WAVE_DAC_ON) {
+            i16::from(self.sample_buffer >> (self.get_volume() - 1))
+        } else {
+            0
+        }
+    }
+
+    /// Handles a write to the NRx4 register.
+    fn write_to_nr4(&mut self, val: u8) {
+        self.nrx4 = NRx4::from_bits_truncate(val);
+
+        // When a TRIGGER occurs, a number of things happen
+        if self.nrx4.contains(NRx4::TRIGGER) {
+            // Channel is enabled
+            self.enabled = true;
+
+            // If length counter is zero, it is set to 64 (256 for wave channel)
+            if (self.nrx1 & NRx1::WAVE_SOUND_LEN).bits() == 0 {
+                self.nrx1 |= NRx1::WAVE_SOUND_LEN;
+            }
+
+            // Frequency timer is reloaded with period
+            self.timer_counter = self.get_period();
+
+            // Wave channel's position is set to 0 but sample buffer is NOT refilled
+            self.position_counter = 0;
+
+            // Note that if the channel's DAC is off, after the above actions occur
+            // the channel will be immediately disabled again.
+            if !self.nrx0.contains(NRx0::WAVE_DAC_ON) {
+                self.enabled = false;
+            }
+        }
+    }
+}
+
+impl MemR for WaveChannel {
+    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
+        Ok(match addr {
+            0 => self.nrx0.bits() | 0x7F,
+            1 => self.nrx1.bits(),
+            2 => self.nrx2.bits() | 0x9F,
+            3 => 0xFF,
+            4 => self.nrx4.bits() | 0xBF,
+            _ => unreachable!(),
+        })
+    }
+}
+
+impl MemW for WaveChannel {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
             0 => self.nrx0 = NRx0::from_bits_truncate(val),
@@ -397,7 +577,7 @@ impl Default for Mixer {
 }
 
 impl Mixer {
-    fn tick(&mut self, ch1: i16, ch2: i16) {
+    fn tick(&mut self, ch1: i16, ch2: i16, ch3: i16) {
         self.sample_rate_counter += 4.0;
 
         // Update the audio channel
@@ -418,6 +598,9 @@ impl Mixer {
                 if self.nr51.contains(NR51::OUT2_L) {
                     so2 += ch2;
                 }
+                if self.nr51.contains(NR51::OUT3_L) {
+                    so2 += ch3;
+                }
 
                 // Update RIGHT speaker
                 if self.nr51.contains(NR51::OUT1_R) {
@@ -425,6 +608,9 @@ impl Mixer {
                 }
                 if self.nr51.contains(NR51::OUT2_R) {
                     so1 += ch2;
+                }
+                if self.nr51.contains(NR51::OUT3_R) {
+                    so1 += ch3;
                 }
 
                 // Adjust master volumes
@@ -440,16 +626,10 @@ impl Mixer {
 }
 
 pub struct APU {
-    // Channels 1/2
+    // Channels
     ch1: ToneChannel,
     ch2: ToneChannel,
-
-    // Channel 3 registers
-    ch3_snd_reg: IoReg<u8>,
-    ch3_len_reg: IoReg<u8>,
-    ch3_vol_reg: IoReg<u8>,
-    ch3_flo_reg: IoReg<u8>,
-    ch3_fhi_reg: IoReg<u8>,
+    ch3: WaveChannel,
 
     // Channel 4 registers
     ch4_len_reg: IoReg<u8>,
@@ -459,8 +639,6 @@ pub struct APU {
 
     // Mixer
     mixer: Mixer,
-
-    wave_ram: [u8; 16],
 
     // Frame sequencer clocks
     clk_64: u32,
@@ -489,11 +667,7 @@ impl Default for APU {
                 false,
             ),
 
-            ch3_snd_reg: IoReg(0x7F),
-            ch3_len_reg: IoReg(0xFF),
-            ch3_vol_reg: IoReg(0x9F),
-            ch3_flo_reg: IoReg(0x00),
-            ch3_fhi_reg: IoReg(0xBF),
+            ch3: WaveChannel::default(),
 
             ch4_len_reg: IoReg(0xFF),
             ch4_vol_reg: IoReg(0x00),
@@ -501,8 +675,6 @@ impl Default for APU {
             ch4_ini_reg: IoReg(0xBF),
 
             mixer: Mixer::default(),
-
-            wave_ram: [0; 16],
 
             // TODO according to [1] these clocks are slightly out of phase,
             // initialization and ticking should be fixed accordingly.
@@ -531,6 +703,7 @@ impl APU {
         // Internal timer clock tick
         self.ch1.tick();
         self.ch2.tick();
+        self.ch3.tick();
 
         // Volume envelope clock tick
         if self.clk_64 == 0 {
@@ -553,10 +726,14 @@ impl APU {
 
             self.ch1.tick_len_ctr();
             self.ch2.tick_len_ctr();
+            self.ch3.tick_len_ctr();
         }
 
-        self.mixer
-            .tick(self.ch1.get_channel_out(), self.ch2.get_channel_out());
+        self.mixer.tick(
+            self.ch1.get_channel_out(),
+            self.ch2.get_channel_out(),
+            self.ch3.get_channel_out(),
+        );
     }
 
     /// Changes the current sample rate.
@@ -582,12 +759,7 @@ impl MemR for APU {
         Ok(match addr {
             0xFF10..=0xFF14 => self.ch1.read(addr - 0xFF10)?,
             0xFF15..=0xFF19 => self.ch2.read(addr - 0xFF15)?,
-
-            0xFF1A => self.ch3_snd_reg.0 | 0x7F,
-            0xFF1B => self.ch3_len_reg.0,
-            0xFF1C => self.ch3_vol_reg.0 | 0x9F,
-            0xFF1D => self.ch3_flo_reg.0 | 0xFF,
-            0xFF1E => self.ch3_fhi_reg.0 | 0xBF,
+            0xFF1A..=0xFF1E => self.ch3.read(addr - 0xFF1A)?,
 
             0xFF20 => self.ch4_len_reg.0 | 0xC0,
             0xFF21 => self.ch4_vol_reg.0,
@@ -598,7 +770,7 @@ impl MemR for APU {
             0xFF25 => self.mixer.nr51.bits(),
             0xFF26 => self.mixer.nr52.bits() | 0x70,
 
-            0xFF30..=0xFF3F => self.wave_ram[usize::from(addr) - 0xFF30],
+            0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30],
 
             // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F
             _ => 0xFF,
@@ -611,12 +783,7 @@ impl MemW for APU {
         match addr {
             0xFF10..=0xFF14 => self.ch1.write(addr - 0xFF10, val)?,
             0xFF15..=0xFF19 => self.ch2.write(addr - 0xFF15, val)?,
-
-            0xFF1A => self.ch3_snd_reg.0 = val,
-            0xFF1B => self.ch3_len_reg.0 = val,
-            0xFF1C => self.ch3_vol_reg.0 = val,
-            0xFF1D => self.ch3_flo_reg.0 = val,
-            0xFF1E => self.ch3_fhi_reg.0 = val,
+            0xFF1A..=0xFF1E => self.ch3.write(addr - 0xFF1A, val)?,
 
             0xFF20 => self.ch4_len_reg.0 = val,
             0xFF21 => self.ch4_vol_reg.0 = val,
@@ -627,7 +794,7 @@ impl MemW for APU {
             0xFF25 => self.mixer.nr51 = NR51::from_bits_truncate(val),
             0xFF26 => self.mixer.nr52 = NR52::from_bits_truncate(val),
 
-            0xFF30..=0xFF3F => self.wave_ram[usize::from(addr) - 0xFF30] = val,
+            0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30] = val,
 
             // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F
             _ => (),
