@@ -96,8 +96,13 @@ struct ToneChannel {
 
     // Internal state and timer counter
     enabled: bool,
-    sweep_support: bool,
     timer_counter: u32,
+
+    // Frequency sweep unit
+    sweep_support: bool,
+    sweep_enabled: bool,
+    sweep_freq_shadow: u32,
+    sweep_timer: u8,
 
     // Volume control
     volume: i16,
@@ -126,8 +131,12 @@ impl ToneChannel {
             nrx4,
 
             enabled: false,
-            sweep_support,
             timer_counter: 0,
+
+            sweep_support,
+            sweep_enabled: false,
+            sweep_freq_shadow: 0,
+            sweep_timer: 0,
 
             volume: 0,
             vol_ctr: 0,
@@ -139,7 +148,7 @@ impl ToneChannel {
 
     /// Advances the internal timer state by one M-cycle.
     fn tick(&mut self) {
-        let period = (2048 - self.get_frequency()) << 5;
+        let period = u32::from(2048 - self.get_frequency()) << 5;
 
         // The timer generates an output clock every N input clocks,
         // where N is the timer's period.
@@ -166,7 +175,38 @@ impl ToneChannel {
         self.waveform_level = if self.timer_counter < threshold { 1 } else { 0 };
     }
 
-    /// Advances the volume envelope by 1/64th of a second.
+    /// Advances the frequency sweep unit by 1/128th of a second.
+    fn tick_freq_sweep(&mut self) {
+        let shift = (self.nrx0 & NRx0::SWEEP_SHIFT).bits();
+        let period = (self.nrx0 & NRx0::SWEEP_TIME).bits() >> 4;
+
+        if !self.sweep_support || !self.sweep_enabled || period == 0 {
+            return;
+        }
+
+        self.sweep_timer -= 1;
+
+        // Sweep timer expired -> do sweep
+        if self.sweep_timer == 0 {
+            // Reload internal timer
+            self.sweep_timer = period;
+
+            // Compute new frequency
+            let new_freq = self.do_sweep_calc();
+
+            // Use it if it is less than 2048 and the shift is not zero
+            if new_freq < 2048 && shift != 0 {
+                self.sweep_freq_shadow = u32::from(new_freq);
+                self.set_frequency(new_freq);
+
+                // Frequency calculations and overflow check are run again,
+                // but this time the result is not used.
+                self.do_sweep_calc();
+            }
+        }
+    }
+
+    /// Advances the volume envelope unit by 1/64th of a second.
     fn tick_vol_env(&mut self) {
         let period = (self.nrx2 & NRx2::ENV_PERIOD).bits();
 
@@ -192,7 +232,7 @@ impl ToneChannel {
         }
     }
 
-    /// Advances the length counter by 1/256th of a second.
+    /// Advances the length counter unit by 1/256th of a second.
     fn tick_len_ctr(&mut self) {
         let len = (self.nrx1 & NRx1::SOUND_LEN).bits();
 
@@ -209,10 +249,39 @@ impl ToneChannel {
         }
     }
 
+    /// Performs frequency sweep calculations and overflow check
+    fn do_sweep_calc(&mut self) -> u16 {
+        let neg = self.nrx0.contains(NRx0::SWEEP_NEG);
+        let shift = (self.nrx0 & NRx0::SWEEP_SHIFT).bits();
+
+        // Sweep formula: X(t) = X(t-1) +/- X(t-1)/2^n
+
+        let mut new_freq = self.sweep_freq_shadow >> shift;
+
+        if neg {
+            new_freq = self.sweep_freq_shadow - new_freq;
+        } else {
+            new_freq += self.sweep_freq_shadow;
+        }
+
+        // Overflow check: if the new frequency is greater than 2047, the channel is disabled.
+        if new_freq >= 2048 {
+            self.enabled = false;
+        }
+
+        new_freq as u16
+    }
+
+    /// Sets the channel's current tone frequency.
+    fn set_frequency(&mut self, freq: u16) {
+        self.nrx3.0 = freq as u8;
+        self.nrx4 = (self.nrx4 & !NRx4::FREQ_HI) | NRx4::from_bits_truncate((freq >> 8) as u8);
+    }
+
     /// Returns the channel's current tone frequency.
-    fn get_frequency(&self) -> u32 {
-        let hi = u32::from((self.nrx4 & NRx4::FREQ_HI).bits());
-        let lo = u32::from(self.nrx3.0);
+    fn get_frequency(&self) -> u16 {
+        let hi = u16::from((self.nrx4 & NRx4::FREQ_HI).bits());
+        let lo = u16::from(self.nrx3.0);
         (hi << 8) | lo
     }
 
@@ -246,9 +315,21 @@ impl ToneChannel {
 
             // Volume envelope timer is reloaded with period and
             // channel volume is reloaded from NRx2.
-            self.volume = ((self.nrx2 & NRx2::START_VOL).bits() >> 4) as i16;
+            self.volume = i16::from((self.nrx2 & NRx2::START_VOL).bits() >> 4);
             self.vol_ctr = (self.nrx2 & NRx2::ENV_PERIOD).bits();
             self.vol_env_enabled = true;
+
+            // Square 1's frequency is copied to the shadow register, the sweep timer is reloaded,
+            // the internal sweep enabled flag is adjusted and sweep calculations may be performed.
+            let sweep_shift = (self.nrx0 & NRx0::SWEEP_SHIFT).bits();
+            let sweep_period = (self.nrx0 & NRx0::SWEEP_TIME).bits() >> 4;
+
+            self.sweep_freq_shadow = u32::from(self.get_frequency());
+            self.sweep_timer = sweep_period;
+            self.sweep_enabled = sweep_shift != 0 || sweep_period != 0;
+            if sweep_shift != 0 {
+                self.do_sweep_calc();
+            }
         }
     }
 }
@@ -347,8 +428,8 @@ impl Mixer {
                 }
 
                 // Adjust master volumes
-                so2 *= 1 + ((self.nr50 & NR50::LEFT_VOL).bits() >> 4) as i16;
-                so1 *= 1 + (self.nr50 & NR50::RIGHT_VOL).bits() as i16;
+                so2 *= 1 + i16::from((self.nr50 & NR50::LEFT_VOL).bits() >> 4);
+                so1 *= 1 + i16::from((self.nr50 & NR50::RIGHT_VOL).bits());
 
                 // Produce a sample which is an average of the two channels.
                 // TODO implement true stero sound.
@@ -462,6 +543,8 @@ impl APU {
         // Sweep clock tick
         if self.clk_128 == 0 {
             self.clk_128 = CLK_128_RELOAD;
+
+            self.ch1.tick_freq_sweep();
         }
 
         // Lenght counter clock tick
