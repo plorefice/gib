@@ -113,7 +113,6 @@ impl EmuUi {
             views.insert(View::Disassembly, box DisassemblyView::new());
             views.insert(View::Debugger, box DebuggerView::new());
             views.insert(View::MemEditor, box MemEditView::new());
-            views.insert(View::MemMap, box MemMapView::new());
             views.insert(View::Peripherals, box PeripheralView::new());
         }
 
