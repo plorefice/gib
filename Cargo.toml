@@ -31,4 +31,4 @@ overflow-checks = false
 overflow-checks = false
 
 [profile.release]
-debug = true
+incremental = true
