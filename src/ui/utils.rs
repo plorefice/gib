@@ -183,3 +183,19 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
 
     *val = u16::from_str_radix(buf.to_str(), 16).ok();
 }
+
+/// Converts a slice of bytes into its ASCII representation
+/// if the corresponding character is visible, otherwise into a '.'.
+pub fn format_ascii(data: &[u8]) -> String {
+    let mut s = String::with_capacity(data.len() + 2);
+    s.push('|');
+    for &d in data {
+        s.push(if !d.is_ascii() || d.is_ascii_control() {
+            '.'
+        } else {
+            unsafe { std::char::from_u32_unchecked(d.into()) }
+        });
+    }
+    s.push('|');
+    s
+}
