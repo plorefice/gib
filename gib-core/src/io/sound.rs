@@ -548,83 +548,6 @@ impl MemW for WaveChannel {
     }
 }
 
-struct Mixer {
-    // Control registers
-    nr50: NR50,
-    nr51: NR51,
-    nr52: NR52,
-
-    // Audio sample channel
-    sample_rate_counter: f32,
-    sample_channel: Arc<ArrayQueue<i16>>,
-    sample_period: f32,
-}
-
-impl Default for Mixer {
-    fn default() -> Mixer {
-        Mixer {
-            nr50: NR50::from_bits_truncate(0x77),
-            nr51: NR51::from_bits_truncate(0xF3),
-            nr52: NR52::from_bits_truncate(0xF1),
-
-            // Create a sample channel that can hold up to 1024 samples.
-            // At 44.1KHz, this is about 23ms worth of audio.
-            sample_rate_counter: 0f32,
-            sample_channel: Arc::new(ArrayQueue::new(1024)),
-            sample_period: std::f32::INFINITY,
-        }
-    }
-}
-
-impl Mixer {
-    fn tick(&mut self, ch1: i16, ch2: i16, ch3: i16) {
-        self.sample_rate_counter += 4.0;
-
-        // Update the audio channel
-        if self.sample_rate_counter > self.sample_period {
-            self.sample_rate_counter -= self.sample_period;
-
-            let mut so2 = 0;
-            let mut so1 = 0;
-
-            // If the peripheral is disabled, no sound is emitted.
-            if !self.nr52.contains(NR52::PWR_CTRL) {
-                self.sample_channel.push(0).unwrap_or(());
-            } else {
-                // Update LEFT speaker
-                if self.nr51.contains(NR51::OUT1_L) {
-                    so2 += ch1;
-                }
-                if self.nr51.contains(NR51::OUT2_L) {
-                    so2 += ch2;
-                }
-                if self.nr51.contains(NR51::OUT3_L) {
-                    so2 += ch3;
-                }
-
-                // Update RIGHT speaker
-                if self.nr51.contains(NR51::OUT1_R) {
-                    so1 += ch1;
-                }
-                if self.nr51.contains(NR51::OUT2_R) {
-                    so1 += ch2;
-                }
-                if self.nr51.contains(NR51::OUT3_R) {
-                    so1 += ch3;
-                }
-
-                // Adjust master volumes
-                so2 *= 1 + i16::from((self.nr50 & NR50::LEFT_VOL).bits() >> 4);
-                so1 *= 1 + i16::from((self.nr50 & NR50::RIGHT_VOL).bits());
-
-                // Produce a sample which is an average of the two channels.
-                // TODO implement true stero sound.
-                self.sample_channel.push((so1 + so2) / 2).unwrap_or(());
-            }
-        }
-    }
-}
-
 pub struct APU {
     // Channels
     ch1: ToneChannel,
@@ -637,8 +560,15 @@ pub struct APU {
     ch4_cnt_reg: IoReg<u8>,
     ch4_ini_reg: IoReg<u8>,
 
-    // Mixer
-    mixer: Mixer,
+    // Control registers
+    nr50: NR50,
+    nr51: NR51,
+    nr52: NR52,
+
+    // Audio sample channel
+    sample_rate_counter: f32,
+    sample_channel: Arc<ArrayQueue<i16>>,
+    sample_period: f32,
 
     // Frame sequencer clocks
     clk_64: u32,
@@ -674,7 +604,15 @@ impl Default for APU {
             ch4_cnt_reg: IoReg(0x00),
             ch4_ini_reg: IoReg(0xBF),
 
-            mixer: Mixer::default(),
+            nr50: NR50::from_bits_truncate(0x77),
+            nr51: NR51::from_bits_truncate(0xF3),
+            nr52: NR52::from_bits_truncate(0xF1),
+
+            // Create a sample channel that can hold up to 1024 samples.
+            // At 44.1KHz, this is about 23ms worth of audio.
+            sample_rate_counter: 0f32,
+            sample_channel: Arc::new(ArrayQueue::new(1024)),
+            sample_period: std::f32::INFINITY,
 
             // TODO according to [1] these clocks are slightly out of phase,
             // initialization and ticking should be fixed accordingly.
@@ -729,22 +667,86 @@ impl APU {
             self.ch3.tick_len_ctr();
         }
 
-        self.mixer.tick(
-            self.ch1.get_channel_out(),
-            self.ch2.get_channel_out(),
-            self.ch3.get_channel_out(),
-        );
+        self.tick_mixer();
+    }
+
+    /// Update mixer output
+    fn tick_mixer(&mut self) {
+        self.sample_rate_counter += 4.0;
+
+        // Update the audio channel
+        if self.sample_rate_counter > self.sample_period {
+            self.sample_rate_counter -= self.sample_period;
+
+            let ch1 = self.ch1.get_channel_out();
+            let ch2 = self.ch2.get_channel_out();
+            let ch3 = self.ch3.get_channel_out();
+
+            let mut so2 = 0;
+            let mut so1 = 0;
+
+            // If the peripheral is disabled, no sound is emitted.
+            if !self.nr52.contains(NR52::PWR_CTRL) {
+                self.sample_channel.push(0).unwrap_or(());
+            } else {
+                // Update LEFT speaker
+                if self.nr51.contains(NR51::OUT1_L) {
+                    so2 += ch1;
+                }
+                if self.nr51.contains(NR51::OUT2_L) {
+                    so2 += ch2;
+                }
+                if self.nr51.contains(NR51::OUT3_L) {
+                    so2 += ch3;
+                }
+
+                // Update RIGHT speaker
+                if self.nr51.contains(NR51::OUT1_R) {
+                    so1 += ch1;
+                }
+                if self.nr51.contains(NR51::OUT2_R) {
+                    so1 += ch2;
+                }
+                if self.nr51.contains(NR51::OUT3_R) {
+                    so1 += ch3;
+                }
+
+                // Adjust master volumes
+                so2 *= 1 + i16::from((self.nr50 & NR50::LEFT_VOL).bits() >> 4);
+                so1 *= 1 + i16::from((self.nr50 & NR50::RIGHT_VOL).bits());
+
+                // Produce a sample which is an average of the two channels.
+                // TODO implement true stero sound.
+                self.sample_channel.push((so1 + so2) / 2).unwrap_or(());
+            }
+        }
+    }
+
+    /// Handles a write operation to NR52 aka the power control register
+    fn write_to_pwr_reg(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
+        let new_nr52 = NR52::from_bits_truncate(val) & NR52::PWR_CTRL;
+
+        // When NR52 gets disabled, 0 is immediately written to all the other registers
+        if !new_nr52.contains(NR52::PWR_CTRL) {
+            for addr in 0xFF10..=0xFF25 {
+                self.write(addr, 0)?;
+            }
+        }
+
+        self.nr52 = new_nr52;
+
+        Ok(())
     }
 
     /// Changes the current sample rate.
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
-        self.mixer.sample_period = (crate::CPU_CLOCK as f32) / sample_rate;
-        self.mixer.sample_rate_counter = 0f32;
+        self.sample_period = (crate::CPU_CLOCK as f32) / sample_rate;
+        self.sample_rate_counter = 0f32;
     }
 
     /// Returns a copy of the audio sample channel.
     pub fn get_sample_channel(&self) -> Arc<ArrayQueue<i16>> {
-        self.mixer.sample_channel.clone()
+        self.sample_channel.clone()
     }
 }
 
@@ -766,9 +768,9 @@ impl MemR for APU {
             0xFF22 => self.ch4_cnt_reg.0,
             0xFF23 => self.ch4_ini_reg.0 | 0xBF,
 
-            0xFF24 => self.mixer.nr50.bits(),
-            0xFF25 => self.mixer.nr51.bits(),
-            0xFF26 => self.mixer.nr52.bits() | 0x70,
+            0xFF24 => self.nr50.bits(),
+            0xFF25 => self.nr51.bits(),
+            0xFF26 => self.nr52.bits() | 0x70,
 
             0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30],
 
@@ -780,6 +782,11 @@ impl MemR for APU {
 
 impl MemW for APU {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
+        // Writes to any register in range NR10-NR51 are ignored if the peripheral is off
+        if addr < 0xFF26 && !self.nr52.contains(NR52::PWR_CTRL) {
+            return Ok(());
+        }
+
         match addr {
             0xFF10..=0xFF14 => self.ch1.write(addr - 0xFF10, val)?,
             0xFF15..=0xFF19 => self.ch2.write(addr - 0xFF15, val)?,
@@ -790,9 +797,9 @@ impl MemW for APU {
             0xFF22 => self.ch4_cnt_reg.0 = val,
             0xFF23 => self.ch4_ini_reg.0 = val,
 
-            0xFF24 => self.mixer.nr50 = NR50::from_bits_truncate(val),
-            0xFF25 => self.mixer.nr51 = NR51::from_bits_truncate(val),
-            0xFF26 => self.mixer.nr52 = NR52::from_bits_truncate(val & 0x80),
+            0xFF24 => self.nr50 = NR50::from_bits_truncate(val),
+            0xFF25 => self.nr51 = NR51::from_bits_truncate(val),
+            0xFF26 => self.write_to_pwr_reg(val)?,
 
             0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30] = val,
 
