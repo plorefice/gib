@@ -179,20 +179,17 @@ impl WindowView for DisassemblyView {
         let pc = state.cpu().pc;
         self.realign_disasm(state, pc);
 
-        ui.window(ImStr::new(&ImString::from(format!(
-            "{} disassembly",
-            self.section
-        ))))
-        .size((300.0, 650.0), ImGuiCond::FirstUseEver)
-        .position((10.0, 30.0), ImGuiCond::FirstUseEver)
-        .opened(&mut open)
-        .build(|| {
-            let (goto_addr, goto_pc) = self.draw_goto_bar(ui);
+        ui.window(im_str!("Disassembly"))
+            .size((300.0, 650.0), ImGuiCond::FirstUseEver)
+            .position((10.0, 30.0), ImGuiCond::FirstUseEver)
+            .opened(&mut open)
+            .build(|| {
+                let (goto_addr, goto_pc) = self.draw_goto_bar(ui);
 
-            ui.separator();
+                ui.separator();
 
-            self.draw_disasm_view(ui, state, goto_addr, goto_pc);
-        });
+                self.draw_disasm_view(ui, state, goto_addr, goto_pc);
+            });
 
         open
     }
