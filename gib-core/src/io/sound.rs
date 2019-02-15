@@ -524,7 +524,7 @@ impl MemR for WaveChannel {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         Ok(match addr {
             0 => self.nrx0.bits() | 0x7F,
-            1 => self.nrx1.bits(),
+            1 => 0xFF,
             2 => self.nrx2.bits() | 0x9F,
             3 => 0xFF,
             4 => self.nrx4.bits() | 0xBF,
@@ -761,7 +761,7 @@ impl MemR for APU {
             0xFF15..=0xFF19 => self.ch2.read(addr - 0xFF15)?,
             0xFF1A..=0xFF1E => self.ch3.read(addr - 0xFF1A)?,
 
-            0xFF20 => self.ch4_len_reg.0 | 0xC0,
+            0xFF20 => self.ch4_len_reg.0 | 0xFF,
             0xFF21 => self.ch4_vol_reg.0,
             0xFF22 => self.ch4_cnt_reg.0,
             0xFF23 => self.ch4_ini_reg.0 | 0xBF,
@@ -792,7 +792,7 @@ impl MemW for APU {
 
             0xFF24 => self.mixer.nr50 = NR50::from_bits_truncate(val),
             0xFF25 => self.mixer.nr51 = NR51::from_bits_truncate(val),
-            0xFF26 => self.mixer.nr52 = NR52::from_bits_truncate(val),
+            0xFF26 => self.mixer.nr52 = NR52::from_bits_truncate(val & 0x80),
 
             0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30] = val,
 
