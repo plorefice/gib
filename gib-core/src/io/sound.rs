@@ -303,11 +303,16 @@ impl ToneChannel {
 
     /// Returns the channel's current output level, ready to be fed to the mixer.
     fn get_channel_out(&self) -> i16 {
-        if (self.nrx2 & NRx2::DAC_ON).bits() != 0 {
+        if self.dac_on() {
             (self.waveform_level * 2 * self.get_volume() as i16) - 15
         } else {
             0
         }
+    }
+
+    /// Returns true if the channels DAC is on, false otherwise.
+    fn dac_on(&self) -> bool {
+        (self.nrx2 & NRx2::DAC_ON).bits() != 0
     }
 
     /// Handles a write to the NRx4 register.
@@ -347,7 +352,7 @@ impl ToneChannel {
 
             // Note that if the channel's DAC is off, after the above actions occur
             // the channel will be immediately disabled again.
-            if (self.nrx2 & NRx2::DAC_ON).bits() == 0 {
+            if !self.dac_on() {
                 self.enabled = false;
             }
         }
@@ -378,7 +383,13 @@ impl MemW for ToneChannel {
         match addr {
             0 => self.nrx0 = NRx0::from_bits_truncate(val),
             1 => self.nrx1 = NRx1::from_bits_truncate(val),
-            2 => self.nrx2 = NRx2::from_bits_truncate(val),
+            2 => {
+                self.nrx2 = NRx2::from_bits_truncate(val);
+
+                if !self.dac_on() {
+                    self.enabled = false;
+                }
+            }
             3 => self.nrx3.0 = val,
             4 => self.write_to_nr4(val),
             _ => unreachable!(),
@@ -484,11 +495,16 @@ impl WaveChannel {
 
     /// Returns the channel's current output level, ready to be fed to the mixer.
     fn get_channel_out(&self) -> i16 {
-        if self.nrx0.contains(NRx0::WAVE_DAC_ON) {
+        if self.dac_on() {
             i16::from(self.sample_buffer >> (self.get_volume() - 1))
         } else {
             0
         }
+    }
+
+    /// Returns true if the channels DAC is on, false otherwise.
+    fn dac_on(&self) -> bool {
+        self.nrx0.contains(NRx0::WAVE_DAC_ON)
     }
 
     /// Handles a write to the NRx4 register.
@@ -513,7 +529,7 @@ impl WaveChannel {
 
             // Note that if the channel's DAC is off, after the above actions occur
             // the channel will be immediately disabled again.
-            if !self.nrx0.contains(NRx0::WAVE_DAC_ON) {
+            if !self.dac_on() {
                 self.enabled = false;
             }
         }
@@ -536,7 +552,13 @@ impl MemR for WaveChannel {
 impl MemW for WaveChannel {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
-            0 => self.nrx0 = NRx0::from_bits_truncate(val),
+            0 => {
+                self.nrx0 = NRx0::from_bits_truncate(val);
+
+                if !self.dac_on() {
+                    self.enabled = false;
+                }
+            }
             1 => self.nrx1 = NRx1::from_bits_truncate(val),
             2 => self.nrx2 = NRx2::from_bits_truncate(val),
             3 => self.nrx3.0 = val,
@@ -722,6 +744,33 @@ impl APU {
         }
     }
 
+    /// Handles a read operation to the power register, mainly to read the sound register status.
+    fn read_pwr_reg(&self) -> u8 {
+        if !self.nr52.contains(NR52::PWR_CTRL) {
+            0
+        } else {
+            let ch1_en = if self.ch1.enabled {
+                NR52::OUT_1_EN
+            } else {
+                NR52::empty()
+            };
+
+            let ch2_en = if self.ch2.enabled {
+                NR52::OUT_2_EN
+            } else {
+                NR52::empty()
+            };
+
+            let ch3_en = if self.ch3.enabled {
+                NR52::OUT_3_EN
+            } else {
+                NR52::empty()
+            };
+
+            (self.nr52 | ch1_en | ch2_en | ch3_en).bits()
+        }
+    }
+
     /// Handles a write operation to NR52 aka the power control register
     fn write_to_pwr_reg(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
         let new_nr52 = NR52::from_bits_truncate(val) & NR52::PWR_CTRL;
@@ -770,7 +819,7 @@ impl MemR for APU {
 
             0xFF24 => self.nr50.bits(),
             0xFF25 => self.nr51.bits(),
-            0xFF26 => self.nr52.bits() | 0x70,
+            0xFF26 => self.read_pwr_reg() | 0x70,
 
             0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30],
 
