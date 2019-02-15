@@ -77,10 +77,10 @@ impl UiContext {
         let mut imgui = ImGui::init();
         imgui.set_ini_filename(None);
 
-        imgui_winit_support::configure_keys(&mut imgui);
-
         let hidpi_factor = window.get_hidpi_factor().round();
         UiContext::load_fonts(&mut imgui, hidpi_factor);
+
+        imgui_winit_support::configure_keys(&mut imgui);
 
         let renderer = Renderer::init(&mut imgui, &mut factory, shaders, main_color.clone())
             .expect("Failed to initialize renderer");
@@ -205,22 +205,22 @@ impl UiContext {
     fn load_fonts(imgui: &mut ImGui, hidpi_factor: f64) {
         let font_size = (13.0 * hidpi_factor) as f32;
 
+        imgui.fonts().add_default_font_with_config(
+            ImFontConfig::new()
+                .oversample_h(1)
+                .pixel_snap_h(true)
+                .size_pixels(font_size),
+        );
+
         imgui.fonts().add_font_with_config(
             include_bytes!("../../res/mplus-1p-regular.ttf"),
             ImFontConfig::new()
+                .merge_mode(true)
                 .oversample_h(1)
                 .pixel_snap_h(true)
                 .size_pixels(font_size)
                 .rasterizer_multiply(1.75),
             &FontGlyphRange::japanese(),
-        );
-
-        imgui.fonts().add_default_font_with_config(
-            ImFontConfig::new()
-                .merge_mode(true)
-                .oversample_h(1)
-                .pixel_snap_h(true)
-                .size_pixels(font_size),
         );
 
         imgui.set_font_global_scale((1.0 / hidpi_factor) as f32);
