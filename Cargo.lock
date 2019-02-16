@@ -465,7 +465,7 @@ dependencies = [
 
 [[package]]
 name = "gib"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cpal 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -475,7 +475,7 @@ dependencies = [
  "gfx_core 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "gfx_device_gl 0.15.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "gfx_window_glutin 0.28.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "gib-core 0.5.1",
+ "gib-core 0.5.2",
  "glutin 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "imgui 0.0.22 (registry+https://github.com/rust-lang/crates.io-index)",
  "imgui-gfx-renderer 0.0.22 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -485,7 +485,7 @@ dependencies = [
 
 [[package]]
 name = "gib-core"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "crossbeam 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
