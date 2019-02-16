@@ -12,6 +12,18 @@ It is still a WIP, but some simple ROMs have been tested and are (mostly) playab
 * **Dr. Mario** (JP) (Nintendo)
 * **The Legend of Zelda: Link's Awakening** (US) (Nintendo)
 
+## Screenshots
+
+### In-game
+
+| Tetris                                                      | Dr. Mario                                                     | Link's Awakening                                              |
+| ----------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| <img src="res/screenshots/tetris_gameplay.png" width=256px> | <img src="res/screenshots/dr_mario_gameplay.png" width=256px> | <img src="res/screenshots/zelda_titlescreen.png" width=256px> |
+
+### Development UI
+
+![DevUI](res/screenshots/devui.png)
+
 ## Building the project
 
 After installing Rust (you can use [rustup](https://rustup.rs) for that), run:
