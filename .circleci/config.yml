@@ -12,16 +12,11 @@ jobs:
             sudo apt install libasound2-dev
 
             rustup install nightly
-            rustup component add --toolchain nightly rustfmt
       - run:
           name: Version information
           command: |
             rustc +nightly --version --verbose
             cargo +nightly --version --verbose
-            rustfmt +nightly --version --verbose
-      - run:
-          name: Run rustfmt
-          command: cargo +nightly fmt --all -- --check
       - run:
           name: Build
           command: cargo +nightly build --release
