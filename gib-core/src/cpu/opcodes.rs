@@ -26,6 +26,7 @@ macro_rules! call {
             $cpu.write_op = Some(WritebackOp::Push($cpu.pc));
             $cpu.pc = $to;
             $cpu.branch_taken = true;
+            $cpu.call_stack.push($cpu.pc);
         }
     }};
 }
@@ -33,6 +34,7 @@ macro_rules! call {
 macro_rules! ret {
     ($cpu:ident, $cond:expr) => {{
         if $cond {
+            $cpu.call_stack.pop();
             $cpu.write_op = Some(WritebackOp::Return);
             $cpu.branch_taken = true;
         }

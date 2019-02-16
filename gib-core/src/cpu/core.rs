@@ -79,6 +79,7 @@ pub struct CPU {
     // Debug
     paused: bool,
     breakpoints: HashSet<u16>,
+    pub call_stack: Vec<u16>,
 
     // Hacks/workarounds
     pub halt_bug: bool,
@@ -110,6 +111,7 @@ impl Default for CPU {
 
             paused: false,
             breakpoints: HashSet::new(),
+            call_stack: vec![0x0100],
 
             halt_bug: false,
             ignore_next_halt: false,
