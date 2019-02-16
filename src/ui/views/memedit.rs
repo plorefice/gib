@@ -34,17 +34,22 @@ impl MemEditView {
     fn refresh_memory(&mut self, state: &EmuState) {
         let bus = state.bus();
 
-        let mem_range = self.section.range();
-        let mut ptr = *mem_range.start();
+        let (mut ptr, end): (u32, u32) = {
+            let mem_range = self.section.range();
+            (
+                u32::from(*mem_range.start()),
+                u32::from(*mem_range.end()) + 1,
+            )
+        };
 
         self.content.clear();
 
-        while ptr < *mem_range.end() {
+        while ptr < end {
             let mut data = [0u8; 16];
 
-            for addr in ptr..ptr + 16 {
-                match bus.read(addr) {
-                    Ok(b) => data[usize::from(addr - ptr)] = b,
+            for addr in ptr..(ptr + 16).min(end) {
+                match bus.read(addr as u16) {
+                    Ok(b) => data[(addr - ptr) as usize] = b,
                     Err(e) => panic!("unexpected trace event during memory access: {}", e),
                 };
             }
