@@ -11,13 +11,21 @@ use imgui::{im_str, ImGuiCond, ImString, Ui};
 pub struct MemEditView {
     section: dbg::MemoryType,
     content: Vec<ImString>,
+
+    search_string: ImString,
+    matched_lines: Vec<usize>,
 }
 
 impl MemEditView {
     pub fn new() -> MemEditView {
+        let max_bank_size = 0x4000 / 16;
+
         MemEditView {
             section: dbg::MemoryType::RomBank(0),
-            content: Vec::with_capacity(0x4000 / 16),
+            content: Vec::with_capacity(max_bank_size),
+
+            search_string: ImString::with_capacity(128),
+            matched_lines: Vec::with_capacity(max_bank_size),
         }
     }
 
@@ -55,11 +63,11 @@ impl MemEditView {
         }
     }
 
-    // Draw buttons on top of the memory viewer to change memory localtion
+    // Draw the memory change buttons and search input box on top of the memory viewer.
     fn draw_toolbar(&mut self, ui: &Ui, state: &EmuState) {
         use dbg::MemoryType::*;
 
-        for (i, (label, region)) in [
+        for (label, region) in [
             (im_str!("ROM00"), RomBank(0)),
             (im_str!("ROM01"), RomBank(1)),
             (im_str!("VRAM"), VideoRam),
@@ -69,15 +77,37 @@ impl MemEditView {
             (im_str!("HRAM"), HighRam),
         ]
         .iter()
-        .enumerate()
         {
-            if i != 0 {
-                ui.same_line(0.0);
-            }
-
             if ui.button(label, (0.0, 0.0)) {
                 self.section = *region;
                 self.refresh_memory(state);
+            }
+            ui.same_line(0.0);
+        }
+
+        // Check to see if the search string has changed,
+        // and if it has, update the search results
+        if ui
+            .input_text(im_str!("memedit_search"), &mut self.search_string)
+            .build()
+        {
+            let pat = self.search_string.to_str();
+
+            if pat.is_empty() {
+                self.matched_lines.clear();
+            } else {
+                self.matched_lines = self
+                    .content
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, line)| {
+                        if line.to_str().contains(pat) {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
             }
         }
     }
@@ -109,7 +139,12 @@ impl WindowView for MemEditView {
                     .build(|| {
                         utils::list_clipper(ui, self.content.len(), |rng| {
                             for i in rng {
-                                ui.text(&self.content[i]);
+                                // Right now we are highlighting the entire line
+                                if self.matched_lines.contains(&i) {
+                                    ui.text_colored(utils::YELLOW, &self.content[i]);
+                                } else {
+                                    ui.text(&self.content[i]);
+                                }
                             }
                         });
                     });

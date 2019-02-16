@@ -6,6 +6,7 @@ use std::time::Duration;
 
 pub const DARK_GREY: [f32; 4] = [0.6, 0.6, 0.6, 1.0];
 pub const DARK_GREEN: [f32; 4] = [0.0, 0.5, 0.0, 1.0];
+pub const YELLOW: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
 pub const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 pub const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 pub const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
