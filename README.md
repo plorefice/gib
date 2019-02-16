@@ -3,7 +3,8 @@
 [![CircleCI](https://circleci.com/gh/plorefice/gib.svg?style=shield)](https://circleci.com/gh/plorefice/gib)
 [![License: MIT/Apache-2.0](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
 
-Gameboy (DMG) emulator written in Rust, also featuring several tools for ROM debugging and development.
+Low-level, cycle-accurat original Gameboy (DMG) emulator written in Rust, also featuring several tools
+for ROM debugging and development.
 
 It is still a WIP, but some simple ROMs have been tested and are (mostly) playable:
 
@@ -28,11 +29,16 @@ Only `nightly` versions of Rust are supported right now.
 Once you have a ROM file, you can use:
 
 ```shell
-cargo +nightly run --release [rom-file]
+cargo +nightly run --release [-- [--devel] [rom-file]]
 ```
 
-where the optional `[rom-file]` argument can be used to load a ROM directly from
-the command line. Alternatively, you can use the in-app menus.
+The `--devel` flags will open the emulator in development/debugging mode, which includes
+disassembly view, memory viewer, step-by-step debugger and peripheral status overview.
+
+The optional `[rom-file]` argument can be used to load a ROM directly from the command line.
+Alternatively, you can use the in-app menus; this is currently supported only in development mode.
+
+## Using the emulator
 
 The joypad is mapped to the keyboard according to this table:
 
@@ -67,16 +73,16 @@ are shown below.
 
 ### Progress
 
-| Peripheral | Progress | Notes                                |
-| ---------- | -------- | ------------------------------------ |
-| CPU        | 100%     | Timings verification still missing   |
-| Video      | 80%      | BG, Sprite, Window and IRQ support   |
-| Sound      | 15%      | Partial channel 2 support            |
-| Joypad     | 80%      | IRQ support missing                  |
-| Link cable | 0%       | Not implemented yet                  |
-| Timers     | 100%     | Passes all Gekkio's acceptance tests |
-| Interrupts | 90%      | Need to work on time accuracy        |
-| MBC        | 20%      | Support for some functions of MBC1   |
+| Peripheral | Progress | Notes                                     |
+| ---------- | -------- | ----------------------------------------- |
+| CPU        | 100%     | Timings verification still missing        |
+| Video      | 80%      | BG, Sprite, Window and IRQ support        |
+| Sound      | 65%      | Channels #1, #2 and #3 are mostly working |
+| Joypad     | 80%      | IRQ support missing                       |
+| Link cable | 0%       | Not implemented yet                       |
+| Timers     | 100%     | Passes all Gekkio's acceptance tests      |
+| Interrupts | 90%      | Need to work on time accuracy             |
+| MBC        | 20%      | Support for some functions of MBC1        |
 
 ### Blargg's Test ROMs
 
