@@ -102,16 +102,16 @@ are shown below.
 
 The passing tests are also integrated in the emulator's test suite.
 
-| Test ROM       | Progress | Notes          |
-| -------------- | -------- | -------------- |
-| cpu_instrs     | 100%     | Full pass!     |
-| instr_timing   | 100%     | Full pass!     |
-| interrupt_time | 0%       | Not yet        |
-| mem_timing-2   | 100%     | Full pass!     |
-| mem_timing     | 100%     | Full pass!     |
-| halt_bug       | -        | Not tested yet |
-| oam_bug        | -        | Not tested yet |
-| dmg_sound      | -        | Not tested yet |
+| Test ROM       | Progress | Notes                |
+| -------------- | -------- | -------------------- |
+| cpu_instrs     | 100%     | Full pass!           |
+| instr_timing   | 100%     | Full pass!           |
+| interrupt_time | -        | Requires CGB support |
+| mem_timing-2   | 100%     | Full pass!           |
+| mem_timing     | 100%     | Full pass!           |
+| halt_bug       | -        | Not tested yet       |
+| oam_bug        | -        | Not tested yet       |
+| dmg_sound      | -        | Not tested yet       |
 
 ### Gekkio's test suite
 
