@@ -3,7 +3,7 @@ use crossbeam::queue::ArrayQueue;
 use super::bus::Bus;
 use super::cpu::CPU;
 use super::dbg;
-use super::io::{InterruptSource, JoypadState};
+use super::io::JoypadState;
 
 use std::sync::Arc;
 
@@ -78,20 +78,6 @@ impl GameBoy {
     }
 
     fn handle_irqs(&mut self) -> Result<(), dbg::TraceEvent> {
-        // Fetch interrupt requests from interrupt sources
-        if let Some(irq) = self.bus.ppu.get_and_clear_irq() {
-            self.bus.itr.set_irq(irq.into());
-        }
-        if let Some(irq) = self.bus.tim.get_and_clear_irq() {
-            self.bus.itr.set_irq(irq.into());
-        }
-        if let Some(irq) = self.bus.apu.get_and_clear_irq() {
-            self.bus.itr.set_irq(irq.into());
-        }
-        if let Some(irq) = self.bus.sdt.get_and_clear_irq() {
-            self.bus.itr.set_irq(irq.into());
-        }
-
         if let Some(id) = self.bus.itr.get_pending_irq() {
             let addr = (0x40 + 0x08 * id) as u16;
 

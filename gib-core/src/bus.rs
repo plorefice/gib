@@ -1,5 +1,5 @@
 use super::dbg;
-use super::io::{IrqController, Joypad, Serial, Timer, APU, PPU};
+use super::io::{InterruptSource, IrqController, Joypad, Serial, Timer, APU, PPU};
 use super::mem::{MemR, MemRW, MemW, Memory};
 
 use std::convert::TryFrom;
@@ -97,6 +97,20 @@ impl Bus {
         self.ppu.tick();
         self.apu.tick();
         self.tim.tick();
+
+        // Fetch interrupt requests from interrupt sources
+        if let Some(irq) = self.ppu.get_and_clear_irq() {
+            self.itr.set_irq(irq.into());
+        }
+        if let Some(irq) = self.tim.get_and_clear_irq() {
+            self.itr.set_irq(irq.into());
+        }
+        if let Some(irq) = self.apu.get_and_clear_irq() {
+            self.itr.set_irq(irq.into());
+        }
+        if let Some(irq) = self.sdt.get_and_clear_irq() {
+            self.itr.set_irq(irq.into());
+        }
 
         Ok(())
     }
