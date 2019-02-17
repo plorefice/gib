@@ -50,7 +50,7 @@ disassembly view, memory viewer, step-by-step debugger and peripheral status ove
 The optional `[rom-file]` argument can be used to load a ROM directly from the command line.
 Alternatively, you can use the in-app menus; this is currently supported only in development mode.
 
-## Using the emulator
+## Using the emulator
 
 The joypad is mapped to the keyboard according to this table:
 
