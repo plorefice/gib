@@ -1,14 +1,20 @@
 use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
 
+use crossbeam::queue::ArrayQueue;
 use failure::Error;
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub struct EmuState {
     gb: GameBoy,
     rom_file: PathBuf,
+
+    // Sound-related fields
+    snd_sink: Option<Arc<ArrayQueue<i16>>>,
     snd_sample_rate: f32,
 
+    // Emulation-related fields
     turbo_mode: bool,
     step_to_next: bool,
     run_to_breakpoint: bool,
@@ -16,8 +22,8 @@ pub struct EmuState {
 }
 
 impl EmuState {
-    pub fn new<P: AsRef<Path>>(rom: P, snd_sample_rate: f32) -> Result<EmuState, Error> {
-        let mut gb = GameBoy::new(snd_sample_rate);
+    pub fn new<P: AsRef<Path>>(rom: P) -> Result<EmuState, Error> {
+        let mut gb = GameBoy::new();
         let rom_buf = std::fs::read(rom.as_ref())?;
 
         gb.load_rom(&rom_buf[..])?;
@@ -25,7 +31,9 @@ impl EmuState {
         Ok(EmuState {
             gb,
             rom_file: rom.as_ref().to_path_buf(),
-            snd_sample_rate,
+
+            snd_sink: None,
+            snd_sample_rate: 0f32,
 
             turbo_mode: false,
             step_to_next: false,
@@ -75,13 +83,20 @@ impl EmuState {
     /// Runs the emulator until the audio queue is full, to avoid dropping
     /// audio samples and cause skipping/popping.
     fn run_to_audio_sync(&mut self) -> Result<(), dbg::TraceEvent> {
-        let audio_queue = self.gb.get_sound_output();
-
-        while audio_queue.len() < audio_queue.capacity() {
-            self.gb.step()?;
+        if let Some(ref sink) = self.snd_sink {
+            while sink.len() < sink.capacity() {
+                self.gb.step()?;
+            }
         }
-
         Ok(())
+    }
+
+    /// Sets the emulator's audio sink and sample rate.
+    pub fn set_audio_sink(&mut self, sink: Arc<ArrayQueue<i16>>, sample_rate: f32) {
+        self.snd_sink = Some(sink.clone());
+        self.snd_sample_rate = sample_rate;
+
+        self.gb.set_audio_sink(sink, sample_rate);
     }
 
     pub fn last_event(&self) -> &Option<dbg::TraceEvent> {
@@ -113,11 +128,18 @@ impl EmuState {
         self.turbo_mode
     }
 
+    /// Reset the emulator's sate.
     pub fn reset(&mut self) -> Result<(), Error> {
         // Save breakpoints to restore after reset
         let bkps = self.cpu().breakpoints().clone();
 
-        *self = EmuState::new(&self.rom_file, self.snd_sample_rate)?;
+        self.gb = GameBoy::new();
+        self.gb.load_rom(&(std::fs::read(&self.rom_file)?)[..])?;
+
+        if let Some(ref sink) = self.snd_sink {
+            self.gb.set_audio_sink(sink.clone(), self.snd_sample_rate);
+        }
+
         for b in bkps.iter() {
             self.cpu_mut().set_breakpoint(*b);
         }

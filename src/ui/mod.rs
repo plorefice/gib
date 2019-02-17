@@ -13,6 +13,7 @@ use views::{
     DebuggerView, DisassemblyView, MemEditView, MemMapView, PeripheralView, View, WindowView,
 };
 
+use crossbeam::queue::ArrayQueue;
 use failure::Error;
 
 use gfx::texture::{FilterMethod, SamplerInfo, WrapMode};
@@ -75,6 +76,8 @@ pub struct EmuUi {
     emu: Option<Arc<Mutex<EmuState>>>,
     vpu_buffer: Vec<u8>,
     vpu_texture: Option<imgui::ImTexture>,
+
+    snd_sink: Arc<ArrayQueue<i16>>,
 }
 
 impl EmuUi {
@@ -89,20 +92,35 @@ impl EmuUi {
             UiContext::new(EMU_WIN_X_RES, EMU_WIN_Y_RES)
         };
 
+        // Create a sample channel that can hold up to 1024 samples.
+        // At 44.1KHz, this is about 23ms worth of audio.
+        let sink = Arc::new(ArrayQueue::new(1024));
+
+        let mut snd = SoundEngine::new()?;
+        snd.start(sink.clone())?;
+
         Ok(EmuUi {
             ctx: Rc::from(RefCell::from(ctx)),
-            snd: SoundEngine::new()?,
+            snd,
             gui,
 
             emu: None,
             vpu_buffer: vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4],
             vpu_texture: None,
+
+            snd_sink: sink,
         })
     }
 
     /// Loads the ROM file and starts the emulation.
     pub fn load_rom<P: AsRef<Path>>(&mut self, rom: P) -> Result<(), Error> {
-        let emu = Arc::new(Mutex::new(EmuState::new(rom, self.snd.get_sample_rate())?));
+        let emu = {
+            let mut emu = EmuState::new(rom)?;
+            emu.set_audio_sink(self.snd_sink.clone(), self.snd.get_sample_rate());
+            emu.set_running();
+
+            Arc::new(Mutex::new(emu))
+        };
 
         if self.gui.debug {
             let views = &mut self.gui.views;
@@ -137,16 +155,6 @@ impl EmuUi {
                     }
                 }
             });
-        }
-
-        {
-            let emu = &mut emu.lock().unwrap();
-
-            emu.set_running();
-
-            // Start the sound thread
-            let sample_ch = emu.gameboy().get_sound_output();
-            self.snd.start(sample_ch)?;
         }
 
         self.emu = Some(emu);

@@ -589,7 +589,7 @@ pub struct APU {
 
     // Audio sample channel
     sample_rate_counter: f32,
-    sample_channel: Arc<ArrayQueue<i16>>,
+    sample_channel: Option<Arc<ArrayQueue<i16>>>,
     sample_period: f32,
 
     // Frame sequencer clocks
@@ -630,10 +630,8 @@ impl Default for APU {
             nr51: NR51::from_bits_truncate(0xF3),
             nr52: NR52::from_bits_truncate(0xF1),
 
-            // Create a sample channel that can hold up to 1024 samples.
-            // At 44.1KHz, this is about 23ms worth of audio.
             sample_rate_counter: 0f32,
-            sample_channel: Arc::new(ArrayQueue::new(1024)),
+            sample_channel: None,
             sample_period: std::f32::INFINITY,
 
             // TODO according to [1] these clocks are slightly out of phase,
@@ -700,46 +698,48 @@ impl APU {
         if self.sample_rate_counter > self.sample_period {
             self.sample_rate_counter -= self.sample_period;
 
-            let ch1 = self.ch1.get_channel_out();
-            let ch2 = self.ch2.get_channel_out();
-            let ch3 = self.ch3.get_channel_out();
+            if let Some(ref mut sink) = self.sample_channel {
+                let ch1 = self.ch1.get_channel_out();
+                let ch2 = self.ch2.get_channel_out();
+                let ch3 = self.ch3.get_channel_out();
 
-            let mut so2 = 0;
-            let mut so1 = 0;
+                let mut so2 = 0;
+                let mut so1 = 0;
 
-            // If the peripheral is disabled, no sound is emitted.
-            if !self.nr52.contains(NR52::PWR_CTRL) {
-                self.sample_channel.push(0).unwrap_or(());
-            } else {
-                // Update LEFT speaker
-                if self.nr51.contains(NR51::OUT1_L) {
-                    so2 += ch1;
-                }
-                if self.nr51.contains(NR51::OUT2_L) {
-                    so2 += ch2;
-                }
-                if self.nr51.contains(NR51::OUT3_L) {
-                    so2 += ch3;
-                }
+                // If the peripheral is disabled, no sound is emitted.
+                if !self.nr52.contains(NR52::PWR_CTRL) {
+                    sink.push(0).unwrap_or(());
+                } else {
+                    // Update LEFT speaker
+                    if self.nr51.contains(NR51::OUT1_L) {
+                        so2 += ch1;
+                    }
+                    if self.nr51.contains(NR51::OUT2_L) {
+                        so2 += ch2;
+                    }
+                    if self.nr51.contains(NR51::OUT3_L) {
+                        so2 += ch3;
+                    }
 
-                // Update RIGHT speaker
-                if self.nr51.contains(NR51::OUT1_R) {
-                    so1 += ch1;
-                }
-                if self.nr51.contains(NR51::OUT2_R) {
-                    so1 += ch2;
-                }
-                if self.nr51.contains(NR51::OUT3_R) {
-                    so1 += ch3;
-                }
+                    // Update RIGHT speaker
+                    if self.nr51.contains(NR51::OUT1_R) {
+                        so1 += ch1;
+                    }
+                    if self.nr51.contains(NR51::OUT2_R) {
+                        so1 += ch2;
+                    }
+                    if self.nr51.contains(NR51::OUT3_R) {
+                        so1 += ch3;
+                    }
 
-                // Adjust master volumes
-                so2 *= 1 + i16::from((self.nr50 & NR50::LEFT_VOL).bits() >> 4);
-                so1 *= 1 + i16::from((self.nr50 & NR50::RIGHT_VOL).bits());
+                    // Adjust master volumes
+                    so2 *= 1 + i16::from((self.nr50 & NR50::LEFT_VOL).bits() >> 4);
+                    so1 *= 1 + i16::from((self.nr50 & NR50::RIGHT_VOL).bits());
 
-                // Produce a sample which is an average of the two channels.
-                // TODO implement true stero sound.
-                self.sample_channel.push((so1 + so2) / 2).unwrap_or(());
+                    // Produce a sample which is an average of the two channels.
+                    // TODO implement true stero sound.
+                    sink.push((so1 + so2) / 2).unwrap_or(());
+                }
             }
         }
     }
@@ -793,9 +793,9 @@ impl APU {
         self.sample_rate_counter = 0f32;
     }
 
-    /// Returns a copy of the audio sample channel.
-    pub fn get_sample_channel(&self) -> Arc<ArrayQueue<i16>> {
-        self.sample_channel.clone()
+    /// Sets the current audio sink.
+    pub fn set_audio_sink(&mut self, sink: Arc<ArrayQueue<i16>>) {
+        self.sample_channel = Some(sink);
     }
 }
 

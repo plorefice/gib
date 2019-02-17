@@ -8,7 +8,7 @@ pub struct RomTest {
 impl RomTest {
     pub fn new(rom: &'static [u8]) -> RomTest {
         RomTest {
-            gb: GameBoy::new(0f32),
+            gb: GameBoy::new(),
             rom,
         }
     }

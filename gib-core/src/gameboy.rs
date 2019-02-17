@@ -31,12 +31,9 @@ impl Default for GameBoy {
 }
 
 impl GameBoy {
-    /// Create a new Game Boy instance producing audio sample at the given rate.
-    /// This is very useful for "sync-by-audio"-style emulator.
-    pub fn new(snd_sample_rate: f32) -> GameBoy {
-        let mut gb = GameBoy::default();
-        gb.bus.apu.set_sample_rate(snd_sample_rate);
-        gb
+    /// Create a new Game Boy instance.
+    pub fn new() -> GameBoy {
+        GameBoy::default()
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
@@ -128,9 +125,12 @@ impl GameBoy {
         Ok(())
     }
 
-    /// Returns the audio sample channel output by the mixer.
-    pub fn get_sound_output(&self) -> Arc<ArrayQueue<i16>> {
-        self.bus.apu.get_sample_channel()
+    /// Sets the audio sink for the sound peripheral, along with the required sample rate.
+    /// The emulation speed will be limited by the specified sample rate.
+    /// This is very useful for "sync-by-audio"-style emulator.
+    pub fn set_audio_sink(&mut self, sink: Arc<ArrayQueue<i16>>, sample_rate: f32) {
+        self.bus.apu.set_sample_rate(sample_rate);
+        self.bus.apu.set_audio_sink(sink);
     }
 
     /// Marks the given key as pressed.
