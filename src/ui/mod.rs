@@ -224,6 +224,13 @@ impl EmuUi {
                     self.draw_game_ui(delta.as_secs_f32(), ui)
                 }
             });
+
+            // Pace the rendering thread
+            std::thread::sleep(
+                Duration::new(0, 1_000_000_000 / 60)
+                    .checked_sub(Instant::now() - frame_start)
+                    .unwrap_or_default(),
+            );
         }
     }
 
