@@ -85,11 +85,9 @@ impl DisassemblyView {
 
         for (i, addr) in self.disasm.keys().enumerate() {
             if *addr == dest {
-                unsafe {
-                    imgui_sys::igSetScrollY(
-                        ui.get_text_line_height_with_spacing() * i as f32 - h / 3.0,
-                    );
-                }
+                // Some(h * 0.6) is to compensate for the fact that a disassembly line
+                // is a bit taller that a line of text, due to the radio button.
+                utils::scroll_to(ui, i, Some(h * 0.6));
                 break;
             }
         }

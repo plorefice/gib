@@ -14,6 +14,8 @@ pub struct MemEditView {
 
     search_string: ImString,
     matched_lines: Vec<usize>,
+    highlighted_line_id: Option<usize>,
+    find_next: bool,
 }
 
 impl MemEditView {
@@ -26,6 +28,8 @@ impl MemEditView {
 
             search_string: ImString::with_capacity(128),
             matched_lines: Vec::with_capacity(max_bank_size),
+            highlighted_line_id: None,
+            find_next: false,
         }
     }
 
@@ -68,6 +72,44 @@ impl MemEditView {
         }
     }
 
+    /// Finds the search pattern in the currently selected memory region.
+    fn find_string(&mut self) {
+        let pat = self.search_string.to_str();
+
+        self.highlighted_line_id = None;
+
+        if pat.is_empty() {
+            self.matched_lines.clear();
+        } else {
+            self.matched_lines = self
+                .content
+                .iter()
+                .enumerate()
+                .filter_map(|(i, line)| {
+                    if line.to_str().contains(pat) {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
+    }
+
+    /// Cycles to the next occurrence of the search pattern in the search results.
+    fn find_next(&mut self) {
+        self.highlighted_line_id = match self.highlighted_line_id {
+            Some(n) => Some((n + 1) % self.matched_lines.len()),
+            None => {
+                if self.matched_lines.is_empty() {
+                    None
+                } else {
+                    Some(0)
+                }
+            }
+        };
+    }
+
     // Draw the memory change buttons and search input box on top of the memory viewer.
     fn draw_toolbar(&mut self, ui: &Ui, state: &EmuState) {
         use dbg::MemoryType::*;
@@ -86,35 +128,23 @@ impl MemEditView {
             if ui.button(label, (0.0, 0.0)) {
                 self.section = *region;
                 self.refresh_memory(state);
+                self.find_string();
             }
             ui.same_line(0.0);
         }
 
+        let (w, _) = ui.get_content_region_avail();
+
         // Check to see if the search string has changed,
         // and if it has, update the search results
-        if ui
-            .input_text(im_str!("memedit_search"), &mut self.search_string)
-            .build()
-        {
-            let pat = self.search_string.to_str();
-
-            if pat.is_empty() {
-                self.matched_lines.clear();
-            } else {
-                self.matched_lines = self
-                    .content
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, line)| {
-                        if line.to_str().contains(pat) {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+        ui.with_item_width(w - 25.0, || {
+            if ui.input_text(im_str!(""), &mut self.search_string).build() {
+                self.find_string();
             }
-        }
+        });
+        ui.same_line(0.0);
+
+        self.find_next = ui.button(im_str!(">"), (20.0, 0.0));
     }
 }
 
@@ -142,6 +172,16 @@ impl WindowView for MemEditView {
                     .always_show_vertical_scroll_bar(true)
                     .show_borders(false)
                     .build(|| {
+                        // Find and jump to the next result when requested
+                        if self.find_next {
+                            self.find_next = false;
+                            self.find_next();
+
+                            if let Some(n) = self.highlighted_line_id {
+                                utils::scroll_to(ui, self.matched_lines[n], Some(h));
+                            }
+                        }
+
                         utils::list_clipper(ui, self.content.len(), |rng| {
                             for i in rng {
                                 // Right now we are highlighting the entire line
