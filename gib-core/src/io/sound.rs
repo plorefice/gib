@@ -14,6 +14,7 @@ const CLK_256_RELOAD: u32 = 4_194_304 / 256;
 
 // Maximum length counter value for tone channels
 const TONE_CH_LEN_MAX: u32 = 64;
+const WAVE_CH_LEN_MAX: u32 = 256;
 
 bitflags! {
     // NRx0 - Channel x Sweep register (R/W)
@@ -334,7 +335,7 @@ impl ToneChannel {
             // Channel is enabled
             self.enabled = true;
 
-            // If length counter is zero, it is set to 64 (256 for wave channel)
+            // If length counter is maxed, it is set to 0
             if self.length_counter >= TONE_CH_LEN_MAX {
                 self.length_counter = 0;
             }
@@ -415,7 +416,6 @@ impl MemW for ToneChannel {
 pub struct WaveChannel {
     // Channel registers
     nrx0: NRx0,
-    nrx1: NRx1,
     nrx2: NRx2,
     nrx3: IoReg<u8>,
     nrx4: NRx4,
@@ -423,6 +423,9 @@ pub struct WaveChannel {
     // Internal state and timer counter
     enabled: bool,
     timer_counter: u32,
+
+    // Length counter unit
+    length_counter: u32,
 
     // Wave functions
     wave_ram: [u8; 16],
@@ -434,13 +437,14 @@ impl Default for WaveChannel {
     fn default() -> WaveChannel {
         WaveChannel {
             nrx0: NRx0::from_bits_truncate(0x7F),
-            nrx1: NRx1::from_bits_truncate(0xFF),
             nrx2: NRx2::from_bits_truncate(0x9F),
             nrx3: IoReg(0x00),
             nrx4: NRx4::from_bits_truncate(0xBF),
 
             enabled: false,
             timer_counter: 0,
+
+            length_counter: WAVE_CH_LEN_MAX,
 
             wave_ram: [0; 16],
             sample_buffer: 0,
@@ -474,16 +478,13 @@ impl WaveChannel {
 
     /// Advances the length counter unit by 1/256th of a second.
     fn tick_len_ctr(&mut self) {
-        let len = (self.nrx1 & NRx1::WAVE_SOUND_LEN).bits();
+        // When clocked while enabled by NRx4 and the counter has not reached maximum,
+        // the length counter is incremented.
+        if self.nrx4.contains(NRx4::LEN_EN) && self.length_counter < WAVE_CH_LEN_MAX {
+            self.length_counter += 1;
 
-        // When clocked while enabled by NRx4 and the counter is not zero, length is decremented
-        if self.nrx4.contains(NRx4::LEN_EN) && len != 0 {
-            let len = len - 1;
-
-            self.nrx1 = (self.nrx1 & !NRx1::WAVE_SOUND_LEN) | NRx1::from_bits_truncate(len);
-
-            // If it becomes zero, the channel is disabled
-            if len == 0 {
+            // If it reaches maximum, the channel is disabled
+            if self.length_counter == WAVE_CH_LEN_MAX {
                 self.enabled = false;
             }
         }
@@ -529,9 +530,9 @@ impl WaveChannel {
             // Channel is enabled
             self.enabled = true;
 
-            // If length counter is zero, it is set to 64 (256 for wave channel)
-            if (self.nrx1 & NRx1::WAVE_SOUND_LEN).bits() == 0 {
-                self.nrx1 |= NRx1::WAVE_SOUND_LEN;
+            // If length counter is maxed, it is set to 0
+            if self.length_counter >= WAVE_CH_LEN_MAX {
+                self.length_counter = 0;
             }
 
             // Frequency timer is reloaded with period
@@ -572,7 +573,7 @@ impl MemW for WaveChannel {
                     self.enabled = false;
                 }
             }
-            1 => self.nrx1 = NRx1::from_bits_truncate(val),
+            1 => self.length_counter = val.into(),
             2 => self.nrx2 = NRx2::from_bits_truncate(val),
             3 => self.nrx3.0 = val,
             4 => self.write_to_nr4(val),
