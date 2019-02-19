@@ -123,6 +123,7 @@ pub struct ToneChannel {
     // Frequency sweep unit
     sweep_support: bool,
     sweep_enabled: bool,
+    sweep_negative_once: bool,
     sweep_freq_shadow: u32,
     sweep_timer: u8,
 
@@ -159,6 +160,7 @@ impl ToneChannel {
 
             sweep_support,
             sweep_enabled: false,
+            sweep_negative_once: false,
             sweep_freq_shadow: 0,
             sweep_timer: 0,
 
@@ -281,6 +283,7 @@ impl ToneChannel {
 
         if neg {
             new_freq = self.sweep_freq_shadow - new_freq;
+            self.sweep_negative_once = true;
         } else {
             new_freq += self.sweep_freq_shadow;
         }
@@ -366,6 +369,8 @@ impl ToneChannel {
             self.sweep_freq_shadow = u32::from(self.get_frequency());
             self.sweep_timer = if sweep_period == 0 { 8 } else { sweep_period };
             self.sweep_enabled = sweep_shift != 0 || sweep_period != 0;
+            self.sweep_negative_once = false;
+
             if sweep_shift != 0 {
                 self.do_sweep_calc();
             }
@@ -401,7 +406,21 @@ impl MemR for ToneChannel {
 impl MemW for ToneChannel {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
-            0 => self.nrx0 = NRx0::from_bits_truncate(val),
+            0 => {
+                let nrx0 = NRx0::from_bits_truncate(val);
+
+                // Clearing the sweep negate mode bit in NR10 after at least
+                // one sweep calculation has been made using the negate mode
+                // since the last trigger causes the channel to be immediately disabled.
+                if !nrx0.contains(NRx0::SWEEP_NEG)
+                    && self.nrx0.contains(NRx0::SWEEP_NEG)
+                    && self.sweep_negative_once
+                {
+                    self.enabled = false;
+                }
+
+                self.nrx0 = nrx0;
+            }
             1 => {
                 self.nrx1 = NRx1::from_bits_truncate(val);
                 self.length_counter = (val & NRx1::SOUND_LEN.bits()).into();
