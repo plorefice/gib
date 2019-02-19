@@ -244,12 +244,13 @@ impl ToneChannel {
 
         // When clocked while enabled by NRx4 and the counter is not zero, length is decremented
         if self.nrx4.contains(NRx4::LEN_EN) && len != 0 {
-            let len = len - 1;
+            let len = len + 1;
 
-            self.nrx1 = (self.nrx1 & !NRx1::SOUND_LEN) | NRx1::from_bits_truncate(len);
+            self.nrx1 =
+                (self.nrx1 & !NRx1::SOUND_LEN) | (NRx1::from_bits_truncate(len) & NRx1::SOUND_LEN);
 
             // If it becomes zero, the channel is disabled
-            if len == 0 {
+            if len == 64 {
                 self.enabled = false;
             }
         }
