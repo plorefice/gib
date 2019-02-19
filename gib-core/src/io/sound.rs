@@ -604,6 +604,7 @@ pub struct NoiseChannel {
     nrx4: NRx4,
 
     // Internal state and timer counter
+    lfsr: u16, // actually 15 bits
     enabled: bool,
     timer_counter: u32,
 
@@ -627,6 +628,7 @@ impl Default for NoiseChannel {
             nrx3: NRx3::from_bits_truncate(0x00),
             nrx4: NRx4::from_bits_truncate(0xBF),
 
+            lfsr: 0xFFFF,
             enabled: false,
             timer_counter: 0,
 
@@ -645,31 +647,22 @@ impl Default for NoiseChannel {
 impl NoiseChannel {
     /// Advances the internal timer state by one M-cycle.
     fn tick(&mut self) {
-        let period = 0 /* self.get_period() */;
-
         // The timer generates an output clock every N input clocks,
         // where N is the timer's period.
         if self.timer_counter < 4 {
-            self.timer_counter = period - self.timer_counter;
+            self.timer_counter = self.get_period() - self.timer_counter;
+
+            let x = (self.lfsr & 0x1) ^ ((self.lfsr >> 1) & 0x1);
+            self.lfsr = (self.lfsr >> 1) | (x << 14);
+
+            if self.nrx3.contains(NRx3::WIDTH_7_BIT) {
+                self.lfsr = (self.lfsr & !0b_1000_0000) | (x << 7);
+            }
         } else {
             self.timer_counter -= 4;
         }
 
-        // Duty   Waveform    Ratio
-        // -------------------------
-        // 0      00000001    12.5%
-        // 1      10000001    25%
-        // 2      10000111    50%
-        // 3      01111110    75%
-        let threshold = match (self.nrx1 & NRx1::WAVE_DUTY).bits() >> 6 {
-            0 => period / 8,
-            1 => period / 4,
-            2 => period / 2,
-            3 => period * 3 / 4,
-            _ => unreachable!(),
-        };
-
-        self.waveform_level = if self.timer_counter < threshold { 1 } else { 0 };
+        self.waveform_level = !(self.lfsr & 0x1) as i16;
     }
 
     /// Advances the volume envelope unit by 1/64th of a second.
@@ -712,6 +705,12 @@ impl NoiseChannel {
         }
     }
 
+    /// Returns the channel's period.
+    pub fn get_period(&self) -> u32 {
+        let div: u32 = (self.nrx3 & NRx3::DIV_CODE).bits().into();
+        (if div == 0 { 8 } else { div << 4 }) << 4
+    }
+
     /// Returns the channel's current volume.
     pub fn get_volume(&self) -> i16 {
         i16::from(self.enabled) * self.volume
@@ -751,13 +750,16 @@ impl NoiseChannel {
             }
 
             // Frequency timer is reloaded with period
-            self.timer_counter = 0 /* self.get_period() */;
+            self.timer_counter = self.get_period();
 
             // Volume envelope timer is reloaded with period and
             // channel volume is reloaded from NRx2.
             self.volume = i16::from((self.nrx2 & NRx2::START_VOL).bits() >> 4);
             self.vol_ctr = (self.nrx2 & NRx2::ENV_PERIOD).bits();
             self.vol_env_enabled = true;
+
+            // Noise channel's LFSR bits are all set to 1.
+            self.lfsr = 0xFFFF;
 
             // Note that if the channel's DAC is off, after the above actions occur
             // the channel will be immediately disabled again.
