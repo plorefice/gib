@@ -45,3 +45,11 @@ fn passes_blargg_dmg_sound_02_len_ctl() {
         include_bytes!("blargg/dmg_sound-2/02-len ctr.bin"),
     )
 }
+
+#[test]
+fn passes_blargg_dmg_sound_04_sweep() {
+    RomTest::new(include_bytes!("../roms/blargg/dmg_sound-2/04-sweep.gb")).must_run_and_match(
+        6_000_000u64,
+        include_bytes!("blargg/dmg_sound-2/04-sweep.bin"),
+    )
+}
