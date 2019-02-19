@@ -7,13 +7,15 @@ use super::WindowView;
 
 use imgui::{im_str, ImGuiCond, ImString, Ui};
 
+use std::ops::Range;
+
 /// View containing an hexadecimal dump of a selectable memory region.
 pub struct MemEditView {
     section: dbg::MemoryType,
     content: Vec<ImString>,
 
     search_string: ImString,
-    matched_lines: Vec<usize>,
+    matched_ranges: Vec<(usize, Range<usize>)>, // (line,range)
     highlighted_line_id: Option<usize>,
     find_next: bool,
 }
@@ -27,7 +29,7 @@ impl MemEditView {
             content: Vec::with_capacity(max_bank_size),
 
             search_string: ImString::with_capacity(128),
-            matched_lines: Vec::with_capacity(max_bank_size),
+            matched_ranges: Vec::with_capacity(max_bank_size),
             highlighted_line_id: None,
             find_next: false,
         }
@@ -79,18 +81,16 @@ impl MemEditView {
         self.highlighted_line_id = None;
 
         if pat.is_empty() {
-            self.matched_lines.clear();
+            self.matched_ranges.clear();
         } else {
-            self.matched_lines = self
+            self.matched_ranges = self
                 .content
                 .iter()
                 .enumerate()
-                .filter_map(|(i, line)| {
-                    if line.to_str().contains(pat) {
-                        Some(i)
-                    } else {
-                        None
-                    }
+                .filter_map(|(i, line)| match line.to_str().find(pat) {
+                    // TODO right now, only the first match of each line is found
+                    Some(start) => Some((i, start..start + pat.len())),
+                    None => None,
                 })
                 .collect();
         }
@@ -99,9 +99,9 @@ impl MemEditView {
     /// Cycles to the next occurrence of the search pattern in the search results.
     fn find_next(&mut self) {
         self.highlighted_line_id = match self.highlighted_line_id {
-            Some(n) => Some((n + 1) % self.matched_lines.len()),
+            Some(n) => Some((n + 1) % self.matched_ranges.len()),
             None => {
-                if self.matched_lines.is_empty() {
+                if self.matched_ranges.is_empty() {
                     None
                 } else {
                     Some(0)
@@ -178,15 +178,23 @@ impl WindowView for MemEditView {
                             self.find_next();
 
                             if let Some(n) = self.highlighted_line_id {
-                                utils::scroll_to(ui, self.matched_lines[n], Some(h));
+                                utils::scroll_to(ui, self.matched_ranges[n].0, Some(h));
                             }
                         }
 
                         utils::list_clipper(ui, self.content.len(), |rng| {
                             for i in rng {
-                                // Right now we are highlighting the entire line
-                                if self.matched_lines.contains(&i) {
-                                    ui.text_colored(utils::YELLOW, &self.content[i]);
+                                let highlight =
+                                    self.matched_ranges.iter().filter(|(n, _)| *n == i).nth(0);
+
+                                if let Some((_, rng)) = highlight {
+                                    let s = self.content[i].to_str();
+
+                                    ui.text(&s[..rng.start]);
+                                    ui.same_line_spacing(0.0, 0.0);
+                                    ui.text_colored(utils::YELLOW, im_str!("{}", &s[rng.clone()]));
+                                    ui.same_line_spacing(0.0, 0.0);
+                                    ui.text(&s[rng.end..]);
                                 } else {
                                     ui.text(&self.content[i]);
                                 }
