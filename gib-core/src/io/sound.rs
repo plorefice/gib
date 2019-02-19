@@ -204,16 +204,16 @@ impl ToneChannel {
         let shift = (self.nrx0 & NRx0::SWEEP_SHIFT).bits();
         let period = (self.nrx0 & NRx0::SWEEP_TIME).bits() >> 4;
 
-        if !self.sweep_support || !self.sweep_enabled || period == 0 {
-            return;
-        }
-
         self.sweep_timer -= 1;
 
         // Sweep timer expired -> do sweep
         if self.sweep_timer == 0 {
             // Reload internal timer
-            self.sweep_timer = period;
+            self.sweep_timer = if period == 0 { 8 } else { period };
+
+            if !self.sweep_support || !self.sweep_enabled || period == 0 {
+                return;
+            }
 
             // Compute new frequency
             let new_freq = self.do_sweep_calc();
@@ -364,7 +364,7 @@ impl ToneChannel {
             let sweep_period = (self.nrx0 & NRx0::SWEEP_TIME).bits() >> 4;
 
             self.sweep_freq_shadow = u32::from(self.get_frequency());
-            self.sweep_timer = sweep_period;
+            self.sweep_timer = if sweep_period == 0 { 8 } else { sweep_period };
             self.sweep_enabled = sweep_shift != 0 || sweep_period != 0;
             if sweep_shift != 0 {
                 self.do_sweep_calc();
