@@ -95,7 +95,7 @@ bitflags! {
 
 /// A sound channel able to produce quadrangular wave patterns
 /// with optional sweep and envelope functions.
-struct ToneChannel {
+pub struct ToneChannel {
     // Channel registers
     nrx0: NRx0,
     nrx1: NRx1,
@@ -284,7 +284,7 @@ impl ToneChannel {
     }
 
     /// Returns the channel's period.
-    fn get_period(&self) -> u32 {
+    pub fn get_period(&self) -> u32 {
         u32::from(2048 - self.get_frequency()) << 5
     }
 
@@ -295,19 +295,19 @@ impl ToneChannel {
     }
 
     /// Returns the channel's current tone frequency.
-    fn get_frequency(&self) -> u16 {
+    pub fn get_frequency(&self) -> u16 {
         let hi = u16::from((self.nrx4 & NRx4::FREQ_HI).bits());
         let lo = u16::from(self.nrx3.0);
         (hi << 8) | lo
     }
 
     /// Returns the channel's current volume.
-    fn get_volume(&self) -> i16 {
+    pub fn get_volume(&self) -> i16 {
         i16::from(self.enabled) * self.volume
     }
 
     /// Returns the channel's current output level, ready to be fed to the mixer.
-    fn get_channel_out(&self) -> i16 {
+    pub fn get_channel_out(&self) -> i16 {
         if self.dac_on() {
             (self.waveform_level * 2 * self.get_volume() as i16) - 15
         } else {
@@ -315,8 +315,13 @@ impl ToneChannel {
         }
     }
 
+    /// Returns whether the channel's internal enabled flag is set.
+    pub fn enabled(&self) -> bool {
+        self.enabled
+    }
+
     /// Returns true if the channels DAC is on, false otherwise.
-    fn dac_on(&self) -> bool {
+    pub fn dac_on(&self) -> bool {
         (self.nrx2 & NRx2::DAC_ON).bits() != 0
     }
 
@@ -407,7 +412,7 @@ impl MemW for ToneChannel {
     }
 }
 
-struct WaveChannel {
+pub struct WaveChannel {
     // Channel registers
     nrx0: NRx0,
     nrx1: NRx1,
@@ -580,9 +585,9 @@ impl MemW for WaveChannel {
 
 pub struct APU {
     // Channels
-    ch1: ToneChannel,
-    ch2: ToneChannel,
-    ch3: WaveChannel,
+    pub ch1: ToneChannel,
+    pub ch2: ToneChannel,
+    pub ch3: WaveChannel,
 
     // Channel 4 registers
     ch4_len_reg: IoReg<u8>,
