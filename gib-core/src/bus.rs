@@ -133,6 +133,11 @@ impl Bus {
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
+        // Filter out ROMs using unsupported emulator features (eg. CGB-only mode)
+        if rom[0x143] == 0xC0 {
+            return Err(dbg::TraceEvent::CgbNotSupported);
+        }
+
         // Check MBC type in the ROM header
         self.mbc = MbcType::try_from(rom[0x147])
             .map_err(|McbTypeError(n)| dbg::TraceEvent::UnsupportedMbcType(n))?;

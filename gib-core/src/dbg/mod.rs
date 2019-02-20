@@ -150,4 +150,6 @@ pub enum TraceEvent {
     CgbSpeedSwitchReq,
     #[fail(display = "Unsupported CGB operation: {:04X}", _0)]
     UnsupportedCgbOp(u16),
+    #[fail(display = "CGB mode not supported")]
+    CgbNotSupported,
 }
