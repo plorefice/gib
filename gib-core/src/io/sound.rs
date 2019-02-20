@@ -1044,6 +1044,16 @@ impl APU {
             for addr in 0xFF10..=0xFF25 {
                 self.write(addr, 0)?;
             }
+        } else {
+            // When powered on, the frame sequencer is reset so that the next step will be 0,
+            // the square duty units are reset to the first step of the waveform,
+            // and the wave channel's sample buffer is reset to 0.
+            self.clk_64 = CLK_64_RELOAD;
+            self.clk_128 = CLK_128_RELOAD;
+            self.clk_256 = CLK_256_RELOAD;
+            self.ch1.timer_counter = 0;
+            self.ch2.timer_counter = 0;
+            self.ch3.sample_buffer = 0;
         }
 
         self.nr52 = new_nr52;
@@ -1091,26 +1101,36 @@ impl MemR for APU {
 
 impl MemW for APU {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
-        // Writes to any register in range NR10-NR51 are ignored if the peripheral is off
-        if addr < 0xFF26 && !self.nr52.contains(NR52::PWR_CTRL) {
-            return Ok(());
+        // Writes to any register in range NR10-NR51 are ignored if the peripheral is off,
+        // except the length counters, which can still be written while off.
+        // Wave RAM can always be read.
+        if !self.nr52.contains(NR52::PWR_CTRL) {
+            match addr {
+                0xFF11 => self.ch1.write(addr - 0xFF10, val & 0b_0011_1111)?,
+                0xFF16 => self.ch2.write(addr - 0xFF15, val & 0b_0011_1111)?,
+                0xFF1B => self.ch3.write(addr - 0xFF1A, val)?,
+                0xFF20 => self.ch4.write(addr - 0xFF1F, val & 0b_0011_1111)?,
+                0xFF26 => self.write_to_pwr_reg(val)?,
+                0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30] = val,
+                _ => (),
+            }
+        } else {
+            match addr {
+                0xFF10..=0xFF14 => self.ch1.write(addr - 0xFF10, val)?,
+                0xFF15..=0xFF19 => self.ch2.write(addr - 0xFF15, val)?,
+                0xFF1A..=0xFF1E => self.ch3.write(addr - 0xFF1A, val)?,
+                0xFF1F..=0xFF23 => self.ch4.write(addr - 0xFF1F, val)?,
+
+                0xFF24 => self.nr50 = NR50::from_bits_truncate(val),
+                0xFF25 => self.nr51 = NR51::from_bits_truncate(val),
+                0xFF26 => self.write_to_pwr_reg(val)?,
+
+                0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30] = val,
+
+                // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F
+                _ => (),
+            };
         }
-
-        match addr {
-            0xFF10..=0xFF14 => self.ch1.write(addr - 0xFF10, val)?,
-            0xFF15..=0xFF19 => self.ch2.write(addr - 0xFF15, val)?,
-            0xFF1A..=0xFF1E => self.ch3.write(addr - 0xFF1A, val)?,
-            0xFF1F..=0xFF23 => self.ch4.write(addr - 0xFF1F, val)?,
-
-            0xFF24 => self.nr50 = NR50::from_bits_truncate(val),
-            0xFF25 => self.nr51 = NR51::from_bits_truncate(val),
-            0xFF26 => self.write_to_pwr_reg(val)?,
-
-            0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30] = val,
-
-            // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F
-            _ => (),
-        };
 
         Ok(())
     }
