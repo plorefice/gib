@@ -36,7 +36,7 @@ impl SoundEngine {
         let stream_id = event_loop.build_output_stream(&self.device, &self.format)?;
         let format = self.format.clone();
 
-        event_loop.play_stream(stream_id.clone());
+        event_loop.play_stream(stream_id);
 
         // Run the stream's blocking event loop in a separate thread
         std::thread::spawn(move || {

@@ -3,7 +3,7 @@ use gib_core::{cpu::Immediate, dbg};
 use super::utils;
 use super::{EmuState, WindowView};
 
-use std::collections::BTreeMap;
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use imgui::{im_str, ImGuiCol, ImGuiCond, ImStr, ImString, StyleVar, Ui};
 
@@ -143,12 +143,10 @@ impl DisassemblyView {
                     for (addr, instr) in instrs {
                         let color = &[(
                             ImGuiCol::Text,
-                            if *addr < pc {
-                                utils::DARK_GREY
-                            } else if *addr == pc {
-                                utils::GREEN
-                            } else {
-                                utils::WHITE
+                            match addr.cmp(&pc) {
+                                Ordering::Less => utils::DARK_GREY,
+                                Ordering::Equal => utils::GREEN,
+                                Ordering::Greater => utils::WHITE,
                             },
                         )];
 

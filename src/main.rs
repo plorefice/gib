@@ -1,9 +1,3 @@
-#![feature(pattern)]
-#![feature(box_syntax)]
-#![feature(duration_float)]
-#![feature(range_contains)]
-#![feature(try_from)]
-
 mod ui;
 
 fn main() {

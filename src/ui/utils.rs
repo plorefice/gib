@@ -37,8 +37,7 @@ impl FileDialog {
     }
 
     fn is_dir(s: &ImStr) -> bool {
-        use std::str::pattern::Pattern;
-        "/".is_suffix_of(s.to_str())
+        s.to_str().ends_with('/')
     }
 
     fn chdir(&mut self) {
@@ -103,10 +102,9 @@ impl FileDialog {
             });
 
         // Update internal state
-        self.click_timer = self.click_timer.map_or_else(
-            || None,
-            |v| v.checked_sub(Duration::from_float_secs(f64::from(delta_s))),
-        );
+        self.click_timer = self
+            .click_timer
+            .map_or_else(|| None, |v| v.checked_sub(Duration::from_secs_f32(delta_s)));
 
         // Check for double clicks
         if clicked {

@@ -52,7 +52,7 @@ pub struct GuiState {
     debug: bool,
     should_quit: bool,
     file_dialog: Option<utils::FileDialog>,
-    views: HashMap<View, Box<WindowView>>,
+    views: HashMap<View, Box<dyn WindowView>>,
 }
 
 impl Default for GuiState {
@@ -128,10 +128,10 @@ impl EmuUi {
             // Start a new UI from scratch
             views.clear();
 
-            views.insert(View::Disassembly, box DisassemblyView::new());
-            views.insert(View::Debugger, box DebuggerView::new());
-            views.insert(View::MemEditor, box MemEditView::new());
-            views.insert(View::Peripherals, box PeripheralView::new());
+            views.insert(View::Disassembly, Box::new(DisassemblyView::new()));
+            views.insert(View::Debugger, Box::new(DebuggerView::new()));
+            views.insert(View::MemEditor, Box::new(MemEditView::new()));
+            views.insert(View::Peripherals, Box::new(PeripheralView::new()));
         }
 
         // Spawn and start the emulation thread.
@@ -217,11 +217,11 @@ impl EmuUi {
 
             self.prepare_screen_texture(&mut *ctx);
 
-            ctx.render(delta.as_float_secs() as f32, |ui| {
+            ctx.render(delta.as_secs_f32(), |ui| {
                 if self.gui.debug {
-                    self.draw_debug_ui(delta.as_float_secs() as f32, ui)
+                    self.draw_debug_ui(delta.as_secs_f32(), ui)
                 } else {
-                    self.draw_game_ui(delta.as_float_secs() as f32, ui)
+                    self.draw_game_ui(delta.as_secs_f32(), ui)
                 }
             });
         }
@@ -356,7 +356,7 @@ impl EmuUi {
                         self.gui
                             .views
                             .entry(View::MemMap)
-                            .or_insert_with(|| box MemMapView::new());
+                            .or_insert_with(|| Box::new(MemMapView::new()));
                     }
 
                     if ui
@@ -367,7 +367,7 @@ impl EmuUi {
                         self.gui
                             .views
                             .entry(View::Peripherals)
-                            .or_insert_with(|| box PeripheralView::new());
+                            .or_insert_with(|| Box::new(PeripheralView::new()));
                     }
                 });
 
@@ -380,7 +380,7 @@ impl EmuUi {
                         self.gui
                             .views
                             .entry(View::Debugger)
-                            .or_insert_with(|| box DebuggerView::new());
+                            .or_insert_with(|| Box::new(DebuggerView::new()));
                     }
 
                     if ui
@@ -391,7 +391,7 @@ impl EmuUi {
                         self.gui
                             .views
                             .entry(View::Disassembly)
-                            .or_insert_with(|| box DisassemblyView::new());
+                            .or_insert_with(|| Box::new(DisassemblyView::new()));
                     }
 
                     if ui
@@ -402,7 +402,7 @@ impl EmuUi {
                         self.gui
                             .views
                             .entry(View::MemEditor)
-                            .or_insert_with(|| box MemEditView::new());
+                            .or_insert_with(|| Box::new(MemEditView::new()));
                     }
                 })
             }

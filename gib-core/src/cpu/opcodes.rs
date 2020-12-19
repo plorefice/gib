@@ -233,7 +233,7 @@ macro_rules! set {
 
 impl CPU {
     #[rustfmt::skip]
-    #[allow(clippy::cyclomatic_complexity)]
+    #[allow(clippy::cognitive_complexity)]
     pub fn op(&mut self) -> Result<(), dbg::TraceEvent> {
         match self.opcode {
             /*
@@ -566,7 +566,7 @@ impl CPU {
     }
 
     #[rustfmt::skip]
-    #[allow(clippy::cyclomatic_complexity)]
+    #[allow(clippy::cognitive_complexity)]
     pub fn op_cb(&mut self) -> Result<(), dbg::TraceEvent> {
         match self.opcode {
             0x00 => { let v = rl!(self, true, self.b()); self.set_b(v); }
@@ -1219,7 +1219,7 @@ mod test {
     struct CpuTest {
         ticks: usize,
         memory: Vec<u8>,
-        setup_fn: Box<FnMut(&mut CPU)>,
+        setup_fn: Box<dyn FnMut(&mut CPU)>,
         target_states: Option<Vec<CpuState>>,
         target_memory: Option<Vec<u8>>,
     }

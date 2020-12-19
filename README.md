@@ -31,17 +31,15 @@ After installing Rust (you can use [rustup](https://rustup.rs) for that), run:
 ```shell
 git clone git@github.com:plorefice/gib
 cd gib/
-cargo +nightly build --release
+cargo build --release
 ```
-
-Only `nightly` versions of Rust are supported right now.
 
 ## Running the emulator
 
 Once you have a ROM file, you can use:
 
 ```shell
-cargo +nightly run --release [-- [--devel] [rom-file]]
+cargo run --release [-- [--devel] [rom-file]]
 ```
 
 The `--devel` flags will open the emulator in development/debugging mode, which includes
@@ -75,7 +73,7 @@ included to test against known working test ROMs (eg. blargg's).
 You can run the test suite with:
 
 ```shell
-cargo +nightly test --release
+cargo test --release
 ```
 
 ## Features
