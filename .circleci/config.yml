@@ -10,16 +10,14 @@ jobs:
           command: |
             sudo apt update
             sudo apt install libasound2-dev
-
-            rustup install nightly
       - run:
           name: Version information
           command: |
-            rustc +nightly --version --verbose
-            cargo +nightly --version --verbose
+            rustc --version --verbose
+            cargo --version --verbose
       - run:
           name: Build
-          command: cargo +nightly build --release
+          command: cargo build --release
       - run:
           name: Run tests
-          command: cargo +nightly test --release --all
+          command: cargo test --release --all
