@@ -646,7 +646,6 @@ dependencies = [
  "glutin",
  "imgui",
  "imgui-gfx-renderer",
- "imgui-sys",
  "imgui-winit-support",
  "old_school_gfx_glutin_ext",
 ]

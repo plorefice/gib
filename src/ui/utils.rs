@@ -152,12 +152,9 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
 ///
 /// This function assumes that all lines are textual and of fixed height.
 pub fn scroll_to(ui: &Ui, line: usize, content_height: Option<f32>) {
-    unsafe {
-        imgui_sys::igSetScrollY(
-            ui.text_line_height_with_spacing() * line as f32
-                - content_height.unwrap_or_default() / 2.0,
-        );
-    }
+    ui.set_scroll_y(
+        ui.text_line_height_with_spacing() * line as f32 - content_height.unwrap_or_default() / 2.0,
+    );
 }
 
 /// Converts a slice of bytes into its ASCII representation
