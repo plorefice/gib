@@ -184,8 +184,7 @@ impl WindowView for MemEditView {
 
                         utils::list_clipper(ui, self.content.len(), |rng| {
                             for i in rng {
-                                let highlight =
-                                    self.matched_ranges.iter().filter(|(n, _)| *n == i).nth(0);
+                                let highlight = self.matched_ranges.iter().find(|(n, _)| *n == i);
 
                                 if let Some((_, rng)) = highlight {
                                     let s = self.content[i].to_str();
