@@ -7,8 +7,8 @@ use std::{
 };
 
 use anyhow::Error;
+use context::UiContext;
 use crossbeam::queue::ArrayQueue;
-use ctx::UiContext;
 use gfx::{
     texture::{FilterMethod, SamplerInfo, WrapMode},
     Factory,
@@ -22,7 +22,7 @@ use views::{
     DebuggerView, DisassemblyView, MemEditView, MemMapView, PeripheralView, View, WindowView,
 };
 
-mod ctx;
+mod context;
 mod sound;
 mod state;
 mod utils;
