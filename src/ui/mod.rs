@@ -20,7 +20,7 @@ use gfx::texture::{FilterMethod, SamplerInfo, WrapMode};
 use gfx_core::factory::Factory;
 use glutin::VirtualKeyCode as Key;
 
-use imgui::{im_str, Condition, ImGuiWindowFlags, StyleVar, Ui};
+use imgui::{im_str, Condition, Image, MenuItem, StyleVar, Ui, Window, WindowFlags};
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -281,20 +281,20 @@ impl EmuUi {
         let win_x = EMU_WIN_X_RES as f32;
         let win_y = EMU_WIN_Y_RES as f32 - 18.0; // account for menu bar
 
-        let _ = ui.push_style_vars(&style_vars);
+        let style_tok = ui.push_style_vars(&style_vars);
 
-        ui.window(im_str!("Screen"))
+        Window::new(im_str!("Screen"))
             .size([win_x, win_y], Condition::FirstUseEver)
             .position([0.0, 19.5], Condition::FirstUseEver)
             .flags(
                 // Disable any window feature
-                ImGuiWindowFlags::NoTitleBar
-                    | ImGuiWindowFlags::NoResize
-                    | ImGuiWindowFlags::NoMove
-                    | ImGuiWindowFlags::NoScrollbar
-                    | ImGuiWindowFlags::NoScrollWithMouse,
+                WindowFlags::NO_TITLE_BAR
+                    | WindowFlags::NO_RESIZE
+                    | WindowFlags::NO_MOVE
+                    | WindowFlags::NO_SCROLLBAR
+                    | WindowFlags::NO_SCROLL_WITH_MOUSE,
             )
-            .build(|| {
+            .build(ui, || {
                 // Display event, if any
                 if let Some(ref emu) = self.emu {
                     if let Some(ref evt) = emu.lock().unwrap().last_event() {
@@ -303,9 +303,11 @@ impl EmuUi {
                 }
 
                 if let Some(texture) = self.vpu_texture {
-                    ui.image(texture, [win_x, win_y]).build();
+                    Image::new(texture, [win_x, win_y]).build(ui);
                 }
             });
+
+        style_tok.pop(ui);
     }
 
     /// Draws the debug-mode interface
@@ -328,33 +330,35 @@ impl EmuUi {
         self.draw_file_dialog(delta_s, ui);
 
         ui.main_menu_bar(|| {
-            ui.menu(im_str!("Emulator")).build(|| {
-                if ui.menu_item(im_str!("Load ROM...")).build() {
+            ui.menu(im_str!("Emulator"), true, || {
+                if MenuItem::new(im_str!("Load ROM...")).build(ui) {
                     self.gui.file_dialog = Some(utils::FileDialog::new("Load ROM..."));
                 }
 
                 ui.separator();
 
-                if ui.menu_item(im_str!("Save screen")).build() {
+                if MenuItem::new(im_str!("Save screen")).build(ui) {
                     std::fs::write("screen-dump.bin", &self.vpu_buffer[..]).unwrap();
                 }
 
-                if ui.menu_item(im_str!("Reset")).enabled(emu_running).build() {
+                if MenuItem::new(im_str!("Reset"))
+                    .enabled(emu_running)
+                    .build(ui)
+                {
                     if let Some(ref mut emu) = self.emu {
                         emu.lock().unwrap().reset().expect("error during reset");
                     }
                 }
 
-                self.gui.should_quit = ui.menu_item(im_str!("Exit")).build();
+                self.gui.should_quit = MenuItem::new(im_str!("Exit")).build(ui);
             });
 
             // Show debug-related menus in debug mode only
             if self.gui.debug {
-                ui.menu(im_str!("Hardware")).build(|| {
-                    if ui
-                        .menu_item(im_str!("Memory Map"))
+                ui.menu(im_str!("Hardware"), true, || {
+                    if MenuItem::new(im_str!("Memory Map"))
                         .enabled(emu_running)
-                        .build()
+                        .build(ui)
                     {
                         self.gui
                             .views
@@ -362,10 +366,9 @@ impl EmuUi {
                             .or_insert_with(|| Box::new(MemMapView::new()));
                     }
 
-                    if ui
-                        .menu_item(im_str!("Peripherals"))
+                    if MenuItem::new(im_str!("Peripherals"))
                         .enabled(emu_running)
-                        .build()
+                        .build(ui)
                     {
                         self.gui
                             .views
@@ -374,11 +377,10 @@ impl EmuUi {
                     }
                 });
 
-                ui.menu(im_str!("Debugging")).build(|| {
-                    if ui
-                        .menu_item(im_str!("Debugger"))
+                ui.menu(im_str!("Debugging"), true, || {
+                    if MenuItem::new(im_str!("Debugger"))
                         .enabled(emu_running)
-                        .build()
+                        .build(ui)
                     {
                         self.gui
                             .views
@@ -386,10 +388,9 @@ impl EmuUi {
                             .or_insert_with(|| Box::new(DebuggerView::new()));
                     }
 
-                    if ui
-                        .menu_item(im_str!("Disassembler"))
+                    if MenuItem::new(im_str!("Disassembler"))
                         .enabled(emu_running)
-                        .build()
+                        .build(ui)
                     {
                         self.gui
                             .views
@@ -397,10 +398,9 @@ impl EmuUi {
                             .or_insert_with(|| Box::new(DisassemblyView::new()));
                     }
 
-                    if ui
-                        .menu_item(im_str!("Memory Editor"))
+                    if MenuItem::new(im_str!("Memory Editor"))
                         .enabled(emu_running)
-                        .build()
+                        .build(ui)
                     {
                         self.gui
                             .views
@@ -437,17 +437,16 @@ impl EmuUi {
     }
 
     fn draw_screen_window(&mut self, ui: &Ui) {
-        ui.window(im_str!("Screen"))
+        Window::new(im_str!("Screen"))
             .size(
                 [EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0],
                 Condition::FirstUseEver,
             )
             .position([745.0, 30.0], Condition::FirstUseEver)
             .resizable(false)
-            .build(|| {
+            .build(ui, || {
                 if let Some(texture) = self.vpu_texture {
-                    ui.image(texture, [EMU_X_RES as f32, EMU_Y_RES as f32])
-                        .build();
+                    Image::new(texture, [EMU_X_RES as f32, EMU_Y_RES as f32]).build(ui);
                 }
             });
     }

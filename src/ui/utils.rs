@@ -135,7 +135,7 @@ where
         ImGuiListClipper, ImGuiListClipper_Begin, ImGuiListClipper_End, ImGuiListClipper_Step,
     };
 
-    let font_height = ui.get_text_line_height_with_spacing();
+    let font_height = ui.text_line_height_with_spacing();
 
     let mut clipper = ImGuiListClipper {
         StartPosY: 0.0,
@@ -193,7 +193,7 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
 pub fn scroll_to(ui: &Ui, line: usize, content_height: Option<f32>) {
     unsafe {
         imgui_sys::igSetScrollY(
-            ui.get_text_line_height_with_spacing() * line as f32
+            ui.text_line_height_with_spacing() * line as f32
                 - content_height.unwrap_or_default() / 2.0,
         );
     }

@@ -19,10 +19,10 @@ gfx_device_gl = "0.16"
 gfx_window_glutin = "0.30"
 gib-core = {path = "gib-core"}
 glutin = "0.20"
-imgui = "0.1.0"
-imgui-gfx-renderer = "0.1.0"
-imgui-sys = "0.1.0"
-imgui-winit-support = "0.1.0"
+imgui = "0.2"
+imgui-gfx-renderer = "0.2"
+imgui-sys = "0.2"
+imgui-winit-support = "0.2"
 
 [profile.dev]
 debug = false

@@ -2,6 +2,8 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
+use imgui::ChildWindow;
+use imgui::Window;
 use imgui::{im_str, Condition, Ui};
 
 pub struct DebuggerView;
@@ -63,8 +65,9 @@ impl DebuggerView {
     }
 
     fn draw_call_stack(&mut self, ui: &Ui, state: &EmuState) {
-        ui.child_frame(im_str!("callstack_frame"), [125.0, 0.0])
-            .build(|| {
+        ChildWindow::new("callstack_frame")
+            .size([125.0, 0.0])
+            .build(ui, || {
                 if ui
                     .collapsing_header(im_str!("Call Stack"))
                     .default_open(true)
@@ -91,11 +94,11 @@ impl WindowView for DebuggerView {
     fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
         let mut open = true;
 
-        ui.window(im_str!("Debugger"))
+        Window::new(im_str!("Debugger"))
             .size([390.0, 240.0], Condition::FirstUseEver)
             .position([320.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(|| {
+            .build(ui, || {
                 self.draw_cpu_state(ui, state);
 
                 ui.separator();

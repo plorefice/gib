@@ -94,7 +94,8 @@ impl UiContext {
         }
         imgui.set_ini_filename(None);
 
-        //let hidpi_factor = window.get_hidpi_factor().round();
+        // TODO: is this still needed?
+        // let hidpi_factor = window.get_hidpi_factor().round();
         let hidpi_factor = 1.;
         UiContext::load_fonts(&mut imgui, hidpi_factor);
 

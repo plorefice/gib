@@ -1,5 +1,7 @@
 use gib_core::dbg;
 use gib_core::mem::MemR;
+use imgui::ChildWindow;
+use imgui::Window;
 
 use super::utils;
 use super::EmuState;
@@ -133,16 +135,17 @@ impl MemEditView {
             ui.same_line(0.0);
         }
 
-        let [w, _] = ui.get_content_region_avail();
+        let [w, _] = ui.content_region_avail();
 
         // Check to see if the search string has changed,
         // and if it has, update the search results
-        {
-            let _ = ui.push_item_width(w - 25.);
-            if ui.input_text(im_str!(""), &mut self.search_string).build() {
-                self.find_string();
-            }
+        let width_tok = ui.push_item_width(w - 25.);
+
+        if ui.input_text(im_str!(""), &mut self.search_string).build() {
+            self.find_string();
         }
+
+        width_tok.pop(ui);
 
         ui.same_line(0.0);
 
@@ -159,21 +162,22 @@ impl WindowView for MemEditView {
             self.refresh_memory(state);
         }
 
-        ui.window(im_str!("Memory Editor"))
+        Window::new(im_str!("Memory Editor"))
             .size([555.0, 400.0], Condition::FirstUseEver)
             .position([320.0, 280.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(|| {
+            .build(ui, || {
                 self.draw_toolbar(ui, state);
 
                 ui.separator();
 
-                let [_, h] = ui.get_content_region_avail();
+                let [_, h] = ui.content_region_avail();
 
-                ui.child_frame(im_str!("memedit_listing"), [540.0, h])
-                    .always_show_vertical_scroll_bar(true)
-                    .show_borders(false)
-                    .build(|| {
+                ChildWindow::new("memedit_listing")
+                    .size([540.0, h])
+                    .always_vertical_scrollbar(true)
+                    .border(false)
+                    .build(ui, || {
                         // Find and jump to the next result when requested
                         if self.find_next {
                             self.find_next = false;

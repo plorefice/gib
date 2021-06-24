@@ -2,6 +2,7 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
+use imgui::Window;
 use imgui::{im_str, Condition, Ui};
 
 pub struct PeripheralView;
@@ -16,11 +17,11 @@ impl WindowView for PeripheralView {
     fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
         let mut open = true;
 
-        ui.window(im_str!("Peripherals"))
+        Window::new(im_str!("Peripherals"))
             .size([310.0, 650.0], Condition::FirstUseEver)
             .position([955.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(|| {
+            .build(ui, || {
                 if ui.collapsing_header(im_str!("Video Display")).build() {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
