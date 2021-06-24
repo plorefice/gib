@@ -25,8 +25,12 @@ impl WindowView for PeripheralView {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if ui.collapsing_header(im_str!("Sound Controller")).build() {
-                    ui.text("NOT IMPLEMENTED YET!");
+                if ui
+                    .collapsing_header(im_str!("Sound Controller"))
+                    .default_open(true)
+                    .build()
+                {
+                    self.draw_sound_controller(ui, state);
                 }
 
                 if ui.collapsing_header(im_str!("Joypad Input")).build() {
@@ -59,6 +63,82 @@ impl WindowView for PeripheralView {
 }
 
 impl PeripheralView {
+    fn draw_sound_controller(&self, ui: &Ui, state: &EmuState) {
+        let apu = &state.bus().apu;
+
+        // Sweep channel rendering
+        {
+            ui.text("Sweep Channel");
+
+            ui.same_line(150.0);
+            ui.text_colored(
+                if apu.ch1.enabled() {
+                    utils::GREEN
+                } else {
+                    utils::DARK_GREEN
+                },
+                im_str!("ENABLED"),
+            );
+
+            ui.same_line(220.0);
+            ui.text_colored(
+                if apu.ch1.dac_on() {
+                    utils::GREEN
+                } else {
+                    utils::DARK_GREEN
+                },
+                im_str!("DAC"),
+            );
+
+            ui.separator();
+        }
+
+        ui.spacing();
+
+        // Tone channel rendering
+        {
+            ui.text("Tone Channel");
+
+            ui.same_line(150.0);
+            ui.text_colored(
+                if apu.ch1.enabled() {
+                    utils::GREEN
+                } else {
+                    utils::DARK_GREEN
+                },
+                im_str!("ENABLED"),
+            );
+
+            ui.same_line(220.0);
+            ui.text_colored(
+                if apu.ch1.dac_on() {
+                    utils::GREEN
+                } else {
+                    utils::DARK_GREEN
+                },
+                im_str!("DAC"),
+            );
+
+            ui.separator();
+        }
+
+        ui.spacing();
+
+        // Wave channel rendering
+        {
+            ui.text("Wave Channel");
+            ui.separator();
+        }
+
+        ui.spacing();
+
+        // Noise channel rendering
+        {
+            ui.text("Noise Channel");
+            ui.separator();
+        }
+    }
+
     fn draw_timer(&self, ui: &Ui, state: &EmuState) {
         let timer = &state.bus().tim;
 

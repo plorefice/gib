@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 pub const DARK_GREY: [f32; 4] = [0.6, 0.6, 0.6, 1.0];
-pub const DARK_GREEN: [f32; 4] = [0.0, 0.5, 0.0, 1.0];
+pub const DARK_GREEN: [f32; 4] = [0.0, 0.2, 0.0, 1.0];
 pub const YELLOW: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
 pub const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 pub const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
@@ -181,6 +181,20 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
     ui.pop_item_width();
 
     *val = u16::from_str_radix(buf.to_str(), 16).ok();
+}
+
+/// Scrolls the view to the specified `line`.
+/// If `content_height` is also specified, it will scroll in such a way that the line
+/// is exactly in the middle of the view.
+///
+/// This function assumes that all lines are textual and of fixed height.
+pub fn scroll_to(ui: &Ui, line: usize, content_height: Option<f32>) {
+    unsafe {
+        imgui_sys::igSetScrollY(
+            ui.get_text_line_height_with_spacing() * line as f32
+                - content_height.unwrap_or_default() / 2.0,
+        );
+    }
 }
 
 /// Converts a slice of bytes into its ASCII representation
