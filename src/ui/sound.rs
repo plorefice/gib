@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use anyhow::{anyhow, Error};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     Device, OutputCallbackInfo, Sample, Stream, StreamConfig,
 };
 use crossbeam::queue::ArrayQueue;
-use failure::{format_err, Error};
 
 /// Component responsible for audio playback.
 pub struct SoundEngine {
@@ -20,7 +20,7 @@ impl SoundEngine {
         // Open the system's default output device
         let device = cpal::default_host()
             .default_output_device()
-            .ok_or_else(|| format_err!("no output device found"))?;
+            .ok_or_else(|| anyhow!("no output device found"))?;
 
         let config = device.default_output_config()?.into();
 

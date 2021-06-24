@@ -8,4 +8,4 @@ version = "0.5.2"
 [dependencies]
 bitflags = "1.2.1"
 crossbeam = "0.8.1"
-failure = "0.1.8"
+thiserror = "1.0.25"

@@ -6,9 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Error;
 use crossbeam::queue::ArrayQueue;
 use ctx::UiContext;
-use failure::Error;
 use gfx::{
     texture::{FilterMethod, SamplerInfo, WrapMode},
     Factory,

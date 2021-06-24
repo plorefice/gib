@@ -1,7 +1,5 @@
 use std::{fmt, ops::RangeInclusive};
 
-use failure::Fail;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryType {
     RomBank(u8),
@@ -130,25 +128,25 @@ impl fmt::Display for McbOp {
     }
 }
 
-#[derive(Debug, Fail, Clone, Copy)]
+#[derive(thiserror::Error, Debug, Clone, Copy)]
 #[allow(unused)]
 pub enum TraceEvent {
-    #[fail(display = "Breakpoint reached: 0x{:04X}", _0)]
+    #[error("Breakpoint reached: 0x{0:04X}")]
     Breakpoint(u16),
-    #[fail(display = "Illegal opcode: {:02X}", _0)]
+    #[error("Illegal opcode: {0:02X}")]
     IllegalInstructionFault(u8),
-    #[fail(display = "Bus fault accessing 0x{:04X}", _0)]
+    #[error("Bus fault accessing 0x{0:04X}")]
     BusFault(u16),
-    #[fail(display = "Memory fault accessing 0x{:04X}", _0)]
+    #[error("Memory fault accessing 0x{0:04X}")]
     MemFault(u16),
-    #[fail(display = "Unsupported MBC: {:02X}", _0)]
+    #[error("Unsupported MBC: {0:02X}")]
     UnsupportedMbcType(u8),
-    #[fail(display = "Invalid MBC operation: {}@{:02X}", _0, _1)]
+    #[error("Invalid MBC operation: {0}@{1:02X}")]
     InvalidMbcOp(McbOp, u8),
-    #[fail(display = "CGB speed switch request")]
+    #[error("CGB speed switch request")]
     CgbSpeedSwitchReq,
-    #[fail(display = "Unsupported CGB operation: {:04X}", _0)]
+    #[error("Unsupported CGB operation: {0:04X}")]
     UnsupportedCgbOp(u16),
-    #[fail(display = "CGB mode not supported")]
+    #[error("CGB mode not supported")]
     CgbNotSupported,
 }

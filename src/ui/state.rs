@@ -3,8 +3,8 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::Error;
 use crossbeam::queue::ArrayQueue;
-use failure::Error;
 use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
 
 pub struct EmuState {
