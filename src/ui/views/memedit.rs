@@ -90,10 +90,11 @@ impl MemEditView {
                 .content
                 .iter()
                 .enumerate()
-                .filter_map(|(i, line)| match line.to_str().find(pat) {
+                .filter_map(|(i, line)| {
                     // TODO right now, only the first match of each line is found
-                    Some(start) => Some((i, start..start + pat.len())),
-                    None => None,
+                    line.to_str()
+                        .find(pat)
+                        .map(|start| (i, start..start + pat.len()))
                 })
                 .collect();
         }

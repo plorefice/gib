@@ -1300,33 +1300,33 @@ mod test {
         CpuTest::new(1, vec![0x10])
             .match_states(vec![FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.halted.loaded(), true);
+                assert!(*cpu.halted.loaded());
             });
 
         CpuTest::new(2, vec![0x10, 0x00])
             .match_states(vec![FetchOpcode, FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.halted.value(), true);
+                assert!(*cpu.halted.value());
             });
 
         // EI
         CpuTest::new(1, vec![0xFB])
             .match_states(vec![FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.intr_enabled.value(), false);
+                assert!(!*cpu.intr_enabled.value());
             });
 
         CpuTest::new(2, vec![0xFB, 0x00])
             .match_states(vec![FetchOpcode, FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.intr_enabled.value(), true);
+                assert!(*cpu.intr_enabled.value());
             });
 
         // DI
         CpuTest::new(2, vec![0xFB, 0xF3])
             .match_states(vec![FetchOpcode, FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.intr_enabled.value(), false);
+                assert!(!*cpu.intr_enabled.value());
             });
     }
 

@@ -80,8 +80,10 @@ pub struct EmuUi {
 
 impl EmuUi {
     pub fn new(debug: bool) -> Result<EmuUi, Error> {
-        let mut gui = GuiState::default();
-        gui.debug = debug;
+        let gui = GuiState {
+            debug,
+            ..Default::default()
+        };
 
         // In debug mode, the interface is much more cluttered, so default to a bigger size
         let ctx = if debug {
