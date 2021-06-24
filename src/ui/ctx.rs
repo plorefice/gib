@@ -37,7 +37,6 @@ pub struct UiContext {
     pub main_depth: DepthStencilView<Resources, DepthFormat>,
 
     pub events_loop: Rc<RefCell<EventLoop<()>>>,
-    pub hidpi_factor: f64,
 
     key_state: HashSet<VirtualKeyCode>,
     should_quit: bool,
@@ -127,7 +126,6 @@ impl UiContext {
             main_depth,
 
             events_loop: Rc::new(RefCell::from(events_loop)),
-            hidpi_factor,
 
             key_state: HashSet::new(),
             should_quit: false,
