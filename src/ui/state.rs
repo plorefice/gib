@@ -1,10 +1,11 @@
-use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use crossbeam::queue::ArrayQueue;
 use failure::Error;
-
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
 
 pub struct EmuState {
     gb: GameBoy,

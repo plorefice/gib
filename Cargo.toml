@@ -9,9 +9,9 @@ version = "0.5.2"
 members = ["gib-core"]
 
 [dependencies]
-clap = "2.32.0"
-cpal = "0.8.2"
-crossbeam = "0.7.1"
+clap = "2.33.3"
+cpal = "0.13.3"
+crossbeam = "0.8.1"
 failure = "0.1.5"
 gfx = "0.18.2"
 gfx_device_gl = "0.16.2"
