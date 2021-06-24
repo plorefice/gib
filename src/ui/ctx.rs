@@ -1,9 +1,11 @@
-use imgui::{FontGlyphRange, ImFontConfig, ImGui, ImVec4, Ui};
+use glutin::dpi::LogicalSize;
+use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
 use imgui_gfx_renderer::{Renderer, Shaders};
 
 use gfx_core::handle::{DepthStencilView, RenderTargetView};
 use gfx_device_gl::{Device, Factory, Resources};
-use glutin::{EventsLoop, GlWindow, VirtualKeyCode as Key};
+use glutin::{ContextBuilder, EventsLoop, VirtualKeyCode as Key, WindowBuilder, WindowedContext};
+use imgui_winit_support::WinitPlatform;
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -20,12 +22,13 @@ struct MouseState {
 }
 
 pub struct UiContext {
-    pub imgui: ImGui,
+    pub imgui: Context,
+    pub platform: WinitPlatform,
 
-    pub window: GlWindow,
+    pub renderer: Renderer<ColorFormat, Resources>,
+    pub windowed_context: WindowedContext,
     pub device: Device,
     pub factory: Factory,
-    pub renderer: Renderer<Resources>,
     pub main_color: RenderTargetView<Resources, ColorFormat>,
     pub main_depth: DepthStencilView<Resources, DepthFormat>,
 
@@ -40,17 +43,16 @@ pub struct UiContext {
 impl UiContext {
     /// Creates a new UI context with a window size of (width, height).
     pub fn new(width: f64, height: f64) -> UiContext {
-        use glutin::{dpi::LogicalSize, ContextBuilder, WindowBuilder};
-
         let events_loop = EventsLoop::new();
 
         let context = ContextBuilder::new().with_vsync(true);
+
         let builder = WindowBuilder::new()
             .with_title("gib")
             .with_dimensions(LogicalSize::new(width, height));
 
-        let (window, device, mut factory, main_color, main_depth) =
-            gfx_window_glutin::init::<ColorFormat, DepthFormat>(builder, context, &events_loop)
+        let (windowed_context, device, mut factory, main_color, main_depth) =
+            gfx_window_glutin::init(builder, context, &events_loop)
                 .expect("Failed to initalize graphics");
 
         let shaders = {
@@ -74,15 +76,15 @@ impl UiContext {
             }
         };
 
-        let mut imgui = ImGui::init();
+        let mut imgui = Context::init();
         {
             // Fix incorrect colors with sRGB framebuffer
-            fn imgui_gamma_to_linear(col: ImVec4) -> ImVec4 {
-                let x = col.x.powf(2.2);
-                let y = col.y.powf(2.2);
-                let z = col.z.powf(2.2);
-                let w = 1.0 - (1.0 - col.w).powf(2.2);
-                ImVec4::new(x, y, z, w)
+            fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
+                let x = col[0].powf(2.2);
+                let y = col[1].powf(2.2);
+                let z = col[2].powf(2.2);
+                let w = 1.0 - (1.0 - col[3]).powf(2.2);
+                [x, y, z, w]
             }
 
             let style = imgui.style_mut();
@@ -92,21 +94,23 @@ impl UiContext {
         }
         imgui.set_ini_filename(None);
 
-        let hidpi_factor = window.get_hidpi_factor().round();
+        //let hidpi_factor = window.get_hidpi_factor().round();
+        let hidpi_factor = 1.;
         UiContext::load_fonts(&mut imgui, hidpi_factor);
 
-        imgui_winit_support::configure_keys(&mut imgui);
+        let mut platform = WinitPlatform::init(&mut imgui);
 
-        let renderer = Renderer::init(&mut imgui, &mut factory, shaders, main_color.clone())
+        let renderer = Renderer::init(&mut imgui, &mut factory, shaders)
             .expect("Failed to initialize renderer");
 
         UiContext {
             imgui,
+            platform,
 
-            window,
+            renderer,
+            windowed_context,
             device,
             factory,
-            renderer,
             main_color,
             main_depth,
 
@@ -129,29 +133,18 @@ impl UiContext {
                 WindowEvent::{CloseRequested, Focused, KeyboardInput, Resized},
             };
 
-            imgui_winit_support::handle_event(
-                &mut self.imgui,
-                &event,
-                self.window.get_hidpi_factor(),
-                self.hidpi_factor,
-            );
+            self.platform
+                .handle_event(self.imgui.io_mut(), self.windowed_context.window(), &event);
 
             if let Event::WindowEvent { event, .. } = event {
                 match event {
                     Focused(focus) => self.focused = focus,
                     Resized(size) => {
                         gfx_window_glutin::update_views(
-                            &self.window,
+                            &self.windowed_context,
                             &mut self.main_color,
                             &mut self.main_depth,
                         );
-                        self.renderer.update_render_target(self.main_color.clone());
-
-                        // **This is required on macOS!**
-                        self.window.resize(glutin::dpi::PhysicalSize::from_logical(
-                            size,
-                            self.hidpi_factor,
-                        ));
                     }
                     CloseRequested => {
                         self.should_quit = true;
@@ -171,8 +164,6 @@ impl UiContext {
                 }
             }
         });
-
-        imgui_winit_support::update_mouse_cursor(&self.imgui, &self.window);
     }
 
     pub fn should_quit(&self) -> bool {
@@ -185,24 +176,35 @@ impl UiContext {
     {
         use gfx::Device;
 
-        let frame_size =
-            imgui_winit_support::get_frame_size(&self.window, self.hidpi_factor).unwrap();
+        self.platform
+            .prepare_frame(self.imgui.io_mut(), self.windowed_context.window());
 
-        let ui = self.imgui.frame(frame_size, delta_s);
+        let ui = self.imgui.frame();
 
         f(&ui);
 
         let mut encoder: gfx::Encoder<_, _> = self.factory.create_command_buffer().into();
 
         encoder.clear(&self.main_color, [0.4, 0.5, 0.6, 1.0]);
-        {
-            self.renderer
-                .render(ui, &mut self.factory, &mut encoder)
-                .expect("Rendering failed");
-        }
+
+        self.platform
+            .prepare_render(&ui, self.windowed_context.window());
+
+        let draw_data = ui.render();
+
+        self.renderer
+            .render(
+                &mut self.factory,
+                &mut encoder,
+                &mut self.main_color,
+                draw_data,
+            )
+            .expect("Rendering failed");
+
         encoder.flush(&mut self.device);
 
-        self.window.swap_buffers().unwrap();
+        self.windowed_context.swap_buffers().unwrap();
+
         self.device.cleanup();
 
         if !self.focused {
@@ -217,26 +219,30 @@ impl UiContext {
         self.key_state.contains(&key)
     }
 
-    fn load_fonts(imgui: &mut ImGui, hidpi_factor: f64) {
+    fn load_fonts(imgui: &mut Context, hidpi_factor: f64) {
         let font_size = (13.0 * hidpi_factor) as f32;
 
-        imgui.fonts().add_default_font_with_config(
-            ImFontConfig::new()
-                .oversample_h(1)
-                .pixel_snap_h(true)
-                .size_pixels(font_size),
-        );
-
-        imgui.fonts().add_font_with_config(
-            include_bytes!("../../res/mplus-1p-regular.ttf"),
-            ImFontConfig::new()
-                .merge_mode(true)
-                .oversample_h(1)
-                .pixel_snap_h(true)
-                .size_pixels(font_size)
-                .rasterizer_multiply(1.75),
-            &FontGlyphRange::japanese(),
-        );
+        imgui.fonts().add_font(&[
+            FontSource::DefaultFontData {
+                config: Some(FontConfig {
+                    oversample_h: 1,
+                    pixel_snap_h: true,
+                    size_pixels: font_size,
+                    ..Default::default()
+                }),
+            },
+            FontSource::TtfData {
+                data: include_bytes!("../../res/mplus-1p-regular.ttf"),
+                size_pixels: font_size,
+                config: Some(FontConfig {
+                    oversample_h: 1,
+                    pixel_snap_h: true,
+                    rasterizer_multiply: 1.75,
+                    glyph_ranges: FontGlyphRanges::japanese(),
+                    ..Default::default()
+                }),
+            },
+        ]);
 
         imgui.set_font_global_scale((1.0 / hidpi_factor) as f32);
     }

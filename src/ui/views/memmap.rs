@@ -3,7 +3,7 @@ use gib_core::dbg::MemoryType;
 use super::utils;
 use super::{EmuState, WindowView};
 
-use imgui::{im_str, ImGuiCol, ImGuiCond, ImStr, ImString, Ui};
+use imgui::{im_str, Condition, ImStr, ImString, StyleColor, Ui};
 
 pub struct MemMapView(Vec<(MemoryType, ImString)>);
 
@@ -27,8 +27,8 @@ impl WindowView for MemMapView {
         let mut open = true;
 
         ui.window(im_str!("Memory Map"))
-            .size((225.0, 290.0), ImGuiCond::FirstUseEver)
-            .position((720.0, 225.0), ImGuiCond::FirstUseEver)
+            .size([225.0, 290.0], Condition::FirstUseEver)
+            .position([720.0, 225.0], Condition::FirstUseEver)
             .opened(&mut open)
             .build(|| {
                 let pc = state.cpu().pc;
@@ -41,8 +41,8 @@ impl WindowView for MemMapView {
                         utils::WHITE
                     };
 
-                    ui.with_color_var(ImGuiCol::Text, c, || {
-                        ui.text(ImStr::new(s));
+                    ui.with_color_var(StyleColor::Text, c, || {
+                        ui.text(s);
                         ui.spacing();
                     });
                 }

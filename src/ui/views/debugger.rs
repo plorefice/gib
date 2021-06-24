@@ -2,7 +2,7 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
-use imgui::{im_str, ImGuiCol, ImGuiCond, Ui};
+use imgui::{im_str, Condition, StyleColor, Ui};
 
 pub struct DebuggerView;
 
@@ -22,15 +22,15 @@ impl DebuggerView {
         ));
 
         if *cpu.halted.value() {
-            ui.same_line_spacing(0.0, 20.0);
-            ui.with_color_var(ImGuiCol::Text, utils::RED, || {
+            ui.same_line_with_spacing(0.0, 20.0);
+            ui.with_color_var(StyleColor::Text, utils::RED, || {
                 ui.text(im_str!("HALT"));
             });
         }
 
         if *cpu.intr_enabled.value() {
-            ui.same_line_spacing(0.0, 20.0);
-            ui.with_color_var(ImGuiCol::Text, utils::GREEN, || {
+            ui.same_line_with_spacing(0.0, 20.0);
+            ui.with_color_var(StyleColor::Text, utils::GREEN, || {
                 ui.text(im_str!("IME"));
             });
         }
@@ -60,7 +60,7 @@ impl DebuggerView {
         ui.same_line(150.0);
 
         if let Some(ref evt) = state.last_event() {
-            ui.with_color_var(ImGuiCol::Text, utils::RED, || {
+            ui.with_color_var(StyleColor::Text, utils::RED, || {
                 ui.text(evt.to_string());
             });
         } else {
@@ -69,7 +69,7 @@ impl DebuggerView {
     }
 
     fn draw_call_stack(&mut self, ui: &Ui, state: &EmuState) {
-        ui.child_frame(im_str!("callstack_frame"), (125.0, 0.0))
+        ui.child_frame(im_str!("callstack_frame"), [125.0, 0.0])
             .build(|| {
                 if ui
                     .collapsing_header(im_str!("Call Stack"))
@@ -98,25 +98,25 @@ impl WindowView for DebuggerView {
         let mut open = true;
 
         ui.window(im_str!("Debugger"))
-            .size((390.0, 240.0), ImGuiCond::FirstUseEver)
-            .position((320.0, 30.0), ImGuiCond::FirstUseEver)
+            .size([390.0, 240.0], Condition::FirstUseEver)
+            .position([320.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
             .build(|| {
                 self.draw_cpu_state(ui, state);
 
                 ui.separator();
 
-                if ui.button(im_str!("Run"), (0.0, 0.0)) {
+                if ui.button(im_str!("Run"), [0.0, 0.0]) {
                     state.set_running();
                 }
                 ui.same_line(0.0);
 
-                if ui.button(im_str!("Pause"), (0.0, 0.0)) {
+                if ui.button(im_str!("Pause"), [0.0, 0.0]) {
                     state.pause();
                 }
                 ui.same_line(0.0);
 
-                if ui.button(im_str!("Step"), (0.0, 0.0)) {
+                if ui.button(im_str!("Step"), [0.0, 0.0]) {
                     state.set_single_step();
                 }
 

@@ -5,7 +5,7 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
-use imgui::{im_str, ImGuiCond, ImString, Ui};
+use imgui::{im_str, Condition, ImString, Ui};
 
 use std::ops::Range;
 
@@ -125,7 +125,7 @@ impl MemEditView {
         ]
         .iter()
         {
-            if ui.button(label, (0.0, 0.0)) {
+            if ui.button(label, [0.0, 0.0]) {
                 self.section = *region;
                 self.refresh_memory(state);
                 self.find_string();
@@ -133,7 +133,7 @@ impl MemEditView {
             ui.same_line(0.0);
         }
 
-        let (w, _) = ui.get_content_region_avail();
+        let [w, _] = ui.get_content_region_avail();
 
         // Check to see if the search string has changed,
         // and if it has, update the search results
@@ -144,7 +144,7 @@ impl MemEditView {
         });
         ui.same_line(0.0);
 
-        self.find_next = ui.button(im_str!(">"), (20.0, 0.0));
+        self.find_next = ui.button(im_str!(">"), [20.0, 0.0]);
     }
 }
 
@@ -158,17 +158,17 @@ impl WindowView for MemEditView {
         }
 
         ui.window(im_str!("Memory Editor"))
-            .size((555.0, 400.0), ImGuiCond::FirstUseEver)
-            .position((320.0, 280.0), ImGuiCond::FirstUseEver)
+            .size([555.0, 400.0], Condition::FirstUseEver)
+            .position([320.0, 280.0], Condition::FirstUseEver)
             .opened(&mut open)
             .build(|| {
                 self.draw_toolbar(ui, state);
 
                 ui.separator();
 
-                let (_, h) = ui.get_content_region_avail();
+                let [_, h] = ui.get_content_region_avail();
 
-                ui.child_frame(im_str!("memedit_listing"), (540.0, h))
+                ui.child_frame(im_str!("memedit_listing"), [540.0, h])
                     .always_show_vertical_scroll_bar(true)
                     .show_borders(false)
                     .build(|| {
@@ -190,9 +190,9 @@ impl WindowView for MemEditView {
                                     let s = self.content[i].to_str();
 
                                     ui.text(&s[..rng.start]);
-                                    ui.same_line_spacing(0.0, 0.0);
+                                    ui.same_line_with_spacing(0.0, 0.0);
                                     ui.text_colored(utils::YELLOW, im_str!("{}", &s[rng.clone()]));
-                                    ui.same_line_spacing(0.0, 0.0);
+                                    ui.same_line_with_spacing(0.0, 0.0);
                                     ui.text(&s[rng.end..]);
                                 } else {
                                     ui.text(&self.content[i]);

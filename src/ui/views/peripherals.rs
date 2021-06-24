@@ -2,7 +2,7 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
-use imgui::{im_str, ImGuiCol, ImGuiCond, Ui};
+use imgui::{im_str, Condition, StyleColor, Ui};
 
 pub struct PeripheralView;
 
@@ -17,8 +17,8 @@ impl WindowView for PeripheralView {
         let mut open = true;
 
         ui.window(im_str!("Peripherals"))
-            .size((310.0, 650.0), ImGuiCond::FirstUseEver)
-            .position((955.0, 30.0), ImGuiCond::FirstUseEver)
+            .size([310.0, 650.0], Condition::FirstUseEver)
+            .position([955.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
             .build(|| {
                 if ui.collapsing_header(im_str!("Video Display")).build() {
@@ -160,10 +160,10 @@ impl PeripheralView {
 
         ui.text(format!("Clock: {}", rate));
 
-        ui.same_line_spacing(0.0, 40.0);
+        ui.same_line_with_spacing(0.0, 40.0);
 
         ui.with_color_var(
-            ImGuiCol::Text,
+            StyleColor::Text,
             if (timer.tac.0 & 0x4) != 0 {
                 utils::GREEN
             } else {
@@ -188,9 +188,9 @@ impl PeripheralView {
         ui.text("IE:");
 
         for (b, s) in irqs.iter() {
-            ui.same_line_spacing(0.0, 15.0);
+            ui.same_line_with_spacing(0.0, 15.0);
             ui.with_color_var(
-                ImGuiCol::Text,
+                StyleColor::Text,
                 if itr.ien.bit(*b) {
                     utils::GREEN
                 } else {
@@ -203,9 +203,9 @@ impl PeripheralView {
         ui.text("IF:");
 
         for (b, s) in irqs.iter() {
-            ui.same_line_spacing(0.0, 15.0);
+            ui.same_line_with_spacing(0.0, 15.0);
             ui.with_color_var(
-                ImGuiCol::Text,
+                StyleColor::Text,
                 if itr.ifg.bit(*b) {
                     utils::GREEN
                 } else {

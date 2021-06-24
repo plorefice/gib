@@ -81,9 +81,9 @@ impl FileDialog {
         let mut selected = 0;
         let mut clicked = false;
 
-        ui.open_popup(ImStr::new(&self.title));
+        ui.open_popup(&self.title);
 
-        ui.popup_modal(ImStr::new(&self.title))
+        ui.popup_modal(&self.title)
             .resizable(false)
             .always_auto_resize(true)
             .build(|| {
@@ -91,11 +91,11 @@ impl FileDialog {
                     .file_list
                     .iter()
                     .map(|s| s.as_ref())
-                    .collect::<Vec<_>>();
+                    .collect::<Vec<&ImStr>>();
 
                 clicked = ui.list_box(im_str!(""), &mut selected, &fl, 10);
 
-                if ui.button(im_str!("Cancel"), (0.0, 0.0)) {
+                if ui.button(im_str!("Cancel"), [0.0, 0.0]) {
                     ui.close_current_popup();
                     on_result(None);
                 }
@@ -138,12 +138,12 @@ where
     let font_height = ui.get_text_line_height_with_spacing();
 
     let mut clipper = ImGuiListClipper {
-        start_pos_y: 0.0,
-        items_height: -1.0,
-        items_count: -1,
-        step_no: 0,
-        display_start: 0,
-        display_end: 0,
+        StartPosY: 0.0,
+        ItemsHeight: -1.0,
+        ItemsCount: -1,
+        StepNo: 0,
+        DisplayStart: 0,
+        DisplayEnd: 0,
     };
 
     unsafe {
@@ -155,7 +155,7 @@ where
     }
 
     while unsafe { ImGuiListClipper_Step(&mut clipper as *mut ImGuiListClipper) } {
-        f(clipper.display_start as usize..clipper.display_end as usize);
+        f(clipper.DisplayStart as usize..clipper.DisplayEnd as usize);
     }
 
     unsafe {
@@ -170,15 +170,17 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
         ImString::with_capacity(4)
     };
 
-    ui.push_item_width(37.0);
-    ui.input_text(ImStr::new(&ImString::from(String::from(name))), &mut buf)
+    let tok = ui.push_item_width(37.0);
+
+    ui.input_text(im_str!("{}", name).as_ref(), &mut buf)
         .chars_hexadecimal(true)
         .chars_noblank(true)
         .chars_uppercase(true)
         .auto_select_all(true)
         .read_only(!editable)
         .build();
-    ui.pop_item_width();
+
+    drop(tok);
 
     *val = u16::from_str_radix(buf.to_str(), 16).ok();
 }

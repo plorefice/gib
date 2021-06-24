@@ -20,7 +20,7 @@ use gfx::texture::{FilterMethod, SamplerInfo, WrapMode};
 use gfx_core::factory::Factory;
 use glutin::VirtualKeyCode as Key;
 
-use imgui::{im_str, ImGuiCond, Ui};
+use imgui::{im_str, Condition, Ui};
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -75,7 +75,7 @@ pub struct EmuUi {
 
     emu: Option<Arc<Mutex<EmuState>>>,
     vpu_buffer: Vec<u8>,
-    vpu_texture: Option<imgui::ImTexture>,
+    vpu_texture: Option<imgui::TextureId>,
 
     snd_sink: Arc<ArrayQueue<i16>>,
 }
@@ -269,7 +269,7 @@ impl EmuUi {
     /// Draws the gaming-mode interface, with just a simple menu bar
     /// and a fullscreen emulator screen view.
     fn draw_game_ui(&mut self, delta_s: f32, ui: &Ui) {
-        use imgui::{ImGuiCol, ImGuiWindowFlags, ImVec2, StyleVar};
+        use imgui::{ImGuiWindowFlags, StyleColor, StyleVar};
 
         self.draw_menu_bar(delta_s, ui);
 
@@ -277,7 +277,7 @@ impl EmuUi {
         let style_vars = [
             StyleVar::WindowBorderSize(0.0),
             StyleVar::WindowRounding(0.0),
-            StyleVar::WindowPadding(ImVec2::new(0.0, 0.0)),
+            StyleVar::WindowPadding([0.0, 0.0]),
         ];
 
         let win_x = EMU_WIN_X_RES as f32;
@@ -285,8 +285,8 @@ impl EmuUi {
 
         ui.with_style_vars(&style_vars, || {
             ui.window(im_str!("Screen"))
-                .size((win_x, win_y), ImGuiCond::FirstUseEver)
-                .position((0.0, 19.5), ImGuiCond::FirstUseEver)
+                .size([win_x, win_y], Condition::FirstUseEver)
+                .position([0.0, 19.5], Condition::FirstUseEver)
                 .flags(
                     // Disable any window feature
                     ImGuiWindowFlags::NoTitleBar
@@ -299,14 +299,14 @@ impl EmuUi {
                     // Display event, if any
                     if let Some(ref emu) = self.emu {
                         if let Some(ref evt) = emu.lock().unwrap().last_event() {
-                            ui.with_color_var(ImGuiCol::Text, utils::RED, || {
+                            ui.with_color_var(StyleColor::Text, utils::RED, || {
                                 ui.text(&format!("{}", evt))
                             });
                         }
                     }
 
                     if let Some(texture) = self.vpu_texture {
-                        ui.image(texture, (win_x, win_y)).build();
+                        ui.image(texture, [win_x, win_y]).build();
                     }
                 });
         });
@@ -443,14 +443,14 @@ impl EmuUi {
     fn draw_screen_window(&mut self, ui: &Ui) {
         ui.window(im_str!("Screen"))
             .size(
-                (EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0),
-                ImGuiCond::FirstUseEver,
+                [EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0],
+                Condition::FirstUseEver,
             )
-            .position((745.0, 30.0), ImGuiCond::FirstUseEver)
+            .position([745.0, 30.0], Condition::FirstUseEver)
             .resizable(false)
             .build(|| {
                 if let Some(texture) = self.vpu_texture {
-                    ui.image(texture, (EMU_X_RES as f32, EMU_Y_RES as f32))
+                    ui.image(texture, [EMU_X_RES as f32, EMU_Y_RES as f32])
                         .build();
                 }
             });
