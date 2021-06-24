@@ -1,8 +1,10 @@
 use bitflags::bitflags;
 
-use super::dbg;
-use super::{InterruptSource, IrqSource};
-use super::{IoReg, MemR, MemRW, MemW};
+use crate::{
+    dbg,
+    io::{InterruptSource, IoReg, IrqSource},
+    mem::{MemR, MemRW, MemW},
+};
 
 /// A Tile is the bit representation of an 8x8 sprite or BG tile,
 /// with a color depth of 4 colors/gray shades.

@@ -1,8 +1,8 @@
-mod memory;
-
-use super::dbg;
-
 pub use memory::*;
+
+use crate::dbg;
+
+mod memory;
 
 pub trait MemR {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent>;

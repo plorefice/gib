@@ -1,12 +1,13 @@
+use std::sync::Arc;
+
 use bitflags::bitflags;
 use crossbeam::queue::ArrayQueue;
 
-use super::dbg;
-use super::IoReg;
-use super::{InterruptSource, IrqSource};
-use super::{MemR, MemW};
-
-use std::sync::Arc;
+use crate::{
+    dbg,
+    io::{InterruptSource, IoReg, IrqSource},
+    mem::{MemR, MemW},
+};
 
 const CLK_64_RELOAD: u32 = 4_194_304 / 64;
 const CLK_128_RELOAD: u32 = 4_194_304 / 128;

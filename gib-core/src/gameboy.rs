@@ -1,11 +1,8 @@
+use std::sync::Arc;
+
 use crossbeam::queue::ArrayQueue;
 
-use super::bus::Bus;
-use super::cpu::CPU;
-use super::dbg;
-use super::io::JoypadState;
-
-use std::sync::Arc;
+use crate::{bus::Bus, cpu::CPU, dbg, io::JoypadState};
 
 pub const CPU_CLOCK: u64 = 4_194_304; // Hz
 pub const HSYNC_CLOCK: u64 = 9_198; // Hz

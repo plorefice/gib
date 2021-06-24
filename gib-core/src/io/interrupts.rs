@@ -1,5 +1,8 @@
-use super::dbg;
-use super::{IoReg, MemR, MemRW, MemW};
+use crate::{
+    dbg,
+    io::IoReg,
+    mem::{MemR, MemRW, MemW},
+};
 
 /// Possible sources of interrupt in the system
 #[allow(unused)]

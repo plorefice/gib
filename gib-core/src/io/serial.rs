@@ -1,7 +1,8 @@
-use super::dbg;
-use super::IoReg;
-use super::{InterruptSource, IrqSource};
-use super::{MemR, MemRW, MemW};
+use crate::{
+    dbg,
+    io::{InterruptSource, IoReg, IrqSource},
+    mem::{MemR, MemRW, MemW},
+};
 
 pub struct Serial {
     sb: IoReg<u8>,

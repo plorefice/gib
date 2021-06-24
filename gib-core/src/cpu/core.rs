@@ -1,9 +1,6 @@
-use super::dbg;
-use super::io::Latch;
-use super::mem::MemRW;
-use super::opcodes::OPCODES;
-
 use std::collections::HashSet;
+
+use crate::{cpu::OPCODES, dbg, io::Latch, mem::MemRW};
 
 #[derive(Debug, Clone, Copy)]
 pub struct OpcodeInfo(

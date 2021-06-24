@@ -1,7 +1,6 @@
-use failure::Fail;
+use std::{fmt, ops::RangeInclusive};
 
-use std::fmt;
-use std::ops::RangeInclusive;
+use failure::Fail;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryType {

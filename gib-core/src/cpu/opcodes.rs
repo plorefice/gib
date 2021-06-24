@@ -1,5 +1,7 @@
-use super::dbg;
-use super::{MemoryAddressing::*, OpcodeInfo, OperandLocation::*, WritebackOp, CPU};
+use crate::{
+    cpu::{MemoryAddressing::*, OpcodeInfo, OperandLocation::*, WritebackOp, CPU},
+    dbg,
+};
 
 macro_rules! jp {
     ($cpu:ident, $cond:expr, $abs:expr) => {{
@@ -1196,10 +1198,13 @@ pub const OPCODES: [OpcodeInfo; 256] = [
 
 #[cfg(test)]
 mod test {
-    use super::super::dbg;
-    use super::super::mem::{MemR, MemRW, MemW};
-    use super::super::{CpuState, CpuState::*};
     use super::*;
+
+    use crate::{
+        cpu::{CpuState, CpuState::*},
+        dbg,
+        mem::{MemR, MemRW, MemW},
+    };
 
     impl<'a> MemR for &'a mut [u8] {
         fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
