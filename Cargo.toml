@@ -12,7 +12,7 @@ members = ["gib-core"]
 clap = "2.33.3"
 cpal = "0.13.3"
 crossbeam = "0.8.1"
-failure = "0.1.5"
+failure = "0.1.8"
 gfx = "0.18.2"
 gfx_device_gl = "0.16.2"
 gib-core = {path = "gib-core"}
