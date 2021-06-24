@@ -2,6 +2,7 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
+use imgui::CollapsingHeader;
 use imgui::Window;
 use imgui::{im_str, Condition, Ui};
 
@@ -22,38 +23,35 @@ impl WindowView for PeripheralView {
             .position([955.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
             .build(ui, || {
-                if ui.collapsing_header(im_str!("Video Display")).build() {
+                if CollapsingHeader::new(im_str!("Video Display")).build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if ui
-                    .collapsing_header(im_str!("Sound Controller"))
+                if CollapsingHeader::new(im_str!("Sound Controller"))
                     .default_open(true)
-                    .build()
+                    .build(ui)
                 {
                     self.draw_sound_controller(ui, state);
                 }
 
-                if ui.collapsing_header(im_str!("Joypad Input")).build() {
+                if CollapsingHeader::new(im_str!("Joypad Input")).build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if ui.collapsing_header(im_str!("Link Cable")).build() {
+                if CollapsingHeader::new(im_str!("Link Cable")).build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if ui
-                    .collapsing_header(im_str!("Timer and Divider"))
+                if CollapsingHeader::new(im_str!("Timer and Divider"))
                     .default_open(true)
-                    .build()
+                    .build(ui)
                 {
                     self.draw_timer(ui, state);
                 }
 
-                if ui
-                    .collapsing_header(im_str!("Interrupts"))
+                if CollapsingHeader::new(im_str!("Interrupts"))
                     .default_open(true)
-                    .build()
+                    .build(ui)
                 {
                     self.draw_interrupts(ui, state);
                 }
@@ -78,7 +76,7 @@ impl PeripheralView {
                 } else {
                     utils::DARK_GREEN
                 },
-                im_str!("ENABLED"),
+                "ENABLED",
             );
 
             ui.same_line(220.0);
@@ -88,7 +86,7 @@ impl PeripheralView {
                 } else {
                     utils::DARK_GREEN
                 },
-                im_str!("DAC"),
+                "DAC",
             );
 
             ui.separator();
@@ -107,7 +105,7 @@ impl PeripheralView {
                 } else {
                     utils::DARK_GREEN
                 },
-                im_str!("ENABLED"),
+                "ENABLED",
             );
 
             ui.same_line(220.0);
@@ -117,7 +115,7 @@ impl PeripheralView {
                 } else {
                     utils::DARK_GREEN
                 },
-                im_str!("DAC"),
+                "DAC",
             );
 
             ui.separator();

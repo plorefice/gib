@@ -1,6 +1,7 @@
 use gib_core::dbg;
 use gib_core::mem::MemR;
 use imgui::ChildWindow;
+use imgui::ListClipper;
 use imgui::Window;
 
 use super::utils;
@@ -188,8 +189,14 @@ impl WindowView for MemEditView {
                             }
                         }
 
-                        utils::list_clipper(ui, self.content.len(), |rng| {
-                            for i in rng {
+                        let mut clipper = ListClipper::new(self.content.len() as i32)
+                            .items_height(ui.text_line_height_with_spacing())
+                            .begin(ui);
+
+                        while clipper.step() {
+                            for i in clipper.display_start()..clipper.display_end() {
+                                let i = i as usize;
+
                                 let highlight = self.matched_ranges.iter().find(|(n, _)| *n == i);
 
                                 if let Some((_, rng)) = highlight {
@@ -204,7 +211,7 @@ impl WindowView for MemEditView {
                                     ui.text(&self.content[i]);
                                 }
                             }
-                        });
+                        }
                     });
             });
 

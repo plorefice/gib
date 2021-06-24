@@ -5,7 +5,9 @@ use super::{EmuState, WindowView};
 
 use std::{cmp::Ordering, collections::BTreeMap};
 
-use imgui::{im_str, ChildWindow, Condition, ImString, StyleColor, StyleVar, Ui, Window};
+use imgui::{
+    im_str, ChildWindow, Condition, ImString, ListClipper, StyleColor, StyleVar, Ui, Window,
+};
 
 pub struct DisassemblyView {
     section: dbg::MemoryType,
@@ -128,12 +130,16 @@ impl DisassemblyView {
                 }
 
                 // Only render currently visible instructions
-                utils::list_clipper(ui, self.disasm.len(), |range| {
+                let mut clipper = ListClipper::new(self.disasm.len() as i32)
+                    .items_height(ui.text_line_height_with_spacing())
+                    .begin(ui);
+
+                while clipper.step() {
                     let instrs = self
                         .disasm
                         .iter_mut()
-                        .skip(range.start)
-                        .take(range.end - range.start);
+                        .skip(clipper.display_start() as usize)
+                        .take((clipper.display_end() - clipper.display_start()) as usize);
 
                     let cpu = state.cpu_mut();
 
@@ -162,7 +168,7 @@ impl DisassemblyView {
                     }
 
                     style_tok.pop(ui);
-                });
+                }
             });
     }
 }

@@ -1,6 +1,5 @@
 use imgui::{im_str, ImStr, ImString, Ui};
 
-use std::ops::Range;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -123,43 +122,6 @@ impl FileDialog {
                 self.click_timer = Some(Duration::from_millis(200));
             }
         }
-    }
-}
-
-/// Safe wrapper around [`ImGuiListClipper`](imgui_sys.ImGuiListClipper).
-pub fn list_clipper<F>(ui: &Ui, count: usize, mut f: F)
-where
-    F: FnMut(Range<usize>),
-{
-    use imgui_sys::{
-        ImGuiListClipper, ImGuiListClipper_Begin, ImGuiListClipper_End, ImGuiListClipper_Step,
-    };
-
-    let font_height = ui.text_line_height_with_spacing();
-
-    let mut clipper = ImGuiListClipper {
-        StartPosY: 0.0,
-        ItemsHeight: -1.0,
-        ItemsCount: -1,
-        StepNo: 0,
-        DisplayStart: 0,
-        DisplayEnd: 0,
-    };
-
-    unsafe {
-        ImGuiListClipper_Begin(
-            &mut clipper as *mut ImGuiListClipper,
-            count as std::os::raw::c_int,
-            font_height as std::os::raw::c_float,
-        );
-    }
-
-    while unsafe { ImGuiListClipper_Step(&mut clipper as *mut ImGuiListClipper) } {
-        f(clipper.DisplayStart as usize..clipper.DisplayEnd as usize);
-    }
-
-    unsafe {
-        ImGuiListClipper_End(&mut clipper as *mut ImGuiListClipper);
     }
 }
 

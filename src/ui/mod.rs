@@ -1,32 +1,30 @@
-use gib_core::{self, io::JoypadState};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::Path;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
 
-mod ctx;
-mod sound;
-mod state;
-mod utils;
-mod views;
-
+use crossbeam::queue::ArrayQueue;
 use ctx::UiContext;
+use failure::Error;
+use gfx::{
+    texture::{FilterMethod, SamplerInfo, WrapMode},
+    Factory,
+};
+use gib_core::{self, io::JoypadState};
+use glutin::event::VirtualKeyCode;
+use imgui::{im_str, Condition, Image, MenuItem, StyleVar, Ui, Window, WindowFlags};
 use sound::SoundEngine;
 use state::EmuState;
 use views::{
     DebuggerView, DisassemblyView, MemEditView, MemMapView, PeripheralView, View, WindowView,
 };
 
-use crossbeam::queue::ArrayQueue;
-use failure::Error;
-
-use gfx::texture::{FilterMethod, SamplerInfo, WrapMode};
-use gfx_core::factory::Factory;
-use glutin::VirtualKeyCode as Key;
-
-use imgui::{im_str, Condition, Image, MenuItem, StyleVar, Ui, Window, WindowFlags};
-
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::path::Path;
-use std::rc::Rc;
-use std::time::{Duration, Instant};
+mod ctx;
+mod sound;
+mod state;
+mod utils;
+mod views;
 
 const EMU_X_RES: usize = 160;
 const EMU_Y_RES: usize = 144;
@@ -37,15 +35,15 @@ const EMU_WIN_X_RES: f64 = (EMU_X_RES * 2) as f64;
 const EMU_WIN_Y_RES: f64 = (EMU_Y_RES * 2) as f64 + 19.5;
 
 /// Mapping between VirtualKey and joypad button
-const KEYMAP: [(Key, JoypadState); 8] = [
-    (Key::Up, JoypadState::UP),
-    (Key::Down, JoypadState::DOWN),
-    (Key::Left, JoypadState::LEFT),
-    (Key::Right, JoypadState::RIGHT),
-    (Key::Z, JoypadState::B),
-    (Key::X, JoypadState::A),
-    (Key::Back, JoypadState::SELECT),
-    (Key::Return, JoypadState::START),
+const KEYMAP: [(VirtualKeyCode, JoypadState); 8] = [
+    (VirtualKeyCode::Up, JoypadState::UP),
+    (VirtualKeyCode::Down, JoypadState::DOWN),
+    (VirtualKeyCode::Left, JoypadState::LEFT),
+    (VirtualKeyCode::Right, JoypadState::RIGHT),
+    (VirtualKeyCode::Z, JoypadState::B),
+    (VirtualKeyCode::X, JoypadState::A),
+    (VirtualKeyCode::Back, JoypadState::SELECT),
+    (VirtualKeyCode::Return, JoypadState::START),
 ];
 
 pub struct GuiState {
@@ -204,7 +202,7 @@ impl EmuUi {
                 }
 
                 // Enable/disable turbo mode
-                emu.set_turbo(ctx.is_key_pressed(Key::Space));
+                emu.set_turbo(ctx.is_key_pressed(VirtualKeyCode::Space));
 
                 // TODO this really needs to be done only if some changes
                 // have happened in the last interval.
@@ -217,7 +215,7 @@ impl EmuUi {
 
             self.prepare_screen_texture(&mut *ctx);
 
-            ctx.render(|ui| {
+            ctx.render(delta, |ui| {
                 if self.gui.debug {
                     self.draw_debug_ui(delta.as_secs_f32(), ui)
                 } else {

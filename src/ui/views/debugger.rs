@@ -3,6 +3,7 @@ use super::EmuState;
 use super::WindowView;
 
 use imgui::ChildWindow;
+use imgui::CollapsingHeader;
 use imgui::Window;
 use imgui::{im_str, Condition, Ui};
 
@@ -68,10 +69,9 @@ impl DebuggerView {
         ChildWindow::new("callstack_frame")
             .size([125.0, 0.0])
             .build(ui, || {
-                if ui
-                    .collapsing_header(im_str!("Call Stack"))
+                if CollapsingHeader::new(im_str!("Call Stack"))
                     .default_open(true)
-                    .build()
+                    .build(ui)
                 {
                     for (i, addr) in state.cpu().call_stack.iter().rev().enumerate() {
                         let c = if i == 0 {

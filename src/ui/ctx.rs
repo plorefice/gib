@@ -1,15 +1,21 @@
+use gfx::handle::{DepthStencilView, RenderTargetView};
 use glutin::dpi::LogicalSize;
+use glutin::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
+use glutin::event_loop::{ControlFlow, EventLoop};
+use glutin::platform::run_return::EventLoopExtRunReturn;
+use glutin::window::WindowBuilder;
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
 use imgui_gfx_renderer::{Renderer, Shaders};
 
-use gfx_core::handle::{DepthStencilView, RenderTargetView};
 use gfx_device_gl::{Device, Factory, Resources};
-use glutin::{ContextBuilder, EventsLoop, VirtualKeyCode as Key, WindowBuilder, WindowedContext};
+use glutin::{PossiblyCurrent, WindowedContext};
 use imgui_winit_support::WinitPlatform;
+use old_school_gfx_glutin_ext::{ContextBuilderExt, WindowInitExt, WindowUpdateExt};
 
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
+use std::time::Duration;
 
 type ColorFormat = gfx::format::Rgba8;
 type DepthFormat = gfx::format::DepthStencil;
@@ -26,16 +32,16 @@ pub struct UiContext {
     pub platform: WinitPlatform,
 
     pub renderer: Renderer<ColorFormat, Resources>,
-    pub windowed_context: WindowedContext,
+    pub windowed_context: WindowedContext<PossiblyCurrent>,
     pub device: Device,
     pub factory: Factory,
     pub main_color: RenderTargetView<Resources, ColorFormat>,
     pub main_depth: DepthStencilView<Resources, DepthFormat>,
 
-    pub events_loop: Rc<RefCell<EventsLoop>>,
+    pub events_loop: Rc<RefCell<EventLoop<()>>>,
     pub hidpi_factor: f64,
 
-    key_state: HashSet<Key>,
+    key_state: HashSet<VirtualKeyCode>,
     should_quit: bool,
     focused: bool,
 }
@@ -43,17 +49,19 @@ pub struct UiContext {
 impl UiContext {
     /// Creates a new UI context with a window size of (width, height).
     pub fn new(width: f64, height: f64) -> UiContext {
-        let events_loop = EventsLoop::new();
-
-        let context = ContextBuilder::new().with_vsync(true);
+        let events_loop = EventLoop::new();
 
         let builder = WindowBuilder::new()
             .with_title("gib")
-            .with_dimensions(LogicalSize::new(width, height));
+            .with_inner_size(LogicalSize::new(width, height));
 
         let (windowed_context, device, mut factory, main_color, main_depth) =
-            gfx_window_glutin::init(builder, context, &events_loop)
-                .expect("Failed to initalize graphics");
+            glutin::ContextBuilder::new()
+                .with_vsync(true)
+                .with_gfx_color_depth::<ColorFormat, DepthFormat>()
+                .build_windowed(builder, &events_loop)
+                .expect("Failed to initialize graphics")
+                .init_gfx::<ColorFormat, DepthFormat>();
 
         let shaders = {
             let version = device.get_info().shading_language;
@@ -94,12 +102,10 @@ impl UiContext {
         }
         imgui.set_ini_filename(None);
 
-        // TODO: is this still needed?
-        // let hidpi_factor = window.get_hidpi_factor().round();
-        let hidpi_factor = 1.;
-        UiContext::load_fonts(&mut imgui, hidpi_factor);
-
         let platform = WinitPlatform::init(&mut imgui);
+
+        let hidpi_factor = platform.hidpi_factor();
+        UiContext::load_fonts(&mut imgui, hidpi_factor);
 
         let renderer = Renderer::init(&mut imgui, &mut factory, shaders)
             .expect("Failed to initialize renderer");
@@ -127,62 +133,63 @@ impl UiContext {
     pub fn poll_events(&mut self) {
         let events_loop = self.events_loop.clone();
 
-        events_loop.borrow_mut().poll_events(|event| {
-            use glutin::{
-                ElementState::Pressed,
-                Event,
-                WindowEvent::{CloseRequested, Focused, KeyboardInput, Resized},
-            };
+        events_loop
+            .borrow_mut()
+            .run_return(|event, _, control_flow| {
+                self.platform.handle_event(
+                    self.imgui.io_mut(),
+                    self.windowed_context.window(),
+                    &event,
+                );
 
-            self.platform
-                .handle_event(self.imgui.io_mut(), self.windowed_context.window(), &event);
+                if let Event::WindowEvent { event, .. } = event {
+                    match event {
+                        WindowEvent::Focused(focus) => self.focused = focus,
+                        WindowEvent::Resized(_) => {
+                            self.windowed_context
+                                .update_gfx(&mut self.main_color, &mut self.main_depth);
+                        }
+                        WindowEvent::CloseRequested => {
+                            self.should_quit = true;
+                        }
+                        WindowEvent::KeyboardInput { input, .. } => {
+                            let pressed = input.state == ElementState::Pressed;
 
-            if let Event::WindowEvent { event, .. } = event {
-                match event {
-                    Focused(focus) => self.focused = focus,
-                    Resized(_) => {
-                        gfx_window_glutin::update_views(
-                            &self.windowed_context,
-                            &mut self.main_color,
-                            &mut self.main_depth,
-                        );
-                    }
-                    CloseRequested => {
-                        self.should_quit = true;
-                    }
-                    KeyboardInput { input, .. } => {
-                        let pressed = input.state == Pressed;
-
-                        if let Some(vk) = input.virtual_keycode {
-                            if pressed {
-                                self.key_state.insert(vk);
-                            } else {
-                                self.key_state.remove(&vk);
+                            if let Some(vk) = input.virtual_keycode {
+                                if pressed {
+                                    self.key_state.insert(vk);
+                                } else {
+                                    self.key_state.remove(&vk);
+                                }
                             }
                         }
+                        _ => (),
                     }
-                    _ => (),
                 }
-            }
-        });
+
+                *control_flow = ControlFlow::Exit;
+            });
     }
 
     pub fn should_quit(&self) -> bool {
         self.should_quit
     }
 
-    pub fn render<F>(&mut self, mut f: F)
+    pub fn render<F>(&mut self, delta: Duration, mut f: F)
     where
         F: FnMut(&Ui),
     {
         use gfx::Device;
 
+        let io = self.imgui.io_mut();
+
         self.platform
-            .prepare_frame(self.imgui.io_mut(), self.windowed_context.window())
+            .prepare_frame(io, self.windowed_context.window())
             .expect("Preparing frame");
 
-        let ui = self.imgui.frame();
+        io.update_delta_time(delta);
 
+        let ui = self.imgui.frame();
         f(&ui);
 
         let mut encoder: gfx::Encoder<_, _> = self.factory.create_command_buffer().into();
@@ -217,7 +224,7 @@ impl UiContext {
     }
 
     /// Returns the pressed state for the given virtual key.
-    pub fn is_key_pressed(&self, key: Key) -> bool {
+    pub fn is_key_pressed(&self, key: VirtualKeyCode) -> bool {
         self.key_state.contains(&key)
     }
 

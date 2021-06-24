@@ -1,3 +1,6 @@
+// `im_str!` throws this pedantic error around in imgui 0.7
+#![allow(clippy::transmute_ptr_to_ptr)]
+
 mod ui;
 
 fn main() {
