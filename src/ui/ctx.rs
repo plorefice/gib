@@ -12,7 +12,7 @@ use glutin::{
 };
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
 use imgui_gfx_renderer::{Renderer, Shaders};
-use imgui_winit_support::WinitPlatform;
+use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use old_school_gfx_glutin_ext::{ContextBuilderExt, WindowInitExt, WindowUpdateExt};
 
 type ColorFormat = gfx::format::Rgba8;
@@ -53,6 +53,30 @@ impl UiContext {
             .with_title("gib")
             .with_inner_size(LogicalSize::new(width, height));
 
+        let mut imgui = Context::create();
+        imgui.set_ini_filename(None);
+
+        let mut platform = WinitPlatform::init(&mut imgui);
+        let hidpi_factor = platform.hidpi_factor();
+
+        UiContext::load_fonts(&mut imgui, hidpi_factor);
+
+        // Fix incorrect colors with sRGB framebuffer
+        {
+            fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
+                let x = col[0].powf(2.2);
+                let y = col[1].powf(2.2);
+                let z = col[2].powf(2.2);
+                let w = 1.0 - (1.0 - col[3]).powf(2.2);
+                [x, y, z, w]
+            }
+
+            let style = imgui.style_mut();
+            for col in 0..style.colors.len() {
+                style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
+            }
+        }
+
         let (windowed_context, device, mut factory, main_color, main_depth) =
             glutin::ContextBuilder::new()
                 .with_vsync(true)
@@ -82,31 +106,14 @@ impl UiContext {
             }
         };
 
-        let mut imgui = Context::create();
-        {
-            // Fix incorrect colors with sRGB framebuffer
-            fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
-                let x = col[0].powf(2.2);
-                let y = col[1].powf(2.2);
-                let z = col[2].powf(2.2);
-                let w = 1.0 - (1.0 - col[3]).powf(2.2);
-                [x, y, z, w]
-            }
-
-            let style = imgui.style_mut();
-            for col in 0..style.colors.len() {
-                style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
-            }
-        }
-        imgui.set_ini_filename(None);
-
-        let platform = WinitPlatform::init(&mut imgui);
-
-        let hidpi_factor = platform.hidpi_factor();
-        UiContext::load_fonts(&mut imgui, hidpi_factor);
-
         let renderer = Renderer::init(&mut imgui, &mut factory, shaders)
             .expect("Failed to initialize renderer");
+
+        platform.attach_window(
+            imgui.io_mut(),
+            windowed_context.window(),
+            HiDpiMode::Rounded,
+        );
 
         UiContext {
             imgui,
