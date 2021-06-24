@@ -1,30 +1,30 @@
 [package]
+authors = ["Pietro Lorefice <pietro.lorefice@gmail.com>"]
+description = "A Game Boy emulator written in Rust"
+edition = "2018"
 name = "gib"
 version = "0.5.2"
-description = "A Game Boy emulator written in Rust"
-authors = ["Pietro Lorefice <pietro.lorefice@gmail.com>"]
-edition = "2018"
 
 [workspace]
 members = ["gib-core"]
 
 [dependencies]
-gib-core = { path = "gib-core" }
+clap = "2.32.0"
+cpal = "0.8.2"
+crossbeam = "0.7.1"
+failure = "0.1.5"
 gfx = "0.17"
 gfx_core = "0.8.3"
 gfx_device_gl = "0.15.5"
 gfx_window_glutin = "0.28"
+gib-core = {path = "gib-core"}
 glutin = "0.19"
 imgui = "0.0.22"
-imgui-sys = "0.0.22"
 imgui-gfx-renderer = "0.0.22"
+imgui-sys = "0.0.22"
 imgui-winit-support = "0.0.22"
-failure = "0.1.5"
-clap = "2.32.0"
-cpal = "0.8.2"
-crossbeam = "0.7.1"
 
 [profile.dev]
-opt-level = 3
 debug = false
+opt-level = 3
 overflow-checks = false
