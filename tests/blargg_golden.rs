@@ -1,6 +1,6 @@
-mod common;
-
 use common::RomTest;
+
+mod common;
 
 #[test]
 fn passes_blargg_cpu_instrs() {

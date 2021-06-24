@@ -1,6 +1,6 @@
-mod common;
-
 use common::RomTest;
+
+mod common;
 
 /*
  * Gekkio's COMMON acceptance tests
