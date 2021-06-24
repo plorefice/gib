@@ -2,7 +2,7 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
-use imgui::{im_str, Condition, StyleColor, Ui};
+use imgui::{im_str, Condition, Ui};
 
 pub struct DebuggerView;
 
@@ -23,16 +23,12 @@ impl DebuggerView {
 
         if *cpu.halted.value() {
             ui.same_line_with_spacing(0.0, 20.0);
-            ui.with_color_var(StyleColor::Text, utils::RED, || {
-                ui.text(im_str!("HALT"));
-            });
+            ui.text_colored(utils::RED, "HALT");
         }
 
         if *cpu.intr_enabled.value() {
             ui.same_line_with_spacing(0.0, 20.0);
-            ui.with_color_var(StyleColor::Text, utils::GREEN, || {
-                ui.text(im_str!("IME"));
-            });
+            ui.text_colored(utils::GREEN, "IME");
         }
 
         ui.separator();
@@ -60,9 +56,7 @@ impl DebuggerView {
         ui.same_line(150.0);
 
         if let Some(ref evt) = state.last_event() {
-            ui.with_color_var(StyleColor::Text, utils::RED, || {
-                ui.text(evt.to_string());
-            });
+            ui.text_colored(utils::RED, evt.to_string());
         } else {
             ui.text("");
         }

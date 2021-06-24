@@ -20,7 +20,7 @@ use gfx::texture::{FilterMethod, SamplerInfo, WrapMode};
 use gfx_core::factory::Factory;
 use glutin::VirtualKeyCode as Key;
 
-use imgui::{im_str, Condition, Ui};
+use imgui::{im_str, Condition, ImGuiWindowFlags, StyleVar, Ui};
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -217,7 +217,7 @@ impl EmuUi {
 
             self.prepare_screen_texture(&mut *ctx);
 
-            ctx.render(delta.as_secs_f32(), |ui| {
+            ctx.render(|ui| {
                 if self.gui.debug {
                     self.draw_debug_ui(delta.as_secs_f32(), ui)
                 } else {
@@ -269,8 +269,6 @@ impl EmuUi {
     /// Draws the gaming-mode interface, with just a simple menu bar
     /// and a fullscreen emulator screen view.
     fn draw_game_ui(&mut self, delta_s: f32, ui: &Ui) {
-        use imgui::{ImGuiWindowFlags, StyleColor, StyleVar};
-
         self.draw_menu_bar(delta_s, ui);
 
         // Do not show window borders
@@ -283,33 +281,31 @@ impl EmuUi {
         let win_x = EMU_WIN_X_RES as f32;
         let win_y = EMU_WIN_Y_RES as f32 - 18.0; // account for menu bar
 
-        ui.with_style_vars(&style_vars, || {
-            ui.window(im_str!("Screen"))
-                .size([win_x, win_y], Condition::FirstUseEver)
-                .position([0.0, 19.5], Condition::FirstUseEver)
-                .flags(
-                    // Disable any window feature
-                    ImGuiWindowFlags::NoTitleBar
-                        | ImGuiWindowFlags::NoResize
-                        | ImGuiWindowFlags::NoMove
-                        | ImGuiWindowFlags::NoScrollbar
-                        | ImGuiWindowFlags::NoScrollWithMouse,
-                )
-                .build(|| {
-                    // Display event, if any
-                    if let Some(ref emu) = self.emu {
-                        if let Some(ref evt) = emu.lock().unwrap().last_event() {
-                            ui.with_color_var(StyleColor::Text, utils::RED, || {
-                                ui.text(&format!("{}", evt))
-                            });
-                        }
-                    }
+        let _ = ui.push_style_vars(&style_vars);
 
-                    if let Some(texture) = self.vpu_texture {
-                        ui.image(texture, [win_x, win_y]).build();
+        ui.window(im_str!("Screen"))
+            .size([win_x, win_y], Condition::FirstUseEver)
+            .position([0.0, 19.5], Condition::FirstUseEver)
+            .flags(
+                // Disable any window feature
+                ImGuiWindowFlags::NoTitleBar
+                    | ImGuiWindowFlags::NoResize
+                    | ImGuiWindowFlags::NoMove
+                    | ImGuiWindowFlags::NoScrollbar
+                    | ImGuiWindowFlags::NoScrollWithMouse,
+            )
+            .build(|| {
+                // Display event, if any
+                if let Some(ref emu) = self.emu {
+                    if let Some(ref evt) = emu.lock().unwrap().last_event() {
+                        ui.text_colored(utils::RED, evt.to_string());
                     }
-                });
-        });
+                }
+
+                if let Some(texture) = self.vpu_texture {
+                    ui.image(texture, [win_x, win_y]).build();
+                }
+            });
     }
 
     /// Draws the debug-mode interface

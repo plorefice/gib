@@ -137,11 +137,13 @@ impl MemEditView {
 
         // Check to see if the search string has changed,
         // and if it has, update the search results
-        ui.with_item_width(w - 25.0, || {
+        {
+            let _ = ui.push_item_width(w - 25.);
             if ui.input_text(im_str!(""), &mut self.search_string).build() {
                 self.find_string();
             }
-        });
+        }
+
         ui.same_line(0.0);
 
         self.find_next = ui.button(im_str!(">"), [20.0, 0.0]);

@@ -76,7 +76,7 @@ impl UiContext {
             }
         };
 
-        let mut imgui = Context::init();
+        let mut imgui = Context::create();
         {
             // Fix incorrect colors with sRGB framebuffer
             fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
@@ -98,7 +98,7 @@ impl UiContext {
         let hidpi_factor = 1.;
         UiContext::load_fonts(&mut imgui, hidpi_factor);
 
-        let mut platform = WinitPlatform::init(&mut imgui);
+        let platform = WinitPlatform::init(&mut imgui);
 
         let renderer = Renderer::init(&mut imgui, &mut factory, shaders)
             .expect("Failed to initialize renderer");
@@ -139,7 +139,7 @@ impl UiContext {
             if let Event::WindowEvent { event, .. } = event {
                 match event {
                     Focused(focus) => self.focused = focus,
-                    Resized(size) => {
+                    Resized(_) => {
                         gfx_window_glutin::update_views(
                             &self.windowed_context,
                             &mut self.main_color,
@@ -170,14 +170,15 @@ impl UiContext {
         self.should_quit
     }
 
-    pub fn render<F>(&mut self, delta_s: f32, mut f: F)
+    pub fn render<F>(&mut self, mut f: F)
     where
         F: FnMut(&Ui),
     {
         use gfx::Device;
 
         self.platform
-            .prepare_frame(self.imgui.io_mut(), self.windowed_context.window());
+            .prepare_frame(self.imgui.io_mut(), self.windowed_context.window())
+            .expect("Preparing frame");
 
         let ui = self.imgui.frame();
 
@@ -244,6 +245,6 @@ impl UiContext {
             },
         ]);
 
-        imgui.set_font_global_scale((1.0 / hidpi_factor) as f32);
+        imgui.io_mut().font_global_scale = (1.0 / hidpi_factor) as f32;
     }
 }

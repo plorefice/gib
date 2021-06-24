@@ -2,7 +2,7 @@ use super::utils;
 use super::EmuState;
 use super::WindowView;
 
-use imgui::{im_str, Condition, StyleColor, Ui};
+use imgui::{im_str, Condition, Ui};
 
 pub struct PeripheralView;
 
@@ -162,16 +162,13 @@ impl PeripheralView {
 
         ui.same_line_with_spacing(0.0, 40.0);
 
-        ui.with_color_var(
-            StyleColor::Text,
+        ui.text_colored(
             if (timer.tac.0 & 0x4) != 0 {
                 utils::GREEN
             } else {
                 utils::DARK_GREEN
             },
-            || {
-                ui.text("RUNNING");
-            },
+            "RUNNING",
         );
     }
 
@@ -189,14 +186,13 @@ impl PeripheralView {
 
         for (b, s) in irqs.iter() {
             ui.same_line_with_spacing(0.0, 15.0);
-            ui.with_color_var(
-                StyleColor::Text,
+            ui.text_colored(
                 if itr.ien.bit(*b) {
                     utils::GREEN
                 } else {
                     utils::DARK_GREEN
                 },
-                || ui.text(s),
+                s,
             );
         }
 
@@ -204,14 +200,13 @@ impl PeripheralView {
 
         for (b, s) in irqs.iter() {
             ui.same_line_with_spacing(0.0, 15.0);
-            ui.with_color_var(
-                StyleColor::Text,
+            ui.text_colored(
                 if itr.ifg.bit(*b) {
                     utils::GREEN
                 } else {
                     utils::DARK_GREEN
                 },
-                || ui.text(s),
+                s,
             );
         }
     }

@@ -3,7 +3,7 @@ use gib_core::dbg::MemoryType;
 use super::utils;
 use super::{EmuState, WindowView};
 
-use imgui::{im_str, Condition, ImStr, ImString, StyleColor, Ui};
+use imgui::{im_str, Condition, ImString, Ui};
 
 pub struct MemMapView(Vec<(MemoryType, ImString)>);
 
@@ -41,10 +41,8 @@ impl WindowView for MemMapView {
                         utils::WHITE
                     };
 
-                    ui.with_color_var(StyleColor::Text, c, || {
-                        ui.text(s);
-                        ui.spacing();
-                    });
+                    ui.text_colored(c, s);
+                    ui.spacing();
                 }
             });
 

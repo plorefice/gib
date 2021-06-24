@@ -136,32 +136,26 @@ impl DisassemblyView {
 
                     let cpu = state.cpu_mut();
 
-                    let style = &[StyleVar::FrameRounding(15.0)];
+                    let _ = ui.push_style_var(StyleVar::FrameRounding(15.0));
 
                     for (addr, instr) in instrs {
-                        let color = &[(
-                            StyleColor::Text,
-                            match addr.cmp(&pc) {
-                                Ordering::Less => utils::DARK_GREY,
-                                Ordering::Equal => utils::GREEN,
-                                Ordering::Greater => utils::WHITE,
-                            },
-                        )];
+                        let color = match addr.cmp(&pc) {
+                            Ordering::Less => utils::DARK_GREY,
+                            Ordering::Equal => utils::GREEN,
+                            Ordering::Greater => utils::WHITE,
+                        };
 
                         // Render breakpoing and instruction
-                        ui.with_style_vars(style, || {
-                            ui.with_color_vars(color, || {
-                                let mut bk = cpu.breakpoint_at(*addr);
+                        let _ = ui.push_style_color(StyleColor::Text, color);
 
-                                if ui.checkbox(instr, &mut bk) {
-                                    if bk {
-                                        cpu.set_breakpoint(*addr);
-                                    } else {
-                                        cpu.clear_breakpoint(*addr);
-                                    }
-                                }
-                            });
-                        });
+                        let mut bk = cpu.breakpoint_at(*addr);
+                        if ui.checkbox(instr, &mut bk) {
+                            if bk {
+                                cpu.set_breakpoint(*addr);
+                            } else {
+                                cpu.clear_breakpoint(*addr);
+                            }
+                        }
                     }
                 });
             });
