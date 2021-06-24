@@ -87,19 +87,22 @@ impl EmuUi {
             ..Default::default()
         };
 
+        // Create a sample channel that can hold up to 1024 samples.
+        // At 44.1KHz, this is about 23ms worth of audio.
+        let sink = Arc::new(ArrayQueue::new(1024));
+
+        // Start audio thread.
+        // NOTE(windows): this needs to happen before the GUI is created, or the process
+        // will throw an error regarding thread creation.
+        let mut snd = SoundEngine::new()?;
+        snd.start(sink.clone())?;
+
         // In debug mode, the interface is much more cluttered, so default to a bigger size
         let ctx = if debug {
             UiContext::new(1440.0, 720.0)
         } else {
             UiContext::new(EMU_WIN_X_RES, EMU_WIN_Y_RES)
         };
-
-        // Create a sample channel that can hold up to 1024 samples.
-        // At 44.1KHz, this is about 23ms worth of audio.
-        let sink = Arc::new(ArrayQueue::new(1024));
-
-        let mut snd = SoundEngine::new()?;
-        snd.start(sink.clone())?;
 
         Ok(EmuUi {
             ctx: Rc::from(RefCell::from(ctx)),

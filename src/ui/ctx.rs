@@ -6,7 +6,7 @@ use glutin::{
     dpi::LogicalSize,
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    platform::run_return::EventLoopExtRunReturn,
+    platform::{run_return::EventLoopExtRunReturn, windows::WindowBuilderExtWindows},
     window::WindowBuilder,
     PossiblyCurrent, WindowedContext,
 };
@@ -50,6 +50,7 @@ impl UiContext {
 
         let builder = WindowBuilder::new()
             .with_title("gib")
+            .with_drag_and_drop(false) // NOTE(windows): see function doc
             .with_inner_size(LogicalSize::new(width, height));
 
         let mut imgui = Context::create();
