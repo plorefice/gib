@@ -1,7 +1,6 @@
-use imgui::{im_str, ImStr, ImString, Ui};
+use std::{path::PathBuf, time::Duration};
 
-use std::path::PathBuf;
-use std::time::Duration;
+use imgui::{im_str, ImStr, ImString, Ui};
 
 pub const DARK_GREY: [f32; 4] = [0.6, 0.6, 0.6, 1.0];
 pub const DARK_GREEN: [f32; 4] = [0.0, 0.2, 0.0, 1.0];

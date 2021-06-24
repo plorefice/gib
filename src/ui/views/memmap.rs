@@ -1,9 +1,9 @@
 use gib_core::dbg::MemoryType;
-
-use super::utils;
-use super::{EmuState, WindowView};
-
 use imgui::{im_str, Condition, ImString, Ui, Window};
+
+use crate::ui::{state::EmuState, utils};
+
+use super::WindowView;
 
 pub struct MemMapView(Vec<(MemoryType, ImString)>);
 

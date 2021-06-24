@@ -1,8 +1,10 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::path::Path;
-use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    path::Path,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
 use crossbeam::queue::ArrayQueue;
 use ctx::UiContext;

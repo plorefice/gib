@@ -1,21 +1,19 @@
+use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Duration};
+
 use gfx::handle::{DepthStencilView, RenderTargetView};
-use glutin::dpi::LogicalSize;
-use glutin::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
-use glutin::event_loop::{ControlFlow, EventLoop};
-use glutin::platform::run_return::EventLoopExtRunReturn;
-use glutin::window::WindowBuilder;
+use gfx_device_gl::{Device, Factory, Resources};
+use glutin::{
+    dpi::LogicalSize,
+    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    platform::run_return::EventLoopExtRunReturn,
+    window::WindowBuilder,
+    PossiblyCurrent, WindowedContext,
+};
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
 use imgui_gfx_renderer::{Renderer, Shaders};
-
-use gfx_device_gl::{Device, Factory, Resources};
-use glutin::{PossiblyCurrent, WindowedContext};
 use imgui_winit_support::WinitPlatform;
 use old_school_gfx_glutin_ext::{ContextBuilderExt, WindowInitExt, WindowUpdateExt};
-
-use std::cell::RefCell;
-use std::collections::HashSet;
-use std::rc::Rc;
-use std::time::Duration;
 
 type ColorFormat = gfx::format::Rgba8;
 type DepthFormat = gfx::format::DepthStencil;

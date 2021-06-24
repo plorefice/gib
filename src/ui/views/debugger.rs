@@ -1,11 +1,8 @@
-use super::utils;
-use super::EmuState;
-use super::WindowView;
+use imgui::{im_str, ChildWindow, CollapsingHeader, Condition, Ui, Window};
 
-use imgui::ChildWindow;
-use imgui::CollapsingHeader;
-use imgui::Window;
-use imgui::{im_str, Condition, Ui};
+use crate::ui::{state::EmuState, utils};
+
+use super::WindowView;
 
 pub struct DebuggerView;
 

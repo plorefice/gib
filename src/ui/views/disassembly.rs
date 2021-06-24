@@ -1,13 +1,13 @@
-use gib_core::{cpu::Immediate, dbg};
-
-use super::utils;
-use super::{EmuState, WindowView};
-
 use std::{cmp::Ordering, collections::BTreeMap};
 
+use gib_core::{cpu::Immediate, dbg};
 use imgui::{
     im_str, ChildWindow, Condition, ImString, ListClipper, StyleColor, StyleVar, Ui, Window,
 };
+
+use crate::ui::{state::EmuState, utils};
+
+use super::WindowView;
 
 pub struct DisassemblyView {
     section: dbg::MemoryType,

@@ -1,16 +1,11 @@
-use gib_core::dbg;
-use gib_core::mem::MemR;
-use imgui::ChildWindow;
-use imgui::ListClipper;
-use imgui::Window;
-
-use super::utils;
-use super::EmuState;
-use super::WindowView;
-
-use imgui::{im_str, Condition, ImString, Ui};
-
 use std::ops::Range;
+
+use gib_core::{dbg, mem::MemR};
+use imgui::{im_str, ChildWindow, Condition, ImString, ListClipper, Ui, Window};
+
+use crate::ui::{state::EmuState, utils};
+
+use super::WindowView;
 
 /// View containing an hexadecimal dump of a selectable memory region.
 pub struct MemEditView {
