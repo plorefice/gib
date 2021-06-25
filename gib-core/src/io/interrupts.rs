@@ -5,7 +5,6 @@ use crate::{
 };
 
 /// Possible sources of interrupt in the system
-#[allow(unused)]
 pub enum IrqSource {
     VBlank,
     LcdStat,

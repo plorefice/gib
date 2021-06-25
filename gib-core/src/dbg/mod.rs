@@ -129,7 +129,6 @@ impl fmt::Display for McbOp {
 }
 
 #[derive(thiserror::Error, Debug, Clone, Copy)]
-#[allow(unused)]
 pub enum TraceEvent {
     #[error("Breakpoint reached: 0x{0:04X}")]
     Breakpoint(u16),
