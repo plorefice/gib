@@ -1,10 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    path::Path,
-    rc::Rc,
-    time::{Duration, Instant},
-};
+use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc, time::Instant};
 
 use anyhow::Error;
 use context::UiContext;
@@ -63,14 +57,14 @@ impl Default for GuiState {
     }
 }
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub struct EmuUi {
     ctx: Rc<RefCell<UiContext>>,
     snd: SoundEngine,
     gui: GuiState,
 
-    emu: Option<Arc<Mutex<EmuState>>>,
+    emu: Option<EmuState>,
     vpu_buffer: Vec<u8>,
     vpu_texture: Option<imgui::TextureId>,
 
@@ -116,12 +110,11 @@ impl EmuUi {
 
     /// Loads the ROM file and starts the emulation.
     pub fn load_rom<P: AsRef<Path>>(&mut self, rom: P) -> Result<(), Error> {
-        let emu = {
+        self.emu = {
             let mut emu = EmuState::new(rom)?;
             emu.set_audio_sink(self.snd_sink.clone(), self.snd.get_sample_rate());
             emu.set_running();
-
-            Arc::new(Mutex::new(emu))
+            Some(emu)
         };
 
         if self.gui.debug {
@@ -135,31 +128,6 @@ impl EmuUi {
             views.insert(View::MemEditor, Box::new(MemEditView::new()));
             views.insert(View::Peripherals, Box::new(PeripheralView::new()));
         }
-
-        // Spawn and start the emulation thread.
-        //
-        // TODO there really needs to be a way to stop this thread.
-        {
-            let emu = emu.clone();
-
-            std::thread::spawn(move || {
-                loop {
-                    emu.lock().unwrap().do_step();
-
-                    // After each step, we can sleep for a fraction of the audio buffer,
-                    // or for much less if not in audio sync mode.
-                    //
-                    // TODO this is ugly, find a better paradigm to synchronize everything.
-                    if !emu.lock().unwrap().turbo() {
-                        std::thread::sleep(Duration::from_millis(5));
-                    } else {
-                        std::thread::sleep(Duration::from_micros(1));
-                    }
-                }
-            });
-        }
-
-        self.emu = Some(emu);
 
         Ok(())
     }
@@ -179,23 +147,15 @@ impl EmuUi {
             let delta = frame_start - last_frame;
             last_frame = frame_start;
 
-            /*
-             * Event handling phase
-             */
-
+            // Poll the GUI context for events
             let do_render = ctx.poll_events();
 
             if self.gui.should_quit || ctx.should_quit() {
                 return Ok(());
             }
 
-            /*
-             * Emulator syncing phase
-             */
-
+            // Sync the emulator state to the GUI
             if let Some(ref mut emu) = self.emu {
-                let emu = &mut emu.lock().unwrap();
-
                 // Forward keypresses to the emulator
                 for (vk, js) in KEYMAP.iter() {
                     if ctx.is_key_pressed(*vk) {
@@ -208,15 +168,18 @@ impl EmuUi {
                 // Enable/disable turbo mode
                 emu.set_turbo(ctx.is_key_pressed(VirtualKeyCode::Space));
 
-                // TODO this really needs to be done only if some changes
-                // have happened in the last interval.
-                emu.gameboy().rasterize(&mut self.vpu_buffer[..]);
+                // Perform a single emulator step
+                emu.do_step();
             }
 
-            /*
-             * Rendering phase
-             */
+            // Render if requested
             if do_render {
+                // TODO this really needs to be done only if some changes
+                // have happened in the last interval.
+                if let Some(ref emu) = self.emu {
+                    emu.gameboy().rasterize(&mut self.vpu_buffer[..]);
+                }
+
                 self.prepare_screen_texture(&mut *ctx);
 
                 ctx.render(delta, |ui| {
@@ -227,13 +190,6 @@ impl EmuUi {
                     }
                 });
             }
-
-            // Pace the rendering thread
-            std::thread::sleep(
-                Duration::new(0, 1_000_000_000 / 60)
-                    .checked_sub(Instant::now() - frame_start)
-                    .unwrap_or_default(),
-            );
         }
     }
 
@@ -299,7 +255,7 @@ impl EmuUi {
             .build(ui, || {
                 // Display event, if any
                 if let Some(ref emu) = self.emu {
-                    if let Some(ref evt) = emu.lock().unwrap().last_event() {
+                    if let Some(ref evt) = emu.last_event() {
                         ui.text_colored(utils::RED, evt.to_string());
                     }
                 }
@@ -321,7 +277,6 @@ impl EmuUi {
         }
 
         if let Some(ref mut emu) = self.emu {
-            let emu = &mut emu.lock().unwrap();
             self.gui.views.retain(|_, view| view.draw(ui, emu));
         }
     }
@@ -348,7 +303,7 @@ impl EmuUi {
                     .build(ui)
                 {
                     if let Some(ref mut emu) = self.emu {
-                        emu.lock().unwrap().reset().expect("error during reset");
+                        emu.reset().expect("error during reset");
                     }
                 }
 

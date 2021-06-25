@@ -124,11 +124,6 @@ impl EmuState {
         self.gb.cpu().paused() && !(self.step_to_next || self.run_to_breakpoint)
     }
 
-    /// Returns true if turbo mode is enabled, false otherwise.
-    pub fn turbo(&mut self) -> bool {
-        self.turbo_mode
-    }
-
     /// Reset the emulator's sate.
     pub fn reset(&mut self) -> Result<(), Error> {
         // Save breakpoints to restore after reset
