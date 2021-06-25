@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Duration};
 
-use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
-use imgui_wgpu::{Renderer, RendererConfig};
+use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, TextureId, Ui};
+use imgui_wgpu::{Renderer, RendererConfig, Texture, TextureConfig};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use pollster::block_on;
 use winit::{
@@ -12,6 +12,8 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+use super::{EMU_X_RES, EMU_Y_RES};
+
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 struct MouseState {
     pos: (i32, i32),
@@ -20,17 +22,17 @@ struct MouseState {
 }
 
 pub struct UiContext {
-    pub imgui: Context,
-    pub platform: WinitPlatform,
+    imgui: Context,
+    platform: WinitPlatform,
+    event_loop: Rc<RefCell<EventLoop<()>>>,
 
-    pub window: Window,
-    pub renderer: Renderer,
-    pub device: wgpu::Device,
-    pub surface: wgpu::Surface,
-    pub swap_chain: wgpu::SwapChain,
-    pub queue: wgpu::Queue,
-
-    pub event_loop: Rc<RefCell<EventLoop<()>>>,
+    // Render system components
+    window: Window,
+    renderer: Renderer,
+    device: wgpu::Device,
+    surface: wgpu::Surface,
+    swap_chain: wgpu::SwapChain,
+    queue: wgpu::Queue,
 
     key_state: HashSet<VirtualKeyCode>,
     should_quit: bool,
@@ -178,6 +180,35 @@ impl UiContext {
         self.should_quit
     }
 
+    /// Creates a new texture displaying the currently emulated screen,
+    /// ready to be presented during the next rendering step.
+    pub fn prepare_screen_texture(
+        &mut self,
+        texture_id: &mut Option<TextureId>,
+        vpu_buffer: &[u8],
+    ) {
+        let texture_config = TextureConfig {
+            size: wgpu::Extent3d {
+                width: EMU_X_RES as u32,
+                height: EMU_Y_RES as u32,
+                ..Default::default()
+            },
+            label: None,
+            ..Default::default()
+        };
+
+        let texture = Texture::new(&self.device, &self.renderer, texture_config);
+        texture.write(&self.queue, vpu_buffer, EMU_X_RES as u32, EMU_Y_RES as u32);
+
+        // If this is the first time rendering, insert the new texture, otherwise replace an existing one
+        if let Some(ref mut vpu_texture) = texture_id {
+            self.renderer.textures.replace(*vpu_texture, texture);
+        } else {
+            texture_id.insert(self.renderer.textures.insert(texture));
+        }
+    }
+
+    // Perform the rendering pass of the ui.
     pub fn render<F>(&mut self, delta: Duration, mut f: F)
     where
         F: FnMut(&Ui),

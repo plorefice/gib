@@ -4,8 +4,7 @@ use anyhow::Error;
 use context::UiContext;
 use crossbeam::queue::ArrayQueue;
 use gib_core::{self, io::JoypadState};
-use imgui::{im_str, Condition, Image, MenuItem, StyleVar, Ui, Window, WindowFlags};
-use imgui_wgpu::{Texture, TextureConfig};
+use imgui::{im_str, Condition, Image, MenuItem, StyleVar, TextureId, Ui, Window, WindowFlags};
 use sound::SoundEngine;
 use state::EmuState;
 use views::{
@@ -66,7 +65,7 @@ pub struct EmuUi {
 
     emu: Option<EmuState>,
     vpu_buffer: Vec<u8>,
-    vpu_texture: Option<imgui::TextureId>,
+    vpu_texture: Option<TextureId>,
 
     snd_sink: Arc<ArrayQueue<i16>>,
 }
@@ -180,7 +179,7 @@ impl EmuUi {
                     emu.gameboy().rasterize(&mut self.vpu_buffer[..]);
                 }
 
-                self.prepare_screen_texture(&mut *ctx);
+                ctx.prepare_screen_texture(&mut self.vpu_texture, &self.vpu_buffer);
 
                 ctx.render(delta, |ui| {
                     if self.gui.debug {
@@ -190,37 +189,6 @@ impl EmuUi {
                     }
                 });
             }
-        }
-    }
-
-    /// Creates a new texture displaying the currently emulated screen,
-    /// ready to be presented during the next rendering step.
-    fn prepare_screen_texture(&mut self, ctx: &mut UiContext) {
-        let texture_config = TextureConfig {
-            size: wgpu::Extent3d {
-                width: EMU_X_RES as u32,
-                height: EMU_Y_RES as u32,
-                ..Default::default()
-            },
-            label: None,
-            ..Default::default()
-        };
-
-        let texture = Texture::new(&ctx.device, &ctx.renderer, texture_config);
-
-        texture.write(
-            &ctx.queue,
-            &self.vpu_buffer,
-            EMU_X_RES as u32,
-            EMU_Y_RES as u32,
-        );
-
-        // If this is the first time rendering, insert the new texture, otherwise
-        // replace an existing one.
-        if let Some(ref vpu_texture) = self.vpu_texture {
-            ctx.renderer.textures.replace(*vpu_texture, texture);
-        } else {
-            self.vpu_texture = Some(ctx.renderer.textures.insert(texture));
         }
     }
 
