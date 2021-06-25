@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Duration};
 
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, TextureId, Ui};
-use imgui_wgpu::{Renderer, RendererConfig, Texture, TextureConfig};
+use imgui_wgpu::{Renderer, RendererConfig, Texture};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use pollster::block_on;
 use winit::{
@@ -187,17 +187,88 @@ impl UiContext {
         texture_id: &mut Option<TextureId>,
         vpu_buffer: &[u8],
     ) {
-        let texture_config = TextureConfig {
-            size: wgpu::Extent3d {
-                width: EMU_X_RES as u32,
-                height: EMU_Y_RES as u32,
-                ..Default::default()
-            },
-            label: None,
+        let size = wgpu::Extent3d {
+            width: EMU_X_RES as u32,
+            height: EMU_Y_RES as u32,
             ..Default::default()
         };
 
-        let texture = Texture::new(&self.device, &self.renderer, texture_config);
+        // Create the wgpu texture
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            size,
+            label: None,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+        });
+
+        // Extract the texture view
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Create the texture sampler
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: None,
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp: -100.0,
+            lod_max_clamp: 100.0,
+            compare: None,
+            anisotropy_clamp: None,
+            border_color: None,
+        });
+
+        // HACK: this is taken from the imgui_gpu::Renderer internals, so it may break sooner or later.
+        let layout = self
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler {
+                            comparison: false,
+                            filtering: true,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
+        // Create the texture bind group from the layout
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+        });
+
+        // Write data into the texture
+        let texture = Texture::from_raw_parts(texture, view, bind_group, size);
         texture.write(&self.queue, vpu_buffer, EMU_X_RES as u32, EMU_Y_RES as u32);
 
         // If this is the first time rendering, insert the new texture, otherwise replace an existing one
