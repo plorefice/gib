@@ -1,11 +1,11 @@
 [package]
+authors = ["Pietro Lorefice <pietro.lorefice@gmail.com>"]
+description = "A low-level, cycle-accurate Game Boy emulation library"
+edition = "2018"
 name = "gib-core"
 version = "0.5.2"
-description = "A low-level, cycle-accurate Game Boy emulation library"
-authors = ["Pietro Lorefice <pietro.lorefice@gmail.com>"]
-edition = "2018"
 
 [dependencies]
-failure = "0.1.5"
-bitflags = "1.0.4"
-crossbeam = "0.7.1"
+bitflags = "1.2.1"
+crossbeam = "0.8.1"
+thiserror = "1.0.25"

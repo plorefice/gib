@@ -1,19 +1,17 @@
+pub use debugger::*;
+pub use disassembly::*;
+use imgui::Ui;
+pub use memedit::*;
+pub use memmap::*;
+pub use peripherals::*;
+
+use super::state::EmuState;
+
 mod debugger;
 mod disassembly;
 mod memedit;
 mod memmap;
 mod peripherals;
-
-pub use debugger::*;
-pub use disassembly::*;
-pub use memedit::*;
-pub use memmap::*;
-pub use peripherals::*;
-
-use super::utils;
-use super::EmuState;
-
-use imgui::Ui;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum View {

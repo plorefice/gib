@@ -1,8 +1,8 @@
-use super::utils;
-use super::EmuState;
-use super::WindowView;
+use imgui::{im_str, CollapsingHeader, Condition, Ui, Window};
 
-use imgui::{im_str, ImGuiCol, ImGuiCond, Ui};
+use crate::ui::{state::EmuState, utils};
+
+use super::WindowView;
 
 pub struct PeripheralView;
 
@@ -16,43 +16,40 @@ impl WindowView for PeripheralView {
     fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
         let mut open = true;
 
-        ui.window(im_str!("Peripherals"))
-            .size((310.0, 650.0), ImGuiCond::FirstUseEver)
-            .position((955.0, 30.0), ImGuiCond::FirstUseEver)
+        Window::new(im_str!("Peripherals"))
+            .size([310.0, 650.0], Condition::FirstUseEver)
+            .position([955.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(|| {
-                if ui.collapsing_header(im_str!("Video Display")).build() {
+            .build(ui, || {
+                if CollapsingHeader::new(im_str!("Video Display")).build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if ui
-                    .collapsing_header(im_str!("Sound Controller"))
+                if CollapsingHeader::new(im_str!("Sound Controller"))
                     .default_open(true)
-                    .build()
+                    .build(ui)
                 {
                     self.draw_sound_controller(ui, state);
                 }
 
-                if ui.collapsing_header(im_str!("Joypad Input")).build() {
+                if CollapsingHeader::new(im_str!("Joypad Input")).build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if ui.collapsing_header(im_str!("Link Cable")).build() {
+                if CollapsingHeader::new(im_str!("Link Cable")).build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if ui
-                    .collapsing_header(im_str!("Timer and Divider"))
+                if CollapsingHeader::new(im_str!("Timer and Divider"))
                     .default_open(true)
-                    .build()
+                    .build(ui)
                 {
                     self.draw_timer(ui, state);
                 }
 
-                if ui
-                    .collapsing_header(im_str!("Interrupts"))
+                if CollapsingHeader::new(im_str!("Interrupts"))
                     .default_open(true)
-                    .build()
+                    .build(ui)
                 {
                     self.draw_interrupts(ui, state);
                 }
@@ -77,7 +74,7 @@ impl PeripheralView {
                 } else {
                     utils::DARK_GREEN
                 },
-                im_str!("ENABLED"),
+                "ENABLED",
             );
 
             ui.same_line(220.0);
@@ -87,7 +84,7 @@ impl PeripheralView {
                 } else {
                     utils::DARK_GREEN
                 },
-                im_str!("DAC"),
+                "DAC",
             );
 
             ui.separator();
@@ -106,7 +103,7 @@ impl PeripheralView {
                 } else {
                     utils::DARK_GREEN
                 },
-                im_str!("ENABLED"),
+                "ENABLED",
             );
 
             ui.same_line(220.0);
@@ -116,7 +113,7 @@ impl PeripheralView {
                 } else {
                     utils::DARK_GREEN
                 },
-                im_str!("DAC"),
+                "DAC",
             );
 
             ui.separator();
@@ -160,18 +157,15 @@ impl PeripheralView {
 
         ui.text(format!("Clock: {}", rate));
 
-        ui.same_line_spacing(0.0, 40.0);
+        ui.same_line_with_spacing(0.0, 40.0);
 
-        ui.with_color_var(
-            ImGuiCol::Text,
+        ui.text_colored(
             if (timer.tac.0 & 0x4) != 0 {
                 utils::GREEN
             } else {
                 utils::DARK_GREEN
             },
-            || {
-                ui.text("RUNNING");
-            },
+            "RUNNING",
         );
     }
 
@@ -188,30 +182,28 @@ impl PeripheralView {
         ui.text("IE:");
 
         for (b, s) in irqs.iter() {
-            ui.same_line_spacing(0.0, 15.0);
-            ui.with_color_var(
-                ImGuiCol::Text,
+            ui.same_line_with_spacing(0.0, 15.0);
+            ui.text_colored(
                 if itr.ien.bit(*b) {
                     utils::GREEN
                 } else {
                     utils::DARK_GREEN
                 },
-                || ui.text(s),
+                s,
             );
         }
 
         ui.text("IF:");
 
         for (b, s) in irqs.iter() {
-            ui.same_line_spacing(0.0, 15.0);
-            ui.with_color_var(
-                ImGuiCol::Text,
+            ui.same_line_with_spacing(0.0, 15.0);
+            ui.text_colored(
                 if itr.ifg.bit(*b) {
                     utils::GREEN
                 } else {
                     utils::DARK_GREEN
                 },
-                || ui.text(s),
+                s,
             );
         }
     }

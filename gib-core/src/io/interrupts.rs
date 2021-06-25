@@ -1,5 +1,8 @@
-use super::dbg;
-use super::{IoReg, MemR, MemRW, MemW};
+use crate::{
+    dbg,
+    io::IoReg,
+    mem::{MemR, MemRW, MemW},
+};
 
 /// Possible sources of interrupt in the system
 #[allow(unused)]
@@ -11,9 +14,9 @@ pub enum IrqSource {
     Joypad,
 }
 
-impl Into<usize> for IrqSource {
-    fn into(self) -> usize {
-        match self {
+impl From<IrqSource> for usize {
+    fn from(irq: IrqSource) -> Self {
+        match irq {
             IrqSource::VBlank => 0,
             IrqSource::LcdStat => 1,
             IrqSource::Timer => 2,

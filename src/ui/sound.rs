@@ -1,29 +1,39 @@
-use crossbeam::queue::ArrayQueue;
-use failure::format_err;
-use failure::Error;
-
 use std::sync::Arc;
+
+use anyhow::{anyhow, Error};
+use cpal::{
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+    Device, OutputCallbackInfo, Sample, Stream, StreamConfig,
+};
+use crossbeam::queue::ArrayQueue;
 
 /// Component responsible for audio playback.
 pub struct SoundEngine {
-    device: cpal::Device,
-    format: cpal::Format,
+    device: Device,
+    config: StreamConfig,
+    stream: Option<Stream>,
 }
 
 impl SoundEngine {
     /// Creates a new instance of the sound engine using the system's default output device.
     pub fn new() -> Result<SoundEngine, Error> {
         // Open the system's default output device
-        let device =
-            cpal::default_output_device().ok_or_else(|| format_err!("no output device found"))?;
-        let format = device.default_output_format()?;
+        let device = cpal::default_host()
+            .default_output_device()
+            .ok_or_else(|| anyhow!("no output device found"))?;
 
-        Ok(SoundEngine { device, format })
+        let config = device.default_output_config()?.into();
+
+        Ok(SoundEngine {
+            device,
+            config,
+            stream: None,
+        })
     }
 
     /// Returns the engine's current sample rate.
     pub fn get_sample_rate(&self) -> f32 {
-        self.format.sample_rate.0 as f32
+        self.config.sample_rate.0 as f32
     }
 
     /// Starts the sound engine. The audio playback happens in a seprate thread,
@@ -31,62 +41,37 @@ impl SoundEngine {
     ///
     /// An error is returned if a new audio stream cannot be created.
     pub fn start(&mut self, sample_queue: Arc<ArrayQueue<i16>>) -> Result<(), Error> {
-        // Create and start a new stream
-        let event_loop = cpal::EventLoop::new();
-        let stream_id = event_loop.build_output_stream(&self.device, &self.format)?;
-        let format = self.format.clone();
+        // This closure will fetch the next sample from the queue, or replicate the last sample
+        // if no new sample is available.
+        let mut last_sample = 0f32;
+        let mut next_sample = move || {
+            if let Some(sample) = sample_queue.pop() {
+                last_sample = sample as f32 * 0.001;
+            }
+            last_sample
+        };
 
-        event_loop.play_stream(stream_id);
-
-        // Run the stream's blocking event loop in a separate thread
-        std::thread::spawn(move || {
-            let mut last_sample = 0f32;
-
-            event_loop.run(move |_, data| {
-                let mut next_value = || {
-                    if let Ok(sample) = sample_queue.pop() {
-                        last_sample = f32::from(sample) * 0.001;
-                    }
-                    last_sample
-                };
-
-                // Push the new sample to the stream in all possible formats
-                match data {
-                    cpal::StreamData::Output {
-                        buffer: cpal::UnknownTypeOutputBuffer::U16(mut buffer),
-                    } => {
-                        for sample in buffer.chunks_mut(format.channels as usize) {
-                            let value =
-                                ((next_value() * 0.5 + 0.5) * f32::from(std::u16::MAX)) as u16;
-                            for out in sample.iter_mut() {
-                                *out = value;
-                            }
+        self.stream = {
+            let channels = self.config.channels as usize;
+            let stream = self.device.build_output_stream(
+                &self.config,
+                move |output: &mut [f32], _: &OutputCallbackInfo| {
+                    // Push the new sample to the stream
+                    for sample in output.chunks_mut(channels) {
+                        let value = Sample::from::<f32>(&next_sample());
+                        for out in sample.iter_mut() {
+                            *out = value;
                         }
                     }
-                    cpal::StreamData::Output {
-                        buffer: cpal::UnknownTypeOutputBuffer::I16(mut buffer),
-                    } => {
-                        for sample in buffer.chunks_mut(format.channels as usize) {
-                            let value = (next_value() * f32::from(std::i16::MAX)) as i16;
-                            for out in sample.iter_mut() {
-                                *out = value;
-                            }
-                        }
-                    }
-                    cpal::StreamData::Output {
-                        buffer: cpal::UnknownTypeOutputBuffer::F32(mut buffer),
-                    } => {
-                        for sample in buffer.chunks_mut(format.channels as usize) {
-                            let value = next_value();
-                            for out in sample.iter_mut() {
-                                *out = value;
-                            }
-                        }
-                    }
-                    _ => (),
-                }
-            });
-        });
+                },
+                move |err| println!("Sound error: {}", err),
+            )?;
+
+            stream.play()?;
+
+            // We need to keep the stream alive, otherwise the spawned thread will get dropped!
+            Some(stream)
+        };
 
         Ok(())
     }

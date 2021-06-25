@@ -1,10 +1,11 @@
-use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
+use anyhow::Error;
 use crossbeam::queue::ArrayQueue;
-use failure::Error;
-
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
 
 pub struct EmuState {
     gb: GameBoy,
@@ -121,11 +122,6 @@ impl EmuState {
 
     pub fn paused(&mut self) -> bool {
         self.gb.cpu().paused() && !(self.step_to_next || self.run_to_breakpoint)
-    }
-
-    /// Returns true if turbo mode is enabled, false otherwise.
-    pub fn turbo(&mut self) -> bool {
-        self.turbo_mode
     }
 
     /// Reset the emulator's sate.

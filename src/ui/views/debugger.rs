@@ -1,8 +1,8 @@
-use super::utils;
-use super::EmuState;
-use super::WindowView;
+use imgui::{im_str, ChildWindow, CollapsingHeader, Condition, Ui, Window};
 
-use imgui::{im_str, ImGuiCol, ImGuiCond, Ui};
+use crate::ui::{state::EmuState, utils};
+
+use super::WindowView;
 
 pub struct DebuggerView;
 
@@ -22,17 +22,13 @@ impl DebuggerView {
         ));
 
         if *cpu.halted.value() {
-            ui.same_line_spacing(0.0, 20.0);
-            ui.with_color_var(ImGuiCol::Text, utils::RED, || {
-                ui.text(im_str!("HALT"));
-            });
+            ui.same_line_with_spacing(0.0, 20.0);
+            ui.text_colored(utils::RED, "HALT");
         }
 
         if *cpu.intr_enabled.value() {
-            ui.same_line_spacing(0.0, 20.0);
-            ui.with_color_var(ImGuiCol::Text, utils::GREEN, || {
-                ui.text(im_str!("IME"));
-            });
+            ui.same_line_with_spacing(0.0, 20.0);
+            ui.text_colored(utils::GREEN, "IME");
         }
 
         ui.separator();
@@ -60,21 +56,19 @@ impl DebuggerView {
         ui.same_line(150.0);
 
         if let Some(ref evt) = state.last_event() {
-            ui.with_color_var(ImGuiCol::Text, utils::RED, || {
-                ui.text(evt.to_string());
-            });
+            ui.text_colored(utils::RED, evt.to_string());
         } else {
             ui.text("");
         }
     }
 
     fn draw_call_stack(&mut self, ui: &Ui, state: &EmuState) {
-        ui.child_frame(im_str!("callstack_frame"), (125.0, 0.0))
-            .build(|| {
-                if ui
-                    .collapsing_header(im_str!("Call Stack"))
+        ChildWindow::new("callstack_frame")
+            .size([125.0, 0.0])
+            .build(ui, || {
+                if CollapsingHeader::new(im_str!("Call Stack"))
                     .default_open(true)
-                    .build()
+                    .build(ui)
                 {
                     for (i, addr) in state.cpu().call_stack.iter().rev().enumerate() {
                         let c = if i == 0 {
@@ -97,26 +91,26 @@ impl WindowView for DebuggerView {
     fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
         let mut open = true;
 
-        ui.window(im_str!("Debugger"))
-            .size((390.0, 240.0), ImGuiCond::FirstUseEver)
-            .position((320.0, 30.0), ImGuiCond::FirstUseEver)
+        Window::new(im_str!("Debugger"))
+            .size([390.0, 240.0], Condition::FirstUseEver)
+            .position([320.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(|| {
+            .build(ui, || {
                 self.draw_cpu_state(ui, state);
 
                 ui.separator();
 
-                if ui.button(im_str!("Run"), (0.0, 0.0)) {
+                if ui.button(im_str!("Run"), [0.0, 0.0]) {
                     state.set_running();
                 }
                 ui.same_line(0.0);
 
-                if ui.button(im_str!("Pause"), (0.0, 0.0)) {
+                if ui.button(im_str!("Pause"), [0.0, 0.0]) {
                     state.pause();
                 }
                 ui.same_line(0.0);
 
-                if ui.button(im_str!("Step"), (0.0, 0.0)) {
+                if ui.button(im_str!("Step"), [0.0, 0.0]) {
                     state.set_single_step();
                 }
 

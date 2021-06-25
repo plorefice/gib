@@ -16,7 +16,7 @@ impl RomTest {
     pub fn must_run_and_match(&mut self, until: u64, output: &'static [u8]) {
         let mut vbuf = vec![0xFF; 160 * 144 * 4];
 
-        self.gb.load_rom(&self.rom[..]).unwrap();
+        self.gb.load_rom(self.rom).unwrap();
 
         while self.gb.clock_cycles() < until {
             self.gb.step().unwrap();

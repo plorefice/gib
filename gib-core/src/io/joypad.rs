@@ -1,7 +1,9 @@
 use bitflags::bitflags;
 
-use super::dbg;
-use super::{MemR, MemRW, MemW};
+use crate::{
+    dbg,
+    mem::{MemR, MemRW, MemW},
+};
 
 bitflags! {
     pub struct JoypadState: u8 {

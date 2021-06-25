@@ -1,8 +1,6 @@
-use imgui::{im_str, ImStr, ImString, Ui};
+use std::{path::PathBuf, time::Duration};
 
-use std::ops::Range;
-use std::path::PathBuf;
-use std::time::Duration;
+use imgui::{im_str, ImStr, ImString, Ui};
 
 pub const DARK_GREY: [f32; 4] = [0.6, 0.6, 0.6, 1.0];
 pub const DARK_GREEN: [f32; 4] = [0.0, 0.2, 0.0, 1.0];
@@ -81,9 +79,9 @@ impl FileDialog {
         let mut selected = 0;
         let mut clicked = false;
 
-        ui.open_popup(ImStr::new(&self.title));
+        ui.open_popup(&self.title);
 
-        ui.popup_modal(ImStr::new(&self.title))
+        ui.popup_modal(&self.title)
             .resizable(false)
             .always_auto_resize(true)
             .build(|| {
@@ -91,11 +89,11 @@ impl FileDialog {
                     .file_list
                     .iter()
                     .map(|s| s.as_ref())
-                    .collect::<Vec<_>>();
+                    .collect::<Vec<&ImStr>>();
 
                 clicked = ui.list_box(im_str!(""), &mut selected, &fl, 10);
 
-                if ui.button(im_str!("Cancel"), (0.0, 0.0)) {
+                if ui.button(im_str!("Cancel"), [0.0, 0.0]) {
                     ui.close_current_popup();
                     on_result(None);
                 }
@@ -126,43 +124,6 @@ impl FileDialog {
     }
 }
 
-/// Safe wrapper around [`ImGuiListClipper`](imgui_sys.ImGuiListClipper).
-pub fn list_clipper<F>(ui: &Ui, count: usize, mut f: F)
-where
-    F: FnMut(Range<usize>),
-{
-    use imgui_sys::{
-        ImGuiListClipper, ImGuiListClipper_Begin, ImGuiListClipper_End, ImGuiListClipper_Step,
-    };
-
-    let font_height = ui.get_text_line_height_with_spacing();
-
-    let mut clipper = ImGuiListClipper {
-        start_pos_y: 0.0,
-        items_height: -1.0,
-        items_count: -1,
-        step_no: 0,
-        display_start: 0,
-        display_end: 0,
-    };
-
-    unsafe {
-        ImGuiListClipper_Begin(
-            &mut clipper as *mut ImGuiListClipper,
-            count as std::os::raw::c_int,
-            font_height as std::os::raw::c_float,
-        );
-    }
-
-    while unsafe { ImGuiListClipper_Step(&mut clipper as *mut ImGuiListClipper) } {
-        f(clipper.display_start as usize..clipper.display_end as usize);
-    }
-
-    unsafe {
-        ImGuiListClipper_End(&mut clipper as *mut ImGuiListClipper);
-    }
-}
-
 pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
     let mut buf = if let Some(v) = val {
         ImString::from(format!("{:04X}", v))
@@ -170,15 +131,17 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
         ImString::with_capacity(4)
     };
 
-    ui.push_item_width(37.0);
-    ui.input_text(ImStr::new(&ImString::from(String::from(name))), &mut buf)
+    let tok = ui.push_item_width(37.0);
+
+    ui.input_text(im_str!("{}", name).as_ref(), &mut buf)
         .chars_hexadecimal(true)
         .chars_noblank(true)
         .chars_uppercase(true)
         .auto_select_all(true)
         .read_only(!editable)
         .build();
-    ui.pop_item_width();
+
+    drop(tok);
 
     *val = u16::from_str_radix(buf.to_str(), 16).ok();
 }
@@ -189,12 +152,9 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
 ///
 /// This function assumes that all lines are textual and of fixed height.
 pub fn scroll_to(ui: &Ui, line: usize, content_height: Option<f32>) {
-    unsafe {
-        imgui_sys::igSetScrollY(
-            ui.get_text_line_height_with_spacing() * line as f32
-                - content_height.unwrap_or_default() / 2.0,
-        );
-    }
+    ui.set_scroll_y(
+        ui.text_line_height_with_spacing() * line as f32 - content_height.unwrap_or_default() / 2.0,
+    );
 }
 
 /// Converts a slice of bytes into its ASCII representation

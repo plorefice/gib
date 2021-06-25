@@ -1,7 +1,8 @@
-use super::dbg;
-use super::mem::MemR;
-use super::opcodes::OPCODES;
-use super::CPU;
+use crate::{
+    cpu::{CPU, OPCODES},
+    dbg,
+    mem::MemR,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Immediate {

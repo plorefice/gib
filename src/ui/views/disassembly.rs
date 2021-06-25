@@ -1,11 +1,13 @@
-use gib_core::{cpu::Immediate, dbg};
-
-use super::utils;
-use super::{EmuState, WindowView};
-
 use std::{cmp::Ordering, collections::BTreeMap};
 
-use imgui::{im_str, ImGuiCol, ImGuiCond, ImStr, ImString, StyleVar, Ui};
+use gib_core::{cpu::Immediate, dbg};
+use imgui::{
+    im_str, ChildWindow, Condition, ImString, ListClipper, StyleColor, StyleVar, Ui, Window,
+};
+
+use crate::ui::{state::EmuState, utils};
+
+use super::WindowView;
 
 pub struct DisassemblyView {
     section: dbg::MemoryType,
@@ -77,7 +79,7 @@ impl DisassemblyView {
 
     /// Scroll disassembly view to the desired address.
     fn goto(&mut self, ui: &Ui, state: &EmuState, dest: u16) {
-        let (_, h) = ui.get_content_region_avail();
+        let [_, h] = ui.content_region_avail();
 
         if !self.disasm.contains_key(&dest) {
             self.realign_disasm(state, dest);
@@ -100,10 +102,10 @@ impl DisassemblyView {
         utils::input_addr(ui, "", &mut self.goto_addr, true);
         ui.same_line(0.0);
 
-        goto_addr = ui.button(im_str!("Goto"), (0.0, 0.0));
+        goto_addr = ui.button(im_str!("Goto"), [0.0, 0.0]);
         ui.same_line(0.0);
 
-        goto_pc = ui.button(im_str!("Goto PC"), (0.0, 0.0));
+        goto_pc = ui.button(im_str!("Goto PC"), [0.0, 0.0]);
         ui.same_line(0.0);
 
         ui.checkbox(im_str!("Follow"), &mut self.follow_pc);
@@ -114,12 +116,13 @@ impl DisassemblyView {
     fn draw_disasm_view(&mut self, ui: &Ui, state: &mut EmuState, goto_addr: bool, goto_pc: bool) {
         let pc = state.cpu().pc;
 
-        let (_, h) = ui.get_content_region_avail();
+        let [_, h] = ui.content_region_avail();
 
-        ui.child_frame(im_str!("listing"), (285.0, h))
-            .always_show_vertical_scroll_bar(true)
-            .show_borders(false)
-            .build(|| {
+        ChildWindow::new("listing")
+            .size([285.0, h])
+            .always_vertical_scrollbar(true)
+            .border(false)
+            .build(ui, || {
                 if self.follow_pc || goto_pc {
                     self.goto(ui, state, pc);
                 } else if goto_addr && self.goto_addr.is_some() {
@@ -127,41 +130,45 @@ impl DisassemblyView {
                 }
 
                 // Only render currently visible instructions
-                utils::list_clipper(ui, self.disasm.len(), |range| {
+                let mut clipper = ListClipper::new(self.disasm.len() as i32)
+                    .items_height(ui.text_line_height_with_spacing())
+                    .begin(ui);
+
+                while clipper.step() {
                     let instrs = self
                         .disasm
                         .iter_mut()
-                        .skip(range.start)
-                        .take(range.end - range.start);
+                        .skip(clipper.display_start() as usize)
+                        .take((clipper.display_end() - clipper.display_start()) as usize);
 
                     let cpu = state.cpu_mut();
 
-                    let style = &[StyleVar::FrameRounding(15.0)];
+                    let style_tok = ui.push_style_var(StyleVar::FrameRounding(15.0));
 
                     for (addr, instr) in instrs {
-                        let color = &[(
-                            ImGuiCol::Text,
-                            match addr.cmp(&pc) {
-                                Ordering::Less => utils::DARK_GREY,
-                                Ordering::Equal => utils::GREEN,
-                                Ordering::Greater => utils::WHITE,
-                            },
-                        )];
+                        let color = match addr.cmp(&pc) {
+                            Ordering::Less => utils::DARK_GREY,
+                            Ordering::Equal => utils::GREEN,
+                            Ordering::Greater => utils::WHITE,
+                        };
 
                         // Render breakpoing and instruction
-                        ui.with_style_and_color_vars(style, color, || {
-                            let mut bk = cpu.breakpoint_at(*addr);
+                        let color_tok = ui.push_style_color(StyleColor::Text, color);
 
-                            if ui.checkbox(ImStr::new(instr), &mut bk) {
-                                if bk {
-                                    cpu.set_breakpoint(*addr);
-                                } else {
-                                    cpu.clear_breakpoint(*addr);
-                                }
+                        let mut bk = cpu.breakpoint_at(*addr);
+                        if ui.checkbox(instr, &mut bk) {
+                            if bk {
+                                cpu.set_breakpoint(*addr);
+                            } else {
+                                cpu.clear_breakpoint(*addr);
                             }
-                        });
+                        }
+
+                        color_tok.pop(ui);
                     }
-                });
+
+                    style_tok.pop(ui);
+                }
             });
     }
 }
@@ -175,11 +182,11 @@ impl WindowView for DisassemblyView {
         let pc = state.cpu().pc;
         self.realign_disasm(state, pc);
 
-        ui.window(im_str!("Disassembly"))
-            .size((300.0, 650.0), ImGuiCond::FirstUseEver)
-            .position((10.0, 30.0), ImGuiCond::FirstUseEver)
+        Window::new(im_str!("Disassembly"))
+            .size([300.0, 650.0], Condition::FirstUseEver)
+            .position([10.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(|| {
+            .build(ui, || {
                 let (goto_addr, goto_pc) = self.draw_goto_bar(ui);
 
                 ui.separator();

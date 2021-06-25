@@ -1,8 +1,10 @@
-use super::dbg;
-use super::io::{InterruptSource, IrqController, Joypad, Serial, Timer, APU, PPU};
-use super::mem::{MemR, MemRW, MemW, Memory};
-
 use std::convert::TryFrom;
+
+use crate::{
+    dbg,
+    io::{InterruptSource, IrqController, Joypad, Serial, Timer, APU, PPU},
+    mem::{MemR, MemRW, MemW, Memory},
+};
 
 // Specifies which Memory Bank Controller (if any) is used in the cartridge.
 #[derive(Debug)]

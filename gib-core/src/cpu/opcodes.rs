@@ -1,5 +1,7 @@
-use super::dbg;
-use super::{MemoryAddressing::*, OpcodeInfo, OperandLocation::*, WritebackOp, CPU};
+use crate::{
+    cpu::{MemoryAddressing::*, OpcodeInfo, OperandLocation::*, WritebackOp, CPU},
+    dbg,
+};
 
 macro_rules! jp {
     ($cpu:ident, $cond:expr, $abs:expr) => {{
@@ -1196,10 +1198,13 @@ pub const OPCODES: [OpcodeInfo; 256] = [
 
 #[cfg(test)]
 mod test {
-    use super::super::dbg;
-    use super::super::mem::{MemR, MemRW, MemW};
-    use super::super::{CpuState, CpuState::*};
     use super::*;
+
+    use crate::{
+        cpu::{CpuState, CpuState::*},
+        dbg,
+        mem::{MemR, MemRW, MemW},
+    };
 
     impl<'a> MemR for &'a mut [u8] {
         fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
@@ -1300,33 +1305,33 @@ mod test {
         CpuTest::new(1, vec![0x10])
             .match_states(vec![FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.halted.loaded(), true);
+                assert!(*cpu.halted.loaded());
             });
 
         CpuTest::new(2, vec![0x10, 0x00])
             .match_states(vec![FetchOpcode, FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.halted.value(), true);
+                assert!(*cpu.halted.value());
             });
 
         // EI
         CpuTest::new(1, vec![0xFB])
             .match_states(vec![FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.intr_enabled.value(), false);
+                assert!(!*cpu.intr_enabled.value());
             });
 
         CpuTest::new(2, vec![0xFB, 0x00])
             .match_states(vec![FetchOpcode, FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.intr_enabled.value(), true);
+                assert!(*cpu.intr_enabled.value());
             });
 
         // DI
         CpuTest::new(2, vec![0xFB, 0xF3])
             .match_states(vec![FetchOpcode, FetchOpcode])
             .run(|cpu, _| {
-                assert_eq!(*cpu.intr_enabled.value(), false);
+                assert!(!*cpu.intr_enabled.value());
             });
     }
 

@@ -1,6 +1,8 @@
-use super::dbg;
-use super::{InterruptSource, IoReg, IrqSource};
-use super::{MemR, MemRW, MemW};
+use crate::{
+    dbg,
+    io::{InterruptSource, IoReg, IrqSource},
+    mem::{MemR, MemRW, MemW},
+};
 
 pub struct Timer {
     pub sys_counter: IoReg<u16>,
