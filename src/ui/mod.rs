@@ -9,18 +9,15 @@ use std::{
 use anyhow::Error;
 use context::UiContext;
 use crossbeam::queue::ArrayQueue;
-use gfx::{
-    texture::{FilterMethod, SamplerInfo, WrapMode},
-    Factory,
-};
 use gib_core::{self, io::JoypadState};
-use glutin::event::VirtualKeyCode;
 use imgui::{im_str, Condition, Image, MenuItem, StyleVar, Ui, Window, WindowFlags};
+use imgui_wgpu::{Texture, TextureConfig};
 use sound::SoundEngine;
 use state::EmuState;
 use views::{
     DebuggerView, DisassemblyView, MemEditView, MemMapView, PeripheralView, View, WindowView,
 };
+use winit::event::VirtualKeyCode;
 
 mod context;
 mod sound;
@@ -186,7 +183,7 @@ impl EmuUi {
              * Event handling phase
              */
 
-            ctx.poll_events();
+            let do_render = ctx.poll_events();
 
             if self.gui.should_quit || ctx.should_quit() {
                 return Ok(());
@@ -219,16 +216,17 @@ impl EmuUi {
             /*
              * Rendering phase
              */
+            if do_render {
+                self.prepare_screen_texture(&mut *ctx);
 
-            self.prepare_screen_texture(&mut *ctx);
-
-            ctx.render(delta, |ui| {
-                if self.gui.debug {
-                    self.draw_debug_ui(delta.as_secs_f32(), ui)
-                } else {
-                    self.draw_game_ui(delta.as_secs_f32(), ui)
-                }
-            });
+                ctx.render(delta, |ui| {
+                    if self.gui.debug {
+                        self.draw_debug_ui(delta.as_secs_f32(), ui)
+                    } else {
+                        self.draw_game_ui(delta.as_secs_f32(), ui)
+                    }
+                });
+            }
 
             // Pace the rendering thread
             std::thread::sleep(
@@ -242,32 +240,31 @@ impl EmuUi {
     /// Creates a new texture displaying the currently emulated screen,
     /// ready to be presented during the next rendering step.
     fn prepare_screen_texture(&mut self, ctx: &mut UiContext) {
-        let texture = ctx
-            .factory
-            .create_texture_immutable_u8::<gfx::format::Rgba8>(
-                gfx::texture::Kind::D2(
-                    EMU_X_RES as u16,
-                    EMU_Y_RES as u16,
-                    gfx::texture::AaMode::Single,
-                ),
-                gfx::texture::Mipmap::Provided,
-                &[&self.vpu_buffer[..]],
-            )
-            .unwrap()
-            .1;
+        let texture_config = TextureConfig {
+            size: wgpu::Extent3d {
+                width: EMU_X_RES as u32,
+                height: EMU_Y_RES as u32,
+                ..Default::default()
+            },
+            label: None,
+            ..Default::default()
+        };
 
-        let sampler = ctx
-            .factory
-            .create_sampler(SamplerInfo::new(FilterMethod::Scale, WrapMode::Clamp));
+        let texture = Texture::new(&ctx.device, &ctx.renderer, texture_config);
 
-        let texture = (texture, sampler);
+        texture.write(
+            &ctx.queue,
+            &self.vpu_buffer,
+            EMU_X_RES as u32,
+            EMU_Y_RES as u32,
+        );
 
         // If this is the first time rendering, insert the new texture, otherwise
         // replace an existing one.
         if let Some(ref vpu_texture) = self.vpu_texture {
-            ctx.renderer.textures().replace(*vpu_texture, texture);
+            ctx.renderer.textures.replace(*vpu_texture, texture);
         } else {
-            self.vpu_texture = Some(ctx.renderer.textures().insert(texture));
+            self.vpu_texture = Some(ctx.renderer.textures.insert(texture));
         }
     }
 

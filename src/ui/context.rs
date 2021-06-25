@@ -1,22 +1,16 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Duration};
 
-use gfx::handle::{DepthStencilView, RenderTargetView};
-use gfx_device_gl::{Device, Factory, Resources};
-use glutin::{
+use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
+use imgui_wgpu::{Renderer, RendererConfig};
+use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use pollster::block_on;
+use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     platform::{run_return::EventLoopExtRunReturn, windows::WindowBuilderExtWindows},
-    window::WindowBuilder,
-    PossiblyCurrent, WindowedContext,
+    window::{Window, WindowBuilder},
 };
-use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, Ui};
-use imgui_gfx_renderer::{Renderer, Shaders};
-use imgui_winit_support::{HiDpiMode, WinitPlatform};
-use old_school_gfx_glutin_ext::{ContextBuilderExt, WindowInitExt, WindowUpdateExt};
-
-type ColorFormat = gfx::format::Rgba8;
-type DepthFormat = gfx::format::DepthStencil;
 
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
 struct MouseState {
@@ -29,14 +23,14 @@ pub struct UiContext {
     pub imgui: Context,
     pub platform: WinitPlatform,
 
-    pub renderer: Renderer<ColorFormat, Resources>,
-    pub windowed_context: WindowedContext<PossiblyCurrent>,
-    pub device: Device,
-    pub factory: Factory,
-    pub main_color: RenderTargetView<Resources, ColorFormat>,
-    pub main_depth: DepthStencilView<Resources, DepthFormat>,
+    pub window: Window,
+    pub renderer: Renderer,
+    pub device: wgpu::Device,
+    pub surface: wgpu::Surface,
+    pub swap_chain: wgpu::SwapChain,
+    pub queue: wgpu::Queue,
 
-    pub events_loop: Rc<RefCell<EventLoop<()>>>,
+    pub event_loop: Rc<RefCell<EventLoop<()>>>,
 
     key_state: HashSet<VirtualKeyCode>,
     should_quit: bool,
@@ -46,87 +40,78 @@ pub struct UiContext {
 impl UiContext {
     /// Creates a new UI context with a window size of (width, height).
     pub fn new(width: f64, height: f64) -> UiContext {
-        let events_loop = EventLoop::new();
+        let event_loop = EventLoop::new();
 
-        let builder = WindowBuilder::new()
-            .with_title("gib")
-            .with_drag_and_drop(false) // NOTE(windows): see function doc
-            .with_inner_size(LogicalSize::new(width, height));
+        let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
 
+        // Create native window surface
+        let (window, size, surface) = {
+            let window = WindowBuilder::new()
+                .with_title("gib")
+                .with_drag_and_drop(false) // NOTE(windows): see function doc
+                .with_inner_size(LogicalSize::new(width, height))
+                .build(&event_loop)
+                .expect("Window builder error");
+
+            let size = window.inner_size();
+
+            let surface = unsafe { instance.create_surface(&window) };
+
+            (window, size, surface)
+        };
+
+        let hidpi_factor = window.scale_factor();
+
+        // Retrieve graphics adapter
+        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: Some(&surface),
+        }))
+        .expect("No adapater available");
+
+        let (device, queue) =
+            block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
+
+        // Set up swap chain
+        let sc_desc = wgpu::SwapChainDescriptor {
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            width: size.width as u32,
+            height: size.height as u32,
+            present_mode: wgpu::PresentMode::Mailbox,
+        };
+
+        let swap_chain = device.create_swap_chain(&surface, &sc_desc);
+
+        // Set up imgui
         let mut imgui = Context::create();
         imgui.set_ini_filename(None);
 
         let mut platform = WinitPlatform::init(&mut imgui);
-        let hidpi_factor = platform.hidpi_factor();
+        platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Default);
 
         UiContext::load_fonts(&mut imgui, hidpi_factor);
 
-        // Fix incorrect colors with sRGB framebuffer
-        {
-            fn imgui_gamma_to_linear(col: [f32; 4]) -> [f32; 4] {
-                let x = col[0].powf(2.2);
-                let y = col[1].powf(2.2);
-                let z = col[2].powf(2.2);
-                let w = 1.0 - (1.0 - col[3]).powf(2.2);
-                [x, y, z, w]
-            }
-
-            let style = imgui.style_mut();
-            for col in 0..style.colors.len() {
-                style.colors[col] = imgui_gamma_to_linear(style.colors[col]);
-            }
-        }
-
-        let (windowed_context, device, mut factory, main_color, main_depth) =
-            glutin::ContextBuilder::new()
-                .with_vsync(true)
-                .with_gfx_color_depth::<ColorFormat, DepthFormat>()
-                .build_windowed(builder, &events_loop)
-                .expect("Failed to initialize graphics")
-                .init_gfx::<ColorFormat, DepthFormat>();
-
-        let shaders = {
-            let version = device.get_info().shading_language;
-            if version.is_embedded {
-                if version.major >= 3 {
-                    Shaders::GlSlEs300
-                } else {
-                    Shaders::GlSlEs100
-                }
-            } else if version.major >= 4 {
-                Shaders::GlSl400
-            } else if version.major >= 3 {
-                if version.minor >= 2 {
-                    Shaders::GlSl150
-                } else {
-                    Shaders::GlSl130
-                }
-            } else {
-                Shaders::GlSl110
-            }
+        // Set up renderer
+        let renderer_config = RendererConfig {
+            texture_format: sc_desc.format,
+            ..Default::default()
         };
 
-        let renderer = Renderer::init(&mut imgui, &mut factory, shaders)
-            .expect("Failed to initialize renderer");
-
-        platform.attach_window(
-            imgui.io_mut(),
-            windowed_context.window(),
-            HiDpiMode::Rounded,
-        );
+        let renderer = Renderer::new(&mut imgui, &device, &queue, renderer_config);
 
         UiContext {
             imgui,
             platform,
 
+            window,
             renderer,
-            windowed_context,
             device,
-            factory,
-            main_color,
-            main_depth,
+            surface,
+            swap_chain,
+            queue,
 
-            events_loop: Rc::new(RefCell::from(events_loop)),
+            event_loop: Rc::new(RefCell::from(event_loop)),
 
             key_state: HashSet::new(),
             should_quit: false,
@@ -134,24 +119,33 @@ impl UiContext {
         }
     }
 
-    pub fn poll_events(&mut self) {
-        let events_loop = self.events_loop.clone();
+    pub fn poll_events(&mut self) -> bool {
+        let mut do_render = false;
 
-        events_loop
+        let event_loop = self.event_loop.clone();
+
+        event_loop
             .borrow_mut()
             .run_return(|event, _, control_flow| {
-                self.platform.handle_event(
-                    self.imgui.io_mut(),
-                    self.windowed_context.window(),
-                    &event,
-                );
+                self.platform
+                    .handle_event(self.imgui.io_mut(), &self.window, &event);
 
-                if let Event::WindowEvent { event, .. } = event {
-                    match event {
+                match event {
+                    Event::WindowEvent { event, .. } => match event {
                         WindowEvent::Focused(focus) => self.focused = focus,
                         WindowEvent::Resized(_) => {
-                            self.windowed_context
-                                .update_gfx(&mut self.main_color, &mut self.main_depth);
+                            let size = self.window.inner_size();
+
+                            let sc_desc = wgpu::SwapChainDescriptor {
+                                usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+                                format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                                width: size.width as u32,
+                                height: size.height as u32,
+                                present_mode: wgpu::PresentMode::Mailbox,
+                            };
+
+                            self.swap_chain =
+                                self.device.create_swap_chain(&self.surface, &sc_desc);
                         }
                         WindowEvent::CloseRequested => {
                             self.should_quit = true;
@@ -168,11 +162,16 @@ impl UiContext {
                             }
                         }
                         _ => (),
-                    }
+                    },
+                    Event::MainEventsCleared => self.window.request_redraw(),
+                    Event::RedrawEventsCleared => do_render = true,
+                    _ => (),
                 }
 
                 *control_flow = ControlFlow::Exit;
             });
+
+        do_render
     }
 
     pub fn should_quit(&self) -> bool {
@@ -183,42 +182,56 @@ impl UiContext {
     where
         F: FnMut(&Ui),
     {
-        use gfx::Device;
-
         let io = self.imgui.io_mut();
 
-        self.platform
-            .prepare_frame(io, self.windowed_context.window())
-            .expect("Preparing frame");
-
         io.update_delta_time(delta);
+
+        let frame = match self.swap_chain.get_current_frame() {
+            Ok(frame) => frame,
+            Err(e) => {
+                eprintln!("Dropped frame: {}", e);
+                return;
+            }
+        };
+
+        self.platform
+            .prepare_frame(io, &self.window)
+            .expect("Preparing frame");
 
         let ui = self.imgui.frame();
         f(&ui);
 
-        let mut encoder: gfx::Encoder<_, _> = self.factory.create_command_buffer().into();
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
-        encoder.clear(&self.main_color, [0.4, 0.5, 0.6, 1.0]);
+        self.platform.prepare_render(&ui, &self.window);
 
-        self.platform
-            .prepare_render(&ui, self.windowed_context.window());
-
-        let draw_data = ui.render();
+        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &frame.output.view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.4,
+                        g: 0.5,
+                        b: 0.6,
+                        a: 1.0,
+                    }),
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: None,
+        });
 
         self.renderer
-            .render(
-                &mut self.factory,
-                &mut encoder,
-                &mut self.main_color,
-                draw_data,
-            )
+            .render(ui.render(), &self.queue, &self.device, &mut rpass)
             .expect("Rendering failed");
 
-        encoder.flush(&mut self.device);
+        drop(rpass);
 
-        self.windowed_context.swap_buffers().unwrap();
-
-        self.device.cleanup();
+        self.queue.submit(Some(encoder.finish()));
 
         if !self.focused {
             // Throttle to 60 fps when in background, since macOS doesn't honor
