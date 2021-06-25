@@ -10,7 +10,7 @@ use crate::{
 #[derive(Debug)]
 pub enum MbcType {
     None,
-    MBC1,
+    Mbc1,
 }
 
 // The error type returned when parsing the MBC type code fails.
@@ -23,7 +23,7 @@ impl TryFrom<u8> for MbcType {
     fn try_from(n: u8) -> Result<Self, Self::Error> {
         match n {
             0x00 => Ok(MbcType::None),
-            0x01..=0x03 => Ok(MbcType::MBC1),
+            0x01..=0x03 => Ok(MbcType::Mbc1),
             _ => Err(McbTypeError(n)),
         }
     }
