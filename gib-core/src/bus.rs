@@ -204,17 +204,23 @@ impl Bus {
             // TODO is this remainder here the correct way of handling bank # overflow?
             // Some ROMs (eg. blargg's dmg_sound-2) seem to rely on this behavior.
             v @ 0x01..=0x1F => usize::from(v) % self.rom_banks.len(),
-            v => return Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RomBank, v)),
+            v => return Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RomBankSelect, v)),
         };
         Ok(())
     }
 
     fn ram_rom_select(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RamBank, val))
+        Err(dbg::TraceEvent::InvalidMbcOp(
+            dbg::McbOp::RamBankSelect,
+            val,
+        ))
     }
 
     fn mode_select(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RamBank, val))
+        Err(dbg::TraceEvent::InvalidMbcOp(
+            dbg::McbOp::BankingModeSelect,
+            val,
+        ))
     }
 
     fn write_to_cgb_functions(&mut self, addr: u16, _val: u8) -> Result<(), dbg::TraceEvent> {

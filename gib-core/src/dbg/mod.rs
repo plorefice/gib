@@ -115,15 +115,17 @@ impl fmt::Display for MemoryType {
 
 #[derive(Debug, Clone, Copy)]
 pub enum McbOp {
-    RomBank,
-    RamBank,
+    RomBankSelect,
+    RamBankSelect,
+    BankingModeSelect,
 }
 
 impl fmt::Display for McbOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            McbOp::RomBank => write!(f, "ROM bank select"),
-            McbOp::RamBank => write!(f, "RAM bank select"),
+            McbOp::RomBankSelect => write!(f, "ROM bank select"),
+            McbOp::RamBankSelect => write!(f, "RAM bank select"),
+            McbOp::BankingModeSelect => write!(f, "Banking mode select"),
         }
     }
 }
