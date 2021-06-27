@@ -8,9 +8,12 @@ use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    platform::{run_return::EventLoopExtRunReturn, windows::WindowBuilderExtWindows},
+    platform::run_return::EventLoopExtRunReturn,
     window::{Window, WindowBuilder},
 };
+
+#[cfg(target_os = "windows")]
+use winit::platform::windows::WindowBuilderExtWindows;
 
 use super::{EMU_X_RES, EMU_Y_RES};
 
@@ -48,12 +51,15 @@ impl UiContext {
 
         // Create native window surface
         let (window, size, surface) = {
-            let window = WindowBuilder::new()
+            let builder = WindowBuilder::new()
                 .with_title("gib")
-                .with_drag_and_drop(false) // NOTE(windows): see function doc
-                .with_inner_size(LogicalSize::new(width, height))
-                .build(&event_loop)
-                .expect("Window builder error");
+                .with_inner_size(LogicalSize::new(width, height));
+
+            #[cfg(target_os = "windows")]
+            // NOTE(windows): enabling drag-and-drop causes cpal to panic.
+            let builder = builder.with_drag_and_drop(false);
+
+            let window = builder.build(&event_loop).expect("Window builder error");
 
             let size = window.inner_size();
 
