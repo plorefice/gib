@@ -94,6 +94,17 @@ fn passes_blargg_dmg_sound_07_len_sweep_period_sync() {
 }
 
 #[test]
+fn passes_blargg_dmg_sound_08_len_ctr_during_power() {
+    RomTest::new(include_bytes!(
+        "../roms/blargg/dmg_sound-2/08-len ctr during power.gb"
+    ))
+    .must_run_and_match(
+        9_000_000u64,
+        include_bytes!("blargg/dmg_sound-2/08-len ctr during power.bin"),
+    )
+}
+
+#[test]
 fn passes_blargg_dmg_sound_11_regs_after_power() {
     RomTest::new(include_bytes!(
         "../roms/blargg/dmg_sound-2/11-regs after power.gb"
