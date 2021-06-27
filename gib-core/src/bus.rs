@@ -271,7 +271,10 @@ impl MemW for Bus {
             0x4000..=0x5FFF => self.ram_rom_select(addr, val),
             0x6000..=0x7FFF => self.mbc_write_op(addr, val),
             0x8000..=0x9FFF => self.ppu.write(addr, val),
-            0xA000..=0xBFFF => self.ram_banks[self.ram_nn].write(addr - 0xA000, val),
+            0xA000..=0xBFFF => self
+                .ram_banks
+                .get_mut(self.ram_nn)
+                .map_or(Ok(()), |bank| bank.write(addr - 0xA000, val)),
             0xC000..=0xCFFF => self.wram_00.write(addr - 0xC000, val),
             0xD000..=0xDFFF => self.wram_nn.write(addr - 0xD000, val),
             0xE000..=0xEFFF => self.wram_00.write(addr - 0xE000, val),
