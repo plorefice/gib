@@ -115,15 +115,13 @@ impl fmt::Display for MemoryType {
 
 #[derive(Debug, Clone, Copy)]
 pub enum McbOp {
-    RomBank,
-    RamBank,
+    Write(u16),
 }
 
 impl fmt::Display for McbOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            McbOp::RomBank => write!(f, "ROM bank select"),
-            McbOp::RamBank => write!(f, "RAM bank select"),
+            McbOp::Write(addr) => write!(f, "MBC Write @ {:04X}", addr),
         }
     }
 }
@@ -140,7 +138,7 @@ pub enum TraceEvent {
     MemFault(u16),
     #[error("Unsupported MBC: {0:02X}")]
     UnsupportedMbcType(u8),
-    #[error("Invalid MBC operation: {0}@{1:02X}")]
+    #[error("Invalid MBC operation: {0} = {1:02X}")]
     InvalidMbcOp(McbOp, u8),
     #[error("CGB speed switch request")]
     CgbSpeedSwitchReq,

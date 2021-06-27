@@ -1,5 +1,7 @@
 use std::convert::TryFrom;
 
+use dbg::{McbOp, TraceEvent};
+
 use crate::{
     dbg,
     io::{InterruptSource, IrqController, Joypad, Serial, Timer, APU, PPU},
@@ -11,6 +13,7 @@ use crate::{
 pub enum MbcType {
     None,
     Mbc1,
+    Mbc3,
 }
 
 // The error type returned when parsing the MBC type code fails.
@@ -24,6 +27,7 @@ impl TryFrom<u8> for MbcType {
         match n {
             0x00 => Ok(MbcType::None),
             0x01..=0x03 => Ok(MbcType::Mbc1),
+            0x0f..=0x13 => Ok(MbcType::Mbc3),
             _ => Err(McbTypeError(n)),
         }
     }
@@ -134,15 +138,15 @@ impl Bus {
         Bus::default()
     }
 
-    pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
+    pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), TraceEvent> {
         // Filter out ROMs using unsupported emulator features (eg. CGB-only mode)
         if rom[0x143] == 0xC0 {
-            return Err(dbg::TraceEvent::CgbNotSupported);
+            return Err(TraceEvent::CgbNotSupported);
         }
 
         // Check MBC type in the ROM header
         self.mbc = MbcType::try_from(rom[0x147])
-            .map_err(|McbTypeError(n)| dbg::TraceEvent::UnsupportedMbcType(n))?;
+            .map_err(|McbTypeError(n)| TraceEvent::UnsupportedMbcType(n))?;
 
         // Allocate ROM and RAM banks depending on the ROM header
         let rom_banks = RomBanks::try_from(rom[0x148]).unwrap();
@@ -166,7 +170,7 @@ impl Bus {
     }
 
     /// Advances the system peripheral/memory bus by a single M-cycle.
-    pub fn tick(&mut self) -> Result<(), dbg::TraceEvent> {
+    pub fn tick(&mut self) -> Result<(), TraceEvent> {
         if let Some((src, dst)) = self.ppu.advance_dma_xfer() {
             let b = self.read(src)?;
             self.ppu.write_to_oam(dst, b)?;
@@ -193,40 +197,50 @@ impl Bus {
         Ok(())
     }
 
-    fn ram_enable(&mut self, _val: u8) -> Result<(), dbg::TraceEvent> {
+    fn ram_enable(&mut self, _val: u8) -> Result<(), TraceEvent> {
         // TODO handle this just in case some ROMs rely on uncorrect behavior
         Ok(())
     }
 
-    fn rom_select(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
-        self.rom_nn = match val {
-            0x00 => 0x01,
-            // TODO is this remainder here the correct way of handling bank # overflow?
+    fn rom_select(&mut self, val: u8) -> Result<(), TraceEvent> {
+        self.rom_nn = if val == 0 {
+            1
+        } else {
+            // TODO is this remainder here the correct way of handling bank number overflow?
             // Some ROMs (eg. blargg's dmg_sound-2) seem to rely on this behavior.
-            v @ 0x01..=0x1F => usize::from(v) % self.rom_banks.len(),
-            v => return Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RomBank, v)),
+            usize::from(val) % self.rom_banks.len()
         };
         Ok(())
     }
 
-    fn ram_rom_select(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RamBank, val))
+    fn ram_rom_select(&mut self, addr: u16, val: u8) -> Result<(), TraceEvent> {
+        match val {
+            0x00..=0x03 => self.ram_nn = val.into(),
+            _ => return Err(TraceEvent::InvalidMbcOp(McbOp::Write(addr), val)),
+        };
+        Ok(())
     }
 
-    fn mode_select(&mut self, val: u8) -> Result<(), dbg::TraceEvent> {
-        Err(dbg::TraceEvent::InvalidMbcOp(dbg::McbOp::RamBank, val))
+    fn mbc_write_op(&mut self, addr: u16, val: u8) -> Result<(), TraceEvent> {
+        match self.mbc {
+            MbcType::Mbc3 => {
+                // TODO latch RTC register value
+                Ok(())
+            }
+            _ => Err(TraceEvent::InvalidMbcOp(McbOp::Write(addr), val)),
+        }
     }
 
-    fn write_to_cgb_functions(&mut self, addr: u16, _val: u8) -> Result<(), dbg::TraceEvent> {
+    fn write_to_cgb_functions(&mut self, addr: u16, _val: u8) -> Result<(), TraceEvent> {
         match addr {
-            0xFF4D => Err(dbg::TraceEvent::CgbSpeedSwitchReq),
+            0xFF4D => Err(TraceEvent::CgbSpeedSwitchReq),
             _ => Ok(()),
         }
     }
 }
 
 impl MemR for Bus {
-    fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
+    fn read(&self, addr: u16) -> Result<u8, TraceEvent> {
         match addr {
             0x0000..=0x3FFF => self.rom_banks[0].read(addr),
             0x4000..=0x7FFF => self.rom_banks[self.rom_nn].read(addr - 0x4000),
@@ -250,12 +264,12 @@ impl MemR for Bus {
 }
 
 impl MemW for Bus {
-    fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
+    fn write(&mut self, addr: u16, val: u8) -> Result<(), TraceEvent> {
         match addr {
             0x0000..=0x1FFF => self.ram_enable(val),
             0x2000..=0x3FFF => self.rom_select(val),
-            0x4000..=0x5FFF => self.ram_rom_select(val),
-            0x6000..=0x7FFF => self.mode_select(val),
+            0x4000..=0x5FFF => self.ram_rom_select(addr, val),
+            0x6000..=0x7FFF => self.mbc_write_op(addr, val),
             0x8000..=0x9FFF => self.ppu.write(addr, val),
             0xA000..=0xBFFF => self.ram_banks[self.ram_nn].write(addr - 0xA000, val),
             0xC000..=0xCFFF => self.wram_00.write(addr - 0xC000, val),
