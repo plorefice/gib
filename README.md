@@ -107,7 +107,7 @@ The passing tests are also integrated in the emulator's test suite.
 | interrupt_time | -        | Requires CGB support |
 | mem_timing-2   | 100%     | Full pass!           |
 | mem_timing     | 100%     | Full pass!           |
-| halt_bug       | -        | Not tested yet       |
+| halt_bug       | 100%     | Full pass!           |
 | oam_bug        | -        | Not tested yet       |
 | dmg_sound      | -        | Not tested yet       |
 

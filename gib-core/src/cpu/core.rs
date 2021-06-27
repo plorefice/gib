@@ -152,12 +152,12 @@ impl CPU {
             }
         };
 
-        // // The HALT bug prevents PC from being incremented on the instruction
-        // // following a HALT, under certain conditions.
-        // if self.halt_bug {
-        //     self.halt_bug = false;
-        //     self.pc = saved_ctx.pc;
-        // }
+        // The HALT bug prevents PC from being incremented on the instruction
+        // following a HALT, under certain conditions.
+        if self.halt_bug {
+            self.halt_bug = false;
+            self.pc = saved_ctx.pc;
+        }
 
         match res {
             Err(dbg::TraceEvent::CgbSpeedSwitchReq) => {

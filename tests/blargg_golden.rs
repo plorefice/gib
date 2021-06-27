@@ -26,6 +26,12 @@ fn passes_blargg_mem_timing_2() {
         .must_run_and_match(12_000_000u64, include_bytes!("blargg/mem_timing-2.bin"));
 }
 
+#[test]
+fn passes_blargg_halt_bug() {
+    RomTest::new(include_bytes!("../roms/blargg/halt_bug.gb"))
+        .must_run_and_match(10_000_000u64, include_bytes!("blargg/halt_bug.bin"));
+}
+
 /*
  * dmg_sound-2 single ROMs
  */

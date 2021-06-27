@@ -65,6 +65,7 @@ impl GameBoy {
             && (!*self.cpu.intr_enabled.value() && self.bus.itr.pending_irqs())
         {
             self.cpu.halt_bug = true;
+            self.cpu.halted.reset(false);
         }
 
         self.bus.tick()?;

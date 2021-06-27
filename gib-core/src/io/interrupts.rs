@@ -41,7 +41,7 @@ impl IrqController {
     }
 
     pub fn pending_irqs(&self) -> bool {
-        (self.ien.0 & self.ifg.0) != 0
+        self.get_pending_irq().is_some()
     }
 
     pub fn get_pending_irq(&self) -> Option<usize> {
