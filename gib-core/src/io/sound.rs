@@ -9,9 +9,7 @@ use crate::{
     mem::{MemR, MemW},
 };
 
-const CLK_64_RELOAD: u32 = 4_194_304 / 64;
-const CLK_128_RELOAD: u32 = 4_194_304 / 128;
-const CLK_256_RELOAD: u32 = 4_194_304 / 256;
+const FRAME_SEQUENCER_CLOCK_RELOAD: u32 = 4_194_304 / 512;
 
 // Maximum length counter value for tone channels
 const TONE_CH_LEN_MAX: u32 = 64;
@@ -845,9 +843,8 @@ pub struct APU {
     sample_period: f32,
 
     // Frame sequencer clocks
-    clk_64: u32,
-    clk_128: u32,
-    clk_256: u32,
+    frame_sequencer_clock: u32,
+    frame_sequencer_ticks: u32,
 }
 
 impl Default for APU {
@@ -883,12 +880,8 @@ impl Default for APU {
             sample_channel: None,
             sample_period: std::f32::INFINITY,
 
-            // TODO according to [1] these clocks are slightly out of phase,
-            // initialization and ticking should be fixed accordingly.
-            // [1] http://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Frame_Sequencer
-            clk_64: CLK_64_RELOAD,
-            clk_128: CLK_128_RELOAD,
-            clk_256: CLK_256_RELOAD,
+            frame_sequencer_clock: FRAME_SEQUENCER_CLOCK_RELOAD,
+            frame_sequencer_ticks: 7,
         }
     }
 }
@@ -903,9 +896,20 @@ impl APU {
 
     /// Advances the sound controller state machine by a single M-cycle.
     pub fn tick(&mut self) {
-        self.clk_64 -= 4;
-        self.clk_128 -= 4;
-        self.clk_256 -= 4;
+        // Tick the frame sequencer
+        self.frame_sequencer_clock -= 4;
+
+        let (clk_64, clk_128, clk_256) = if self.frame_sequencer_clock == 0 {
+            self.frame_sequencer_clock = FRAME_SEQUENCER_CLOCK_RELOAD;
+            self.frame_sequencer_ticks = (self.frame_sequencer_ticks + 1) % 8;
+            (
+                self.frame_sequencer_ticks == 7,
+                self.frame_sequencer_ticks & 0b11 == 2,
+                self.frame_sequencer_ticks & 0b1 == 0,
+            )
+        } else {
+            (false, false, false)
+        };
 
         // Internal timer clock tick
         self.ch1.tick();
@@ -914,25 +918,19 @@ impl APU {
         self.ch4.tick();
 
         // Volume envelope clock tick
-        if self.clk_64 == 0 {
-            self.clk_64 = CLK_64_RELOAD;
-
+        if clk_64 {
             self.ch1.tick_vol_env();
             self.ch2.tick_vol_env();
             self.ch4.tick_vol_env();
         }
 
         // Sweep clock tick
-        if self.clk_128 == 0 {
-            self.clk_128 = CLK_128_RELOAD;
-
+        if clk_128 {
             self.ch1.tick_freq_sweep();
         }
 
         // Lenght counter clock tick
-        if self.clk_256 == 0 {
-            self.clk_256 = CLK_256_RELOAD;
-
+        if clk_256 {
             self.ch1.tick_len_ctr();
             self.ch2.tick_len_ctr();
             self.ch3.tick_len_ctr();
@@ -1041,18 +1039,16 @@ impl APU {
         let new_nr52 = NR52::from_bits_truncate(val) & NR52::PWR_CTRL;
 
         // When NR52 gets disabled, 0 is immediately written to all the other registers
-        if !new_nr52.contains(NR52::PWR_CTRL) {
+        if self.nr52.contains(NR52::PWR_CTRL) && !new_nr52.contains(NR52::PWR_CTRL) {
             for addr in 0xFF10..=0xFF25 {
                 self.write(addr, 0)?;
             }
-        } else {
+        } else if !self.nr52.contains(NR52::PWR_CTRL) && new_nr52.contains(NR52::PWR_CTRL) {
             // When powered on, the frame sequencer is reset so that the next step will be 0,
             // the square duty units are reset to the first step of the waveform,
             // and the wave channel's sample buffer is reset to 0.
-            self.clk_64 = CLK_64_RELOAD;
-            self.clk_128 = CLK_128_RELOAD;
-            self.clk_256 = CLK_256_RELOAD;
-            self.ch1.timer_counter = 0;
+            self.frame_sequencer_clock = Self::default().frame_sequencer_clock;
+            self.frame_sequencer_ticks = Self::default().frame_sequencer_ticks;
             self.ch2.timer_counter = 0;
             self.ch3.sample_buffer = 0;
         }

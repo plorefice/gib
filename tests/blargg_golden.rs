@@ -83,6 +83,17 @@ fn passes_blargg_dmg_sound_06_overflow_on_trigger() {
 }
 
 #[test]
+fn passes_blargg_dmg_sound_07_len_sweep_period_sync() {
+    RomTest::new(include_bytes!(
+        "../roms/blargg/dmg_sound-2/07-len sweep period sync.gb"
+    ))
+    .must_run_and_match(
+        4_000_000u64,
+        include_bytes!("blargg/dmg_sound-2/07-len sweep period sync.bin"),
+    )
+}
+
+#[test]
 fn passes_blargg_dmg_sound_11_regs_after_power() {
     RomTest::new(include_bytes!(
         "../roms/blargg/dmg_sound-2/11-regs after power.gb"
