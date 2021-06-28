@@ -1377,7 +1377,7 @@ mod test {
 
         // POP rr
         CpuTest::new(3, vec![0xE1, 0x00, 0x00, 0x22, 0x11])
-            .match_states(vec![FetchMemory, Delay(0), FetchOpcode])
+            .match_states(vec![FetchMemory0, Delay(0), FetchOpcode])
             .match_memory(vec![0xE1, 0x00, 0x00, 0x22, 0x11])
             .setup(|cpu| {
                 cpu.sp = 0x0003;
@@ -1454,7 +1454,7 @@ mod test {
 
         // LD A,m
         CpuTest::new(2, vec![0x1A, 0xFE, 0x00])
-            .match_states(vec![FetchMemory, FetchOpcode])
+            .match_states(vec![FetchMemory0, FetchOpcode])
             .setup(|cpu| {
                 cpu.de = 0x1;
             })
@@ -1464,7 +1464,7 @@ mod test {
 
         // LD A,m+
         CpuTest::new(2, vec![0x2A, 0xFE, 0x00])
-            .match_states(vec![FetchMemory, FetchOpcode])
+            .match_states(vec![FetchMemory0, FetchOpcode])
             .setup(|cpu| {
                 cpu.hl = 0x1;
             })
@@ -1487,7 +1487,7 @@ mod test {
 
         // LD A,m
         CpuTest::new(2, vec![0x5E, 0xFE, 0x00])
-            .match_states(vec![FetchMemory, FetchOpcode])
+            .match_states(vec![FetchMemory0, FetchOpcode])
             .setup(|cpu| {
                 cpu.hl = 0x1;
             })
@@ -1527,7 +1527,7 @@ mod test {
 
         // LDH A,m
         CpuTest::new(3, vec![0xF0; 0x10000])
-            .match_states(vec![FetchByte0, FetchMemory, FetchOpcode])
+            .match_states(vec![FetchByte0, FetchMemory0, FetchOpcode])
             .run(|cpu, _| {
                 assert_eq!(cpu.a(), 0xF0);
             });
@@ -1598,7 +1598,7 @@ mod test {
 
         // INC m
         CpuTest::new(3, vec![0x34, 0x04])
-            .match_states(vec![FetchMemory, Writeback, FetchOpcode])
+            .match_states(vec![FetchMemory0, Writeback, FetchOpcode])
             .match_memory(vec![0x34, 0x05])
             .setup(|cpu| {
                 cpu.hl = 0x1;
@@ -1607,7 +1607,7 @@ mod test {
 
         // DEC m
         CpuTest::new(3, vec![0x35, 0x04])
-            .match_states(vec![FetchMemory, Writeback, FetchOpcode])
+            .match_states(vec![FetchMemory0, Writeback, FetchOpcode])
             .match_memory(vec![0x35, 0x03])
             .setup(|cpu| {
                 cpu.hl = 0x1;
@@ -1627,7 +1627,7 @@ mod test {
 
         // ADD/ADC/SUB/SBC r,m
         CpuTest::new(2, vec![0x96, 0x0E])
-            .match_states(vec![FetchMemory, FetchOpcode])
+            .match_states(vec![FetchMemory0, FetchOpcode])
             .setup(|cpu| {
                 cpu.hl = 0x1;
                 cpu.set_a(0xA5);
@@ -1649,7 +1649,7 @@ mod test {
 
         // AND/OR/XOR r,m
         CpuTest::new(2, vec![0xA6, 0b_0010_1001])
-            .match_states(vec![FetchMemory, FetchOpcode])
+            .match_states(vec![FetchMemory0, FetchOpcode])
             .setup(|cpu| {
                 cpu.hl = 0x1;
                 cpu.set_a(0b_0101_1010);
@@ -1687,7 +1687,7 @@ mod test {
 
         // CB m
         CpuTest::new(4, vec![0xCB, 0x96, 0b_0110_1110])
-            .match_states(vec![FetchByte0, FetchMemory, Writeback, FetchOpcode])
+            .match_states(vec![FetchByte0, FetchMemory0, Writeback, FetchOpcode])
             .match_memory(vec![0xCB, 0x96, 0b_0110_1010])
             .setup(|cpu| {
                 cpu.hl = 0x2;

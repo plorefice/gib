@@ -12,7 +12,7 @@ pub struct OpcodeInfo(
     pub u8,              // Cycles if branch not taken
 );
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryAddressing {
     A16, // (a16)
     IO,  // ($ff00 + a8)
@@ -35,7 +35,8 @@ pub enum CpuState {
     FetchOpcode,
     FetchByte0,
     FetchByte1,
-    FetchMemory,
+    FetchMemory0,
+    FetchMemory1,
     Writeback,
     Delay(u8),
 }
@@ -137,9 +138,8 @@ impl CPU {
 
         let res = match self.state {
             FetchOpcode => self.fetch_opcode(bus),
-            FetchByte0 => self.fetch_immediate(bus),
-            FetchByte1 => self.fetch_immediate(bus),
-            FetchMemory => self.fetch_memory(bus),
+            FetchByte0 | FetchByte1 => self.fetch_immediate(bus),
+            FetchMemory0 | FetchMemory1 => self.fetch_memory(bus),
             Writeback => self.writeback(bus),
             Delay(0) => {
                 self.state = CpuState::FetchOpcode;
@@ -207,7 +207,7 @@ impl CPU {
         if self.info.3 > 1 {
             self.state = CpuState::FetchByte0;
         } else if let OperandLocation::Memory(_) = self.info.2 {
-            self.state = CpuState::FetchMemory;
+            self.state = CpuState::FetchMemory0;
         } else {
             return self.exec();
         }
@@ -241,7 +241,7 @@ impl CPU {
                 if self.info.3 > 2 {
                     self.state = CpuState::FetchByte1;
                 } else if let Memory(_) = self.info.2 {
-                    self.state = CpuState::FetchMemory;
+                    self.state = CpuState::FetchMemory0;
                 } else {
                     return self.exec();
                 }
@@ -251,7 +251,7 @@ impl CPU {
 
                 // Check if we need to fetch more, otherwise execute directly
                 if let Memory(_) = self.info.2 {
-                    self.state = CpuState::FetchMemory;
+                    self.state = CpuState::FetchMemory0;
                 } else {
                     return self.exec();
                 }
@@ -268,23 +268,38 @@ impl CPU {
 
         // Operand location in memory is codified in the opcode.
         // This handles all possible memory addressings.
-        self.operand = match self.info.2 {
-            Memory(C) => bus.read(0xFF00 + u16::from(self.c()))?.into(),
-            Memory(IO) => bus.read(0xFF00 + self.operand)?.into(),
-            Memory(BC) => bus.read(self.bc)?.into(),
-            Memory(DE) => bus.read(self.de)?.into(),
-            Memory(HL) => bus.read(self.hl)?.into(),
-            Memory(A16) => bus.read(self.operand)?.into(),
+        let value = match self.info.2 {
+            Memory(C) => bus.read(0xFF00 + u16::from(self.c()))?,
+            Memory(IO) => bus.read(0xFF00 + self.operand)?,
+            Memory(BC) => bus.read(self.bc)?,
+            Memory(DE) => bus.read(self.de)?,
+            Memory(HL) => bus.read(self.hl)?,
+            Memory(A16) => bus.read(self.operand)?,
             Memory(SP) => {
-                let r = self.fetch_word(bus, self.sp)?;
-                self.sp += 2;
+                let r = bus.read(self.sp)?;
+                self.sp += 1;
                 r
             }
             _ => unreachable!(),
         };
 
-        // After a memory fetch, there is always the execution step
-        self.exec()
+        // When fetching a word, transition into the second fetch state
+        match (self.state, self.info.2) {
+            (CpuState::FetchMemory0, Memory(SP)) => {
+                self.operand = value.into();
+                self.state = CpuState::FetchMemory1;
+                Ok(())
+            }
+            (CpuState::FetchMemory0, _) => {
+                self.operand = value.into();
+                self.exec()
+            }
+            (CpuState::FetchMemory1, _) => {
+                self.operand |= u16::from(value) << 8;
+                self.exec()
+            }
+            _ => unreachable!(),
+        }
     }
 
     fn exec(&mut self) -> Result<(), dbg::TraceEvent> {

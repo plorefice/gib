@@ -219,6 +219,14 @@ fn passes_gekkio_acceptance_oam_dma_timing() {
 }
 
 #[test]
+fn passes_gekkio_acceptance_pop_timing() {
+    RomTest::new(include_bytes!("../roms/gekkio/acceptance/pop_timing.gb")).must_run_and_match(
+        1_000_000u64,
+        include_bytes!("gekkio/acceptance/pop_timing.bin"),
+    );
+}
+
+#[test]
 fn passes_gekkio_acceptance_rapid_di_ei() {
     RomTest::new(include_bytes!("../roms/gekkio/acceptance/rapid_di_ei.gb")).must_run_and_match(
         4_000_000u64,
