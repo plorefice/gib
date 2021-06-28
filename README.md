@@ -87,7 +87,7 @@ are shown below.
 | ---------- | -------- | ----------------------------------------- |
 | CPU        | 100%     | Timings verification still missing        |
 | Video      | 80%      | BG, Sprite, Window and IRQ support        |
-| Sound      | 65%      | Channels #1, #2 and #3 are mostly working |
+| Sound      | 70%      | Channels #1, #2 and #3 are mostly working |
 | Joypad     | 80%      | IRQ support missing                       |
 | Link cable | 0%       | Not implemented yet                       |
 | Timers     | 100%     | Passes all Gekkio's acceptance tests      |
@@ -100,16 +100,16 @@ are shown below.
 
 The passing tests are also integrated in the emulator's test suite.
 
-| Test ROM       | Progress | Notes                |
-| -------------- | -------- | -------------------- |
-| cpu_instrs     | 100%     | Full pass!           |
-| instr_timing   | 100%     | Full pass!           |
-| interrupt_time | -        | Requires CGB support |
-| mem_timing-2   | 100%     | Full pass!           |
-| mem_timing     | 100%     | Full pass!           |
-| halt_bug       | 100%     | Full pass!           |
-| oam_bug        | -        | Not tested yet       |
-| dmg_sound      | -        | Not tested yet       |
+| Test ROM       | Progress | Notes                                 |
+| -------------- | -------- | ------------------------------------- |
+| cpu_instrs     | 100%     | Full pass!                            |
+| instr_timing   | 100%     | Full pass!                            |
+| interrupt_time | -        | Requires CGB support                  |
+| mem_timing-2   | 100%     | Full pass!                            |
+| mem_timing     | 100%     | Full pass!                            |
+| halt_bug       | 100%     | Full pass!                            |
+| oam_bug        | -        | Not tested yet                        |
+| dmg_sound      | 70%      | Trigger and wave channels still wonky |
 
 ### Gekkio's test suite
 
