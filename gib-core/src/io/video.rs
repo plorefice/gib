@@ -83,7 +83,7 @@ impl<'a> MemR for &'a [Sprite] {
 
 impl<'a> MemR for &'a mut [Sprite] {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
-        (&*self as &[Sprite]).read(addr)
+        (self as &[Sprite]).read(addr)
     }
 }
 

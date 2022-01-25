@@ -38,22 +38,12 @@ const KEYMAP: [(VirtualKeyCode, JoypadState); 8] = [
     (VirtualKeyCode::Return, JoypadState::START),
 ];
 
+#[derive(Default)]
 pub struct GuiState {
     debug: bool,
     should_quit: bool,
     file_dialog: Option<utils::FileDialog>,
     views: HashMap<View, Box<dyn WindowView>>,
-}
-
-impl Default for GuiState {
-    fn default() -> GuiState {
-        GuiState {
-            debug: false,
-            should_quit: false,
-            file_dialog: None,
-            views: HashMap::new(),
-        }
-    }
 }
 
 use std::sync::Arc;

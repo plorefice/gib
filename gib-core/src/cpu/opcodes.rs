@@ -18,7 +18,7 @@ macro_rules! jr {
             $cpu,
             $cond,
             (i32::from($cpu.pc) + i32::from($offset)) as u16
-        );
+        )
     };
 }
 
@@ -54,9 +54,9 @@ macro_rules! logical {
     }};
 }
 
-macro_rules! and { ($cpu:ident, $rhs:expr) => { logical!($cpu, &, $rhs, 0, 1, 0); }; }
-macro_rules! xor { ($cpu:ident, $rhs:expr) => { logical!($cpu, ^, $rhs, 0, 0, 0); }; }
-macro_rules! or  { ($cpu:ident, $rhs:expr) => { logical!($cpu, |, $rhs, 0, 0, 0); }; }
+macro_rules! and { ($cpu:ident, $rhs:expr) => { logical!($cpu, &, $rhs, 0, 1, 0) }; }
+macro_rules! xor { ($cpu:ident, $rhs:expr) => { logical!($cpu, ^, $rhs, 0, 0, 0) }; }
+macro_rules! or  { ($cpu:ident, $rhs:expr) => { logical!($cpu, |, $rhs, 0, 0, 0) }; }
 
 macro_rules! inc {
     ($cpu:ident, $v:expr) => {{

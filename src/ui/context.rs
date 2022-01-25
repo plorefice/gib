@@ -281,7 +281,7 @@ impl UiContext {
         if let Some(ref mut vpu_texture) = texture_id {
             self.renderer.textures.replace(*vpu_texture, texture);
         } else {
-            texture_id.insert(self.renderer.textures.insert(texture));
+            *texture_id = Some(self.renderer.textures.insert(texture));
         }
     }
 
