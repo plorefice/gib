@@ -1,5 +1,5 @@
 use gib_core::dbg::MemoryType;
-use imgui::{im_str, Condition, ImString, Ui, Window};
+use imgui::{Condition, ImString, Ui, Window};
 
 use crate::ui::{state::EmuState, utils};
 
@@ -26,7 +26,7 @@ impl WindowView for MemMapView {
     fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
         let mut open = true;
 
-        Window::new(im_str!("Memory Map"))
+        Window::new("Memory Map")
             .size([225.0, 290.0], Condition::FirstUseEver)
             .position([720.0, 225.0], Condition::FirstUseEver)
             .opened(&mut open)

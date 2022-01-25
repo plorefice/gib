@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use gib_core::{dbg, mem::MemR};
-use imgui::{im_str, ChildWindow, Condition, ImString, ListClipper, Ui, Window};
+use imgui::{ChildWindow, Condition, ImString, ListClipper, Ui, Window};
 
 use crate::ui::{state::EmuState, utils};
 
@@ -12,7 +12,7 @@ pub struct MemEditView {
     section: dbg::MemoryType,
     content: Vec<ImString>,
 
-    search_string: ImString,
+    search_string: String,
     matched_ranges: Vec<(usize, Range<usize>)>, // (line,range)
     highlighted_line_id: Option<usize>,
     find_next: bool,
@@ -26,7 +26,7 @@ impl MemEditView {
             section: dbg::MemoryType::RomBank(0),
             content: Vec::with_capacity(max_bank_size),
 
-            search_string: ImString::with_capacity(128),
+            search_string: String::with_capacity(128),
             matched_ranges: Vec::with_capacity(max_bank_size),
             highlighted_line_id: None,
             find_next: false,
@@ -74,7 +74,7 @@ impl MemEditView {
 
     /// Finds the search pattern in the currently selected memory region.
     fn find_string(&mut self) {
-        let pat = self.search_string.to_str();
+        let pat = &self.search_string;
 
         self.highlighted_line_id = None;
 
@@ -114,22 +114,22 @@ impl MemEditView {
         use dbg::MemoryType::*;
 
         for (label, region) in [
-            (im_str!("ROM00"), RomBank(0)),
-            (im_str!("ROM01"), RomBank(1)),
-            (im_str!("VRAM"), VideoRam),
-            (im_str!("ERAM"), ExternalRam),
-            (im_str!("WRAM00"), WorkRamBank(0)),
-            (im_str!("WRAM01"), WorkRamBank(1)),
-            (im_str!("HRAM"), HighRam),
+            ("ROM00", RomBank(0)),
+            ("ROM01", RomBank(1)),
+            ("VRAM", VideoRam),
+            ("ERAM", ExternalRam),
+            ("WRAM00", WorkRamBank(0)),
+            ("WRAM01", WorkRamBank(1)),
+            ("HRAM", HighRam),
         ]
         .iter()
         {
-            if ui.button(label, [0.0, 0.0]) {
+            if ui.button(label) {
                 self.section = *region;
                 self.refresh_memory(state);
                 self.find_string();
             }
-            ui.same_line(0.0);
+            ui.same_line();
         }
 
         let [w, _] = ui.content_region_avail();
@@ -138,15 +138,15 @@ impl MemEditView {
         // and if it has, update the search results
         let width_tok = ui.push_item_width(w - 25.);
 
-        if ui.input_text(im_str!(""), &mut self.search_string).build() {
+        if ui.input_text("", &mut self.search_string).build() {
             self.find_string();
         }
 
         width_tok.pop(ui);
 
-        ui.same_line(0.0);
+        ui.same_line();
 
-        self.find_next = ui.button(im_str!(">"), [20.0, 0.0]);
+        self.find_next = ui.button_with_size(">", [20.0, 0.0]);
     }
 }
 
@@ -159,7 +159,7 @@ impl WindowView for MemEditView {
             self.refresh_memory(state);
         }
 
-        Window::new(im_str!("Memory Editor"))
+        Window::new("Memory Editor")
             .size([555.0, 400.0], Condition::FirstUseEver)
             .position([320.0, 280.0], Condition::FirstUseEver)
             .opened(&mut open)
@@ -200,7 +200,7 @@ impl WindowView for MemEditView {
 
                                     ui.text(&s[..rng.start]);
                                     ui.same_line_with_spacing(0.0, 0.0);
-                                    ui.text_colored(utils::YELLOW, im_str!("{}", &s[rng.clone()]));
+                                    ui.text_colored(utils::YELLOW, &s[rng.clone()]);
                                     ui.same_line_with_spacing(0.0, 0.0);
                                     ui.text(&s[rng.end..]);
                                 } else {

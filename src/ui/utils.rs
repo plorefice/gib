@@ -1,6 +1,6 @@
 use std::{path::PathBuf, time::Duration};
 
-use imgui::{im_str, ImStr, ImString, Ui};
+use imgui::{ImStr, ImString, Ui};
 
 pub const DARK_GREY: [f32; 4] = [0.6, 0.6, 0.6, 1.0];
 pub const DARK_GREEN: [f32; 4] = [0.0, 0.2, 0.0, 1.0];
@@ -84,16 +84,16 @@ impl FileDialog {
         ui.popup_modal(&self.title)
             .resizable(false)
             .always_auto_resize(true)
-            .build(|| {
+            .build(ui, || {
                 let fl = self
                     .file_list
                     .iter()
                     .map(|s| s.as_ref())
                     .collect::<Vec<&ImStr>>();
 
-                clicked = ui.list_box(im_str!(""), &mut selected, &fl, 10);
+                clicked = ui.list_box("", &mut selected, &fl, 10);
 
-                if ui.button(im_str!("Cancel"), [0.0, 0.0]) {
+                if ui.button("Cancel") {
                     ui.close_current_popup();
                     on_result(None);
                 }
@@ -125,15 +125,11 @@ impl FileDialog {
 }
 
 pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
-    let mut buf = if let Some(v) = val {
-        ImString::from(format!("{:04X}", v))
-    } else {
-        ImString::with_capacity(4)
-    };
+    let mut buf = val.map(|v| format!("{:04X}", v)).unwrap_or_default();
 
     let tok = ui.push_item_width(37.0);
 
-    ui.input_text(im_str!("{}", name).as_ref(), &mut buf)
+    ui.input_text(name, &mut buf)
         .chars_hexadecimal(true)
         .chars_noblank(true)
         .chars_uppercase(true)
@@ -143,7 +139,7 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
 
     drop(tok);
 
-    *val = u16::from_str_radix(buf.to_str(), 16).ok();
+    *val = u16::from_str_radix(&buf, 16).ok();
 }
 
 /// Scrolls the view to the specified `line`.

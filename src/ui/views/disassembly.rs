@@ -1,9 +1,7 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
 use gib_core::{cpu::Immediate, dbg};
-use imgui::{
-    im_str, ChildWindow, Condition, ImString, ListClipper, StyleColor, StyleVar, Ui, Window,
-};
+use imgui::{ChildWindow, Condition, ImString, ListClipper, StyleColor, StyleVar, Ui, Window};
 
 use crate::ui::{state::EmuState, utils};
 
@@ -100,15 +98,15 @@ impl DisassemblyView {
         let goto_addr;
 
         utils::input_addr(ui, "", &mut self.goto_addr, true);
-        ui.same_line(0.0);
+        ui.same_line();
 
-        goto_addr = ui.button(im_str!("Goto"), [0.0, 0.0]);
-        ui.same_line(0.0);
+        goto_addr = ui.button("Goto");
+        ui.same_line();
 
-        goto_pc = ui.button(im_str!("Goto PC"), [0.0, 0.0]);
-        ui.same_line(0.0);
+        goto_pc = ui.button("Goto PC");
+        ui.same_line();
 
-        ui.checkbox(im_str!("Follow"), &mut self.follow_pc);
+        ui.checkbox("Follow", &mut self.follow_pc);
 
         (goto_addr, goto_pc)
     }
@@ -143,7 +141,7 @@ impl DisassemblyView {
 
                     let cpu = state.cpu_mut();
 
-                    let style_tok = ui.push_style_var(StyleVar::FrameRounding(15.0));
+                    let _style_tok = ui.push_style_var(StyleVar::FrameRounding(15.0));
 
                     for (addr, instr) in instrs {
                         let color = match addr.cmp(&pc) {
@@ -153,7 +151,7 @@ impl DisassemblyView {
                         };
 
                         // Render breakpoing and instruction
-                        let color_tok = ui.push_style_color(StyleColor::Text, color);
+                        let _color_tok = ui.push_style_color(StyleColor::Text, color);
 
                         let mut bk = cpu.breakpoint_at(*addr);
                         if ui.checkbox(instr, &mut bk) {
@@ -163,11 +161,7 @@ impl DisassemblyView {
                                 cpu.clear_breakpoint(*addr);
                             }
                         }
-
-                        color_tok.pop(ui);
                     }
-
-                    style_tok.pop(ui);
                 }
             });
     }
@@ -182,7 +176,7 @@ impl WindowView for DisassemblyView {
         let pc = state.cpu().pc;
         self.realign_disasm(state, pc);
 
-        Window::new(im_str!("Disassembly"))
+        Window::new("Disassembly")
             .size([300.0, 650.0], Condition::FirstUseEver)
             .position([10.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)

@@ -1,4 +1,4 @@
-use imgui::{im_str, CollapsingHeader, Condition, Ui, Window};
+use imgui::{CollapsingHeader, Condition, Ui, Window};
 
 use crate::ui::{state::EmuState, utils};
 
@@ -16,38 +16,38 @@ impl WindowView for PeripheralView {
     fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
         let mut open = true;
 
-        Window::new(im_str!("Peripherals"))
+        Window::new("Peripherals")
             .size([310.0, 650.0], Condition::FirstUseEver)
             .position([955.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
             .build(ui, || {
-                if CollapsingHeader::new(im_str!("Video Display")).build(ui) {
+                if CollapsingHeader::new("Video Display").build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if CollapsingHeader::new(im_str!("Sound Controller"))
+                if CollapsingHeader::new("Sound Controller")
                     .default_open(true)
                     .build(ui)
                 {
                     self.draw_sound_controller(ui, state);
                 }
 
-                if CollapsingHeader::new(im_str!("Joypad Input")).build(ui) {
+                if CollapsingHeader::new("Joypad Input").build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if CollapsingHeader::new(im_str!("Link Cable")).build(ui) {
+                if CollapsingHeader::new("Link Cable").build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }
 
-                if CollapsingHeader::new(im_str!("Timer and Divider"))
+                if CollapsingHeader::new("Timer and Divider")
                     .default_open(true)
                     .build(ui)
                 {
                     self.draw_timer(ui, state);
                 }
 
-                if CollapsingHeader::new(im_str!("Interrupts"))
+                if CollapsingHeader::new("Interrupts")
                     .default_open(true)
                     .build(ui)
                 {
@@ -67,7 +67,7 @@ impl PeripheralView {
         {
             ui.text("Sweep Channel");
 
-            ui.same_line(150.0);
+            ui.same_line_with_pos(150.0);
             ui.text_colored(
                 if apu.ch1.enabled() {
                     utils::GREEN
@@ -77,7 +77,7 @@ impl PeripheralView {
                 "ENABLED",
             );
 
-            ui.same_line(220.0);
+            ui.same_line_with_pos(220.0);
             ui.text_colored(
                 if apu.ch1.dac_on() {
                     utils::GREEN
@@ -96,7 +96,7 @@ impl PeripheralView {
         {
             ui.text("Tone Channel");
 
-            ui.same_line(150.0);
+            ui.same_line_with_pos(150.0);
             ui.text_colored(
                 if apu.ch1.enabled() {
                     utils::GREEN
@@ -106,7 +106,7 @@ impl PeripheralView {
                 "ENABLED",
             );
 
-            ui.same_line(220.0);
+            ui.same_line_with_pos(220.0);
             ui.text_colored(
                 if apu.ch1.dac_on() {
                     utils::GREEN
@@ -140,9 +140,9 @@ impl PeripheralView {
         let timer = &state.bus().tim;
 
         utils::input_addr(ui, "DIV", &mut Some(timer.sys_counter.0), false);
-        ui.same_line(0.0);
+        ui.same_line();
         utils::input_addr(ui, "TIMA", &mut Some(u16::from(timer.tima.0)), false);
-        ui.same_line(0.0);
+        ui.same_line();
         utils::input_addr(ui, "TMA", &mut Some(u16::from(timer.tma.0)), false);
 
         ui.separator();

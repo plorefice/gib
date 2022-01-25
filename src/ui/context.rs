@@ -34,7 +34,6 @@ pub struct UiContext {
     renderer: Renderer,
     device: wgpu::Device,
     surface: wgpu::Surface,
-    swap_chain: wgpu::SwapChain,
     queue: wgpu::Queue,
 
     key_state: HashSet<VirtualKeyCode>,
@@ -47,7 +46,7 @@ impl UiContext {
     pub fn new(width: f64, height: f64) -> UiContext {
         let event_loop = EventLoop::new();
 
-        let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+        let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
 
         // Create native window surface
         let (window, size, surface) = {
@@ -74,22 +73,23 @@ impl UiContext {
         let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
         }))
         .expect("No adapater available");
 
         let (device, queue) =
             block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
 
-        // Set up swap chain
-        let sc_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+        // Set up surface
+        let surface_desc = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width as u32,
             height: size.height as u32,
             present_mode: wgpu::PresentMode::Mailbox,
         };
 
-        let swap_chain = device.create_swap_chain(&surface, &sc_desc);
+        surface.configure(&device, &surface_desc);
 
         // Set up imgui
         let mut imgui = Context::create();
@@ -102,7 +102,7 @@ impl UiContext {
 
         // Set up renderer
         let renderer_config = RendererConfig {
-            texture_format: sc_desc.format,
+            texture_format: surface_desc.format,
             ..Default::default()
         };
 
@@ -116,7 +116,6 @@ impl UiContext {
             renderer,
             device,
             surface,
-            swap_chain,
             queue,
 
             event_loop: Rc::new(RefCell::from(event_loop)),
@@ -139,21 +138,20 @@ impl UiContext {
                     .handle_event(self.imgui.io_mut(), &self.window, &event);
 
                 match event {
-                    Event::WindowEvent { event, .. } => match event {
-                        WindowEvent::Focused(focus) => self.focused = focus,
+                    Event::WindowEvent { ref event, .. } => match event {
+                        WindowEvent::Focused(focus) => self.focused = *focus,
                         WindowEvent::Resized(_) => {
                             let size = self.window.inner_size();
 
-                            let sc_desc = wgpu::SwapChainDescriptor {
-                                usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+                            let surface_desc = wgpu::SurfaceConfiguration {
+                                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                                 format: wgpu::TextureFormat::Bgra8UnormSrgb,
                                 width: size.width as u32,
                                 height: size.height as u32,
                                 present_mode: wgpu::PresentMode::Mailbox,
                             };
 
-                            self.swap_chain =
-                                self.device.create_swap_chain(&self.surface, &sc_desc);
+                            self.surface.configure(&self.device, &surface_desc);
                         }
                         WindowEvent::CloseRequested => {
                             self.should_quit = true;
@@ -207,7 +205,7 @@ impl UiContext {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         });
 
         // Extract the texture view
@@ -237,7 +235,7 @@ impl UiContext {
                 entries: &[
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
@@ -247,11 +245,8 @@ impl UiContext {
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
-                        visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler {
-                            comparison: false,
-                            filtering: true,
-                        },
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
                 ],
@@ -294,7 +289,7 @@ impl UiContext {
 
         io.update_delta_time(delta);
 
-        let frame = match self.swap_chain.get_current_frame() {
+        let frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(e) => {
                 eprintln!("Dropped frame: {}", e);
@@ -315,10 +310,14 @@ impl UiContext {
 
         self.platform.prepare_render(&ui, &self.window);
 
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &frame.output.view,
+                view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -340,6 +339,8 @@ impl UiContext {
         drop(rpass);
 
         self.queue.submit(Some(encoder.finish()));
+
+        frame.present();
 
         if !self.focused {
             // Throttle to 60 fps when in background, since macOS doesn't honor
