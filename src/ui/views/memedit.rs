@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{fmt::Write, ops::Range};
 
 use gib_core::{dbg, mem::MemR};
 use imgui::{ChildWindow, Condition, ImString, ListClipper, Ui, Window};
@@ -61,7 +61,7 @@ impl MemEditView {
             // Eg: "0xFF00:  00 01 02 03 04 05  |...123|"
             let mut content = format!("{:04X}:  ", ptr);
             for d in data.iter() {
-                content.push_str(&format!("{:02X} ", d));
+                write!(content, "{d:02X} ").unwrap();
             }
             content.push(' ');
             content.push_str(&utils::format_ascii(&data));

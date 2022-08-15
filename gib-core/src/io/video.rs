@@ -484,8 +484,8 @@ impl PPU {
         // Clip to currently visible area
         for py in y.max(0)..(y + 8).min(144) {
             for px in x.max(0)..(x + 8).min(160) {
-                let x = (off_x - (px - x) as i16).abs() as u8;
-                let y = (off_y - (py - y) as i16).abs() as u8;
+                let x = (off_x - (px - x) as i16).unsigned_abs() as u8;
+                let y = (off_y - (py - y) as i16).unsigned_abs() as u8;
 
                 let pixel = tile.pixel(x, y);
                 let shade = self.get_shade(palette, pixel);

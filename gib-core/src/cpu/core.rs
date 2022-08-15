@@ -30,7 +30,7 @@ pub enum OperandLocation {
     Memory(MemoryAddressing),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CpuState {
     FetchOpcode,
     FetchByte0,
@@ -41,7 +41,7 @@ pub enum CpuState {
     Delay(u8),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WritebackOp {
     Write8(u16, u8),
     Write16(u16, u16),

@@ -42,7 +42,7 @@ impl Zero for u16 {
     }
 }
 
-#[derive(Default, Copy, Clone, Debug, PartialEq)]
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 pub struct IoReg<T>(pub T);
 
 impl<T> IoReg<T>

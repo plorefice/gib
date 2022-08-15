@@ -94,16 +94,13 @@ impl DisassemblyView {
     }
 
     fn draw_goto_bar(&mut self, ui: &Ui) -> (bool, bool) {
-        let goto_pc;
-        let goto_addr;
-
         utils::input_addr(ui, "", &mut self.goto_addr, true);
         ui.same_line();
 
-        goto_addr = ui.button("Goto");
+        let goto_addr = ui.button("Goto");
         ui.same_line();
 
-        goto_pc = ui.button("Goto PC");
+        let goto_pc = ui.button("Goto PC");
         ui.same_line();
 
         ui.checkbox("Follow", &mut self.follow_pc);

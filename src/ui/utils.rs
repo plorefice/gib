@@ -127,7 +127,7 @@ impl FileDialog {
 pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
     let mut buf = val.map(|v| format!("{:04X}", v)).unwrap_or_default();
 
-    let tok = ui.push_item_width(37.0);
+    let _tok = ui.push_item_width(37.0);
 
     ui.input_text(name, &mut buf)
         .chars_hexadecimal(true)
@@ -136,8 +136,6 @@ pub fn input_addr(ui: &Ui, name: &str, val: &mut Option<u16>, editable: bool) {
         .auto_select_all(true)
         .read_only(!editable)
         .build();
-
-    drop(tok);
 
     *val = u16::from_str_radix(&buf, 16).ok();
 }
