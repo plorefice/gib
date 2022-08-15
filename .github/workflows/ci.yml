@@ -1,64 +1,50 @@
-on: [push, pull_request]
-
 name: Continuous integration
 
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
 jobs:
-  check:
-    name: Check
+  build:
+    name: Build & Test
     runs-on: ubuntu-latest
     steps:
+      # Checkout code
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
 
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
+      # Install Rust toolchain & additional components
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - run: rustup component add rustfmt clippy
 
-  fmt:
-    name: Rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
+      # Install additional dependencies
+      - name: Install dependencies
+        run: sudo apt-get install -y libasound2-dev
+
+      # Run checks and tests
+      - name: Rustfmt
+        uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Check
+        uses: actions-rs/cargo@v1
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
+          command: check
+
+      - name: Clippy
+        uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings
+
+      - name: Test Suite
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
