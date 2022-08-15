@@ -367,7 +367,7 @@ impl UiContext {
                 }),
             },
             FontSource::TtfData {
-                data: include_bytes!("../../res/mplus-1p-regular.ttf"),
+                data: include_bytes!("../../assets/mplus-1p-regular.ttf"),
                 size_pixels: font_size,
                 config: Some(FontConfig {
                     oversample_h: 1,
