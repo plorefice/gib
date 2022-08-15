@@ -12,15 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checkout code
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
       # Install Rust toolchain & additional components
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - run: rustup component add rustfmt clippy
+
+      - name: Install Rust components
+        run: rustup component add rustfmt clippy
 
       # Install additional dependencies
       - name: Install dependencies
