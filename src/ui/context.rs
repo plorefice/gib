@@ -170,7 +170,7 @@ impl UiContext {
                         _ => (),
                     },
                     Event::MainEventsCleared => self.window.request_redraw(),
-                    Event::RedrawEventsCleared => do_render = true,
+                    Event::RedrawRequested(id) if id == self.window.id() => do_render = true,
                     _ => (),
                 }
 
