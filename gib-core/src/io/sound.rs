@@ -197,7 +197,7 @@ impl ToneChannel {
             _ => unreachable!(),
         };
 
-        self.waveform_level = if self.timer_counter < threshold { 1 } else { 0 };
+        self.waveform_level = (self.timer_counter < threshold).into();
     }
 
     /// Advances the frequency sweep unit by 1/128th of a second.

@@ -45,12 +45,7 @@ impl IrqController {
     }
 
     pub fn get_pending_irq(&self) -> Option<usize> {
-        for req_id in 0..=4 {
-            if self.ien.bit(req_id) && self.ifg.bit(req_id) {
-                return Some(req_id);
-            }
-        }
-        None
+        (0..=4).find(|&req_id| self.ien.bit(req_id) && self.ifg.bit(req_id))
     }
 
     pub fn set_irq(&mut self, irq: usize) {
