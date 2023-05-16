@@ -1377,7 +1377,7 @@ mod test {
 
         // POP rr
         CpuTest::new(3, vec![0xE1, 0x00, 0x00, 0x22, 0x11])
-            .match_states(vec![FetchMemory0, Delay(0), FetchOpcode])
+            .match_states(vec![FetchMemory0, FetchMemory1, FetchOpcode])
             .match_memory(vec![0xE1, 0x00, 0x00, 0x22, 0x11])
             .setup(|cpu| {
                 cpu.sp = 0x0003;
