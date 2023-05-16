@@ -19,7 +19,7 @@ impl RomTest {
         self.gb.load_rom(self.rom).unwrap();
 
         while self.gb.clock_cycles() < until {
-            self.gb.step().unwrap();
+            self.gb.run_for_vblank().unwrap();
         }
         self.gb.rasterize(&mut vbuf[..]);
 
