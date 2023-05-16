@@ -1,26 +1,28 @@
-use clap::{App, Arg};
+use std::path::PathBuf;
+
+use clap::Parser;
 
 mod ui;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Use development UI
+    #[arg(short, long)]
+    devel: bool,
+
+    /// ROM file to run
+    rom: Option<PathBuf>,
+}
 
 fn main() {
     env_logger::init();
 
-    let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(
-            Arg::new("devel")
-                .short('d')
-                .long("devel")
-                .help("Open development GUI"),
-        )
-        .arg(Arg::new("ROM").help("ROM file to run").index(1))
-        .get_matches();
+    let cli = Cli::parse();
 
-    let mut emu = ui::EmuUi::new(matches.is_present("devel")).unwrap();
+    let mut emu = ui::EmuUi::new(cli.devel).unwrap();
 
-    if let Some(ref rom) = matches.value_of("ROM") {
+    if let Some(ref rom) = cli.rom {
         emu.load_rom(rom).expect("error loading rom");
     }
 

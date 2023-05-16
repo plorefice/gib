@@ -10,7 +10,7 @@ members = ["gib-core"]
 
 [dependencies]
 anyhow = "1.0.71"
-clap = "3.0"
+clap = { version = "4.2.7", features = ["derive"] }
 cpal = "0.15.2"
 crossbeam = "0.8.2"
 env_logger = "0.10.0"
