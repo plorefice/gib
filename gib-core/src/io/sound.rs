@@ -321,7 +321,7 @@ impl ToneChannel {
     /// Returns the channel's current output level, ready to be fed to the mixer.
     pub fn get_channel_out(&self) -> i16 {
         if self.dac_on() {
-            (self.waveform_level * 2 * self.get_volume() as i16) - 15
+            (self.waveform_level * 2 * self.get_volume()) - 15
         } else {
             0
         }
@@ -737,7 +737,7 @@ impl NoiseChannel {
     /// Returns the channel's current output level, ready to be fed to the mixer.
     pub fn get_channel_out(&self) -> i16 {
         if self.dac_on() {
-            (self.waveform_level * 2 * self.get_volume() as i16) - 15
+            (self.waveform_level * 2 * self.get_volume()) - 15
         } else {
             0
         }

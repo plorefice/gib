@@ -41,14 +41,16 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
+          args: --all
 
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --all -- -D warnings
 
       - name: Test Suite
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --all

@@ -84,8 +84,8 @@ impl UiContext {
         let surface_desc = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            width: size.width as u32,
-            height: size.height as u32,
+            width: size.width,
+            height: size.height,
             present_mode: wgpu::PresentMode::Mailbox,
         };
 
@@ -146,8 +146,8 @@ impl UiContext {
                             let surface_desc = wgpu::SurfaceConfiguration {
                                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                                 format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                                width: size.width as u32,
-                                height: size.height as u32,
+                                width: size.width,
+                                height: size.height,
                                 present_mode: wgpu::PresentMode::Mailbox,
                             };
 

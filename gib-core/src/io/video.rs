@@ -408,7 +408,7 @@ impl PPU {
         let shade = self.get_shade(self.bgp_reg.0, pixel);
 
         // Compute the index in the video buffer
-        let pid = (py as usize) * 160 * 4 + (px as usize) * 4;
+        let pid = py * 160 * 4 + px * 4;
 
         vbuf[pid] = shade;
         vbuf[pid + 1] = shade;
@@ -484,8 +484,8 @@ impl PPU {
         // Clip to currently visible area
         for py in y.max(0)..(y + 8).min(144) {
             for px in x.max(0)..(x + 8).min(160) {
-                let x = (off_x - (px - x) as i16).unsigned_abs() as u8;
-                let y = (off_y - (py - y) as i16).unsigned_abs() as u8;
+                let x = (off_x - (px - x)).unsigned_abs() as u8;
+                let y = (off_y - (py - y)).unsigned_abs() as u8;
 
                 let pixel = tile.pixel(x, y);
                 let shade = self.get_shade(palette, pixel);
