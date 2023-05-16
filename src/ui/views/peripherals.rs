@@ -1,4 +1,4 @@
-use imgui::{CollapsingHeader, Condition, Ui, Window};
+use imgui::{CollapsingHeader, Condition, Ui};
 
 use crate::ui::{state::EmuState, utils};
 
@@ -16,11 +16,11 @@ impl WindowView for PeripheralView {
     fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
         let mut open = true;
 
-        Window::new("Peripherals")
+        ui.window("Peripherals")
             .size([310.0, 650.0], Condition::FirstUseEver)
             .position([955.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(ui, || {
+            .build(|| {
                 if CollapsingHeader::new("Video Display").build(ui) {
                     ui.text("NOT IMPLEMENTED YET!");
                 }

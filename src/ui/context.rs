@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Duration};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc, time::Duration};
 
 use imgui::{Context, FontConfig, FontGlyphRanges, FontSource, TextureId, Ui};
 use imgui_wgpu::{Renderer, RendererConfig, Texture};
@@ -34,6 +34,7 @@ pub struct UiContext {
     renderer: Renderer,
     device: wgpu::Device,
     surface: wgpu::Surface,
+    surface_config: wgpu::SurfaceConfiguration,
     queue: wgpu::Queue,
 
     key_state: HashSet<VirtualKeyCode>,
@@ -46,7 +47,10 @@ impl UiContext {
     pub fn new(width: f64, height: f64) -> UiContext {
         let event_loop = EventLoop::new();
 
-        let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..Default::default()
+        });
 
         // Create native window surface
         let (window, size, surface) = {
@@ -62,7 +66,8 @@ impl UiContext {
 
             let size = window.inner_size();
 
-            let surface = unsafe { instance.create_surface(&window) };
+            let surface =
+                unsafe { instance.create_surface(&window) }.expect("Surface creation error");
 
             (window, size, surface)
         };
@@ -71,7 +76,7 @@ impl UiContext {
 
         // Retrieve graphics adapter
         let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
+            power_preference: wgpu::PowerPreference::default(),
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
         }))
@@ -80,16 +85,27 @@ impl UiContext {
         let (device, queue) =
             block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
 
+        let surface_caps = surface.get_capabilities(&adapter);
+
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.describe().srgb)
+            .unwrap_or(surface_caps.formats[0]);
+
         // Set up surface
-        let surface_desc = wgpu::SurfaceConfiguration {
+        let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
+            format: surface_format,
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::Mailbox,
+            present_mode: surface_caps.present_modes[0],
+            alpha_mode: surface_caps.alpha_modes[0],
+            view_formats: Vec::new(),
         };
 
-        surface.configure(&device, &surface_desc);
+        surface.configure(&device, &surface_config);
 
         // Set up imgui
         let mut imgui = Context::create();
@@ -102,7 +118,7 @@ impl UiContext {
 
         // Set up renderer
         let renderer_config = RendererConfig {
-            texture_format: surface_desc.format,
+            texture_format: surface_config.format,
             ..Default::default()
         };
 
@@ -116,6 +132,7 @@ impl UiContext {
             renderer,
             device,
             surface,
+            surface_config,
             queue,
 
             event_loop: Rc::new(RefCell::from(event_loop)),
@@ -143,15 +160,14 @@ impl UiContext {
                         WindowEvent::Resized(_) => {
                             let size = self.window.inner_size();
 
-                            let surface_desc = wgpu::SurfaceConfiguration {
-                                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                                format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                            let surface_config = wgpu::SurfaceConfiguration {
                                 width: size.width,
                                 height: size.height,
-                                present_mode: wgpu::PresentMode::Mailbox,
+                                ..self.surface_config.clone()
                             };
 
-                            self.surface.configure(&self.device, &surface_desc);
+                            self.surface.configure(&self.device, &surface_config);
+                            self.surface_config = surface_config;
                         }
                         WindowEvent::CloseRequested => {
                             self.should_quit = true;
@@ -198,7 +214,7 @@ impl UiContext {
         };
 
         // Create the wgpu texture
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+        let texture = Arc::new(self.device.create_texture(&wgpu::TextureDescriptor {
             size,
             label: None,
             mip_level_count: 1,
@@ -206,10 +222,11 @@ impl UiContext {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        });
+            view_formats: &[],
+        }));
 
         // Extract the texture view
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = Arc::new(texture.create_view(&wgpu::TextureViewDescriptor::default()));
 
         // Create the texture sampler
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
@@ -220,7 +237,7 @@ impl UiContext {
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::FilterMode::Nearest,
-            lod_min_clamp: -100.0,
+            lod_min_clamp: 0.0,
             lod_max_clamp: 100.0,
             compare: None,
             anisotropy_clamp: None,
@@ -253,7 +270,7 @@ impl UiContext {
             });
 
         // Create the texture bind group from the layout
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = Arc::new(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &layout,
             entries: &[
@@ -266,10 +283,18 @@ impl UiContext {
                     resource: wgpu::BindingResource::Sampler(&sampler),
                 },
             ],
-        });
+        }));
 
         // Write data into the texture
-        let texture = Texture::from_raw_parts(texture, view, bind_group, size);
+        let texture = Texture::from_raw_parts(
+            &self.device,
+            &self.renderer,
+            texture,
+            view,
+            Some(bind_group),
+            None,
+            size,
+        );
         texture.write(&self.queue, vpu_buffer, EMU_X_RES as u32, EMU_Y_RES as u32);
 
         // If this is the first time rendering, insert the new texture, otherwise replace an existing one
@@ -302,13 +327,13 @@ impl UiContext {
             .expect("Preparing frame");
 
         let ui = self.imgui.frame();
-        f(&ui);
+        f(ui);
 
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
-        self.platform.prepare_render(&ui, &self.window);
+        self.platform.prepare_render(ui, &self.window);
 
         let view = frame
             .texture
@@ -316,7 +341,7 @@ impl UiContext {
 
         let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
-            color_attachments: &[wgpu::RenderPassColorAttachment {
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
@@ -328,12 +353,12 @@ impl UiContext {
                     }),
                     store: true,
                 },
-            }],
+            })],
             depth_stencil_attachment: None,
         });
 
         self.renderer
-            .render(ui.render(), &self.queue, &self.device, &mut rpass)
+            .render(self.imgui.render(), &self.queue, &self.device, &mut rpass)
             .expect("Rendering failed");
 
         drop(rpass);

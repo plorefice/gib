@@ -1,7 +1,7 @@
 use std::{fmt::Write, ops::Range};
 
 use gib_core::{dbg, mem::MemR};
-use imgui::{ChildWindow, Condition, ImString, ListClipper, Ui, Window};
+use imgui::{Condition, ImString, ListClipper, Ui};
 
 use crate::ui::{state::EmuState, utils};
 
@@ -138,11 +138,14 @@ impl MemEditView {
         // and if it has, update the search results
         let width_tok = ui.push_item_width(w - 25.);
 
-        if ui.input_text("", &mut self.search_string).build() {
+        if ui
+            .input_text("memedit_search", &mut self.search_string)
+            .build()
+        {
             self.find_string();
         }
 
-        width_tok.pop(ui);
+        width_tok.end();
 
         ui.same_line();
 
@@ -159,22 +162,22 @@ impl WindowView for MemEditView {
             self.refresh_memory(state);
         }
 
-        Window::new("Memory Editor")
+        ui.window("Memory Editor")
             .size([555.0, 400.0], Condition::FirstUseEver)
             .position([320.0, 280.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(ui, || {
+            .build(|| {
                 self.draw_toolbar(ui, state);
 
                 ui.separator();
 
                 let [_, h] = ui.content_region_avail();
 
-                ChildWindow::new("memedit_listing")
+                ui.child_window("memedit_listing")
                     .size([540.0, h])
                     .always_vertical_scrollbar(true)
                     .border(false)
-                    .build(ui, || {
+                    .build(|| {
                         // Find and jump to the next result when requested
                         if self.find_next {
                             self.find_next = false;

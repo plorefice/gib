@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
 use gib_core::{cpu::Immediate, dbg};
-use imgui::{ChildWindow, Condition, ImString, ListClipper, StyleColor, StyleVar, Ui, Window};
+use imgui::{Condition, ImString, ListClipper, StyleColor, StyleVar, Ui};
 
 use crate::ui::{state::EmuState, utils};
 
@@ -94,7 +94,7 @@ impl DisassemblyView {
     }
 
     fn draw_goto_bar(&mut self, ui: &Ui) -> (bool, bool) {
-        utils::input_addr(ui, "", &mut self.goto_addr, true);
+        utils::input_addr(ui, "disasm_goto", &mut self.goto_addr, true);
         ui.same_line();
 
         let goto_addr = ui.button("Goto");
@@ -113,11 +113,11 @@ impl DisassemblyView {
 
         let [_, h] = ui.content_region_avail();
 
-        ChildWindow::new("listing")
+        ui.child_window("listing")
             .size([285.0, h])
             .always_vertical_scrollbar(true)
             .border(false)
-            .build(ui, || {
+            .build(|| {
                 if self.follow_pc || goto_pc {
                     self.goto(ui, state, pc);
                 } else if goto_addr && self.goto_addr.is_some() {
@@ -173,11 +173,11 @@ impl WindowView for DisassemblyView {
         let pc = state.cpu().pc;
         self.realign_disasm(state, pc);
 
-        Window::new("Disassembly")
+        ui.window("Disassembly")
             .size([300.0, 650.0], Condition::FirstUseEver)
             .position([10.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(ui, || {
+            .build(|| {
                 let (goto_addr, goto_pc) = self.draw_goto_bar(ui);
 
                 ui.separator();

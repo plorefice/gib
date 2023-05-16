@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Error};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    Device, OutputCallbackInfo, Sample, Stream, StreamConfig,
+    Device, OutputCallbackInfo, Stream, StreamConfig,
 };
 use crossbeam::queue::ArrayQueue;
 
@@ -58,13 +58,14 @@ impl SoundEngine {
                 move |output: &mut [f32], _: &OutputCallbackInfo| {
                     // Push the new sample to the stream
                     for sample in output.chunks_mut(channels) {
-                        let value = Sample::from::<f32>(&next_sample());
+                        let value = next_sample();
                         for out in sample.iter_mut() {
                             *out = value;
                         }
                     }
                 },
                 move |err| println!("Sound error: {}", err),
+                None,
             )?;
 
             stream.play()?;

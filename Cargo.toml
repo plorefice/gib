@@ -9,18 +9,18 @@ version = "0.5.2"
 members = ["gib-core"]
 
 [dependencies]
-anyhow = "1.0"
+anyhow = "1.0.71"
 clap = "3.0"
-cpal = "0.13"
-crossbeam = "0.8"
-env_logger = "0.8"
-gib-core = {path = "gib-core"}
-imgui = "0.8"
-imgui-wgpu = "0.19"
-imgui-winit-support = {version = "0.8", default-features = false, features = ["winit-26"]}
-pollster = "0.2"
-wgpu = "0.12"
-winit = "0.26"
+cpal = "0.15.2"
+crossbeam = "0.8.2"
+env_logger = "0.10.0"
+gib-core = { path = "gib-core" }
+imgui = "0.11.0"
+imgui-wgpu = { git = "https://github.com/Yatekii/imgui-wgpu-rs", rev = "e2e83bc94a05469077107139f78c17d4f2a4ed41" }
+imgui-winit-support = "0.11.0"
+pollster = "0.3.0"
+wgpu = "0.15.0"
+winit = "0.27.2"
 
 [profile.dev]
 debug = false

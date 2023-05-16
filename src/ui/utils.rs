@@ -79,25 +79,22 @@ impl FileDialog {
         let mut selected = 0;
         let mut clicked = false;
 
+        ui.popup(&self.title, || {
+            let fl = self
+                .file_list
+                .iter()
+                .map(|s| s.as_ref())
+                .collect::<Vec<&ImStr>>();
+
+            clicked = ui.list_box("file-dialog-listbox", &mut selected, &fl, 10);
+
+            if ui.button("Cancel") {
+                ui.close_current_popup();
+                on_result(None);
+            }
+        });
+
         ui.open_popup(&self.title);
-
-        ui.popup_modal(&self.title)
-            .resizable(false)
-            .always_auto_resize(true)
-            .build(ui, || {
-                let fl = self
-                    .file_list
-                    .iter()
-                    .map(|s| s.as_ref())
-                    .collect::<Vec<&ImStr>>();
-
-                clicked = ui.list_box("", &mut selected, &fl, 10);
-
-                if ui.button("Cancel") {
-                    ui.close_current_popup();
-                    on_result(None);
-                }
-            });
 
         // Update internal state
         self.click_timer = self

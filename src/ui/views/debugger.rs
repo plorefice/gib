@@ -1,4 +1,4 @@
-use imgui::{ChildWindow, CollapsingHeader, Condition, Ui, Window};
+use imgui::{CollapsingHeader, Condition, Ui};
 
 use crate::ui::{state::EmuState, utils};
 
@@ -63,9 +63,9 @@ impl DebuggerView {
     }
 
     fn draw_call_stack(&mut self, ui: &Ui, state: &EmuState) {
-        ChildWindow::new("callstack_frame")
+        ui.child_window("callstack_frame")
             .size([125.0, 0.0])
-            .build(ui, || {
+            .build(|| {
                 if CollapsingHeader::new("Call Stack")
                     .default_open(true)
                     .build(ui)
@@ -91,11 +91,11 @@ impl WindowView for DebuggerView {
     fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
         let mut open = true;
 
-        Window::new("Debugger")
+        ui.window("Debugger")
             .size([390.0, 240.0], Condition::FirstUseEver)
             .position([320.0, 30.0], Condition::FirstUseEver)
             .opened(&mut open)
-            .build(ui, || {
+            .build(|| {
                 self.draw_cpu_state(ui, state);
 
                 ui.separator();

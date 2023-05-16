@@ -4,7 +4,7 @@ use anyhow::Error;
 use context::UiContext;
 use crossbeam::queue::ArrayQueue;
 use gib_core::{self, io::JoypadState};
-use imgui::{Condition, Image, MenuItem, StyleVar, TextureId, Ui, Window, WindowFlags};
+use imgui::{Condition, Image, StyleVar, TextureId, Ui, WindowFlags};
 use sound::SoundEngine;
 use state::EmuState;
 use views::{
@@ -199,7 +199,7 @@ impl EmuUi {
 
         let _style_toks = style_vars.map(|var| ui.push_style_var(var));
 
-        Window::new("Screen")
+        ui.window("Screen")
             .size([win_x, win_y], Condition::FirstUseEver)
             .position([0.0, 19.5], Condition::FirstUseEver)
             .flags(
@@ -210,7 +210,7 @@ impl EmuUi {
                     | WindowFlags::NO_SCROLLBAR
                     | WindowFlags::NO_SCROLL_WITH_MOUSE,
             )
-            .build(ui, || {
+            .build(|| {
                 // Display event, if any
                 if let Some(ref emu) = self.emu {
                     if let Some(ref evt) = emu.last_event() {
@@ -244,36 +244,44 @@ impl EmuUi {
 
         ui.main_menu_bar(|| {
             ui.menu("Emulator", || {
-                if MenuItem::new("Load ROM...").build(ui) {
+                if ui.menu_item("Load ROM...") {
                     self.gui.file_dialog = Some(utils::FileDialog::new("Load ROM..."));
                 }
 
                 ui.separator();
 
-                if MenuItem::new("Save screen").build(ui) {
+                if ui.menu_item("Save screen") {
                     std::fs::write("screen-dump.bin", &self.vpu_buffer[..]).unwrap();
                 }
 
-                if MenuItem::new("Reset").enabled(emu_running).build(ui) {
+                if ui.menu_item_config("Reset").enabled(emu_running).build() {
                     if let Some(ref mut emu) = self.emu {
                         emu.reset().expect("error during reset");
                     }
                 }
 
-                self.gui.should_quit = MenuItem::new("Exit").build(ui);
+                self.gui.should_quit = ui.menu_item("Exit");
             });
 
             // Show debug-related menus in debug mode only
             if self.gui.debug {
                 ui.menu("Hardware", || {
-                    if MenuItem::new("Memory Map").enabled(emu_running).build(ui) {
+                    if ui
+                        .menu_item_config("Memory Map")
+                        .enabled(emu_running)
+                        .build()
+                    {
                         self.gui
                             .views
                             .entry(View::MemMap)
                             .or_insert_with(|| Box::new(MemMapView::new()));
                     }
 
-                    if MenuItem::new("Peripherals").enabled(emu_running).build(ui) {
+                    if ui
+                        .menu_item_config("Peripherals")
+                        .enabled(emu_running)
+                        .build()
+                    {
                         self.gui
                             .views
                             .entry(View::Peripherals)
@@ -282,23 +290,28 @@ impl EmuUi {
                 });
 
                 ui.menu("Debugging", || {
-                    if MenuItem::new("Debugger").enabled(emu_running).build(ui) {
+                    if ui.menu_item_config("Debugger").enabled(emu_running).build() {
                         self.gui
                             .views
                             .entry(View::Debugger)
                             .or_insert_with(|| Box::new(DebuggerView::new()));
                     }
 
-                    if MenuItem::new("Disassembler").enabled(emu_running).build(ui) {
+                    if ui
+                        .menu_item_config("Disassembler")
+                        .enabled(emu_running)
+                        .build()
+                    {
                         self.gui
                             .views
                             .entry(View::Disassembly)
                             .or_insert_with(|| Box::new(DisassemblyView::new()));
                     }
 
-                    if MenuItem::new("Memory Editor")
+                    if ui
+                        .menu_item_config("Memory Editor")
                         .enabled(emu_running)
-                        .build(ui)
+                        .build()
                     {
                         self.gui
                             .views
@@ -326,7 +339,7 @@ impl EmuUi {
 
         if let Some(ref rom_file) = fd_chosen {
             if let Err(evt) = self.load_rom(rom_file) {
-                ui.popup_modal("Error loading ROM").build(ui, || {
+                ui.popup("Error loading ROM", || {
                     ui.text(format!("{}", evt));
                 });
                 ui.open_popup("Error loading ROM");
@@ -335,14 +348,14 @@ impl EmuUi {
     }
 
     fn draw_screen_window(&mut self, ui: &Ui) {
-        Window::new("Screen")
+        ui.window("Screen")
             .size(
                 [EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0],
                 Condition::FirstUseEver,
             )
             .position([745.0, 30.0], Condition::FirstUseEver)
             .resizable(false)
-            .build(ui, || {
+            .build(|| {
                 if let Some(texture) = self.vpu_texture {
                     Image::new(texture, [EMU_X_RES as f32, EMU_Y_RES as f32]).build(ui);
                 }
