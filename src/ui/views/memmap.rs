@@ -1,51 +1,55 @@
+use egui::Color32;
 use gib_core::dbg::MemoryType;
-use imgui::{Condition, ImString, Ui};
 
-use crate::ui::{state::EmuState, utils};
+use crate::ui::state::EmuState;
 
-use super::WindowView;
+pub struct MemoryMap {
+    map: Vec<(MemoryType, String)>,
+}
 
-pub struct MemMapView(Vec<(MemoryType, ImString)>);
-
-impl MemMapView {
-    pub fn new() -> MemMapView {
-        let mut map = vec![];
-
-        for mt in MemoryType::default().iter() {
-            let r = mt.range();
-            map.push((
-                mt,
-                ImString::new(format!("  {:04X}-{:04X}    {}\n", r.start(), r.end(), mt)),
-            ));
+impl Default for MemoryMap {
+    fn default() -> Self {
+        Self {
+            map: MemoryType::default()
+                .iter()
+                .map(|mt| {
+                    let r = mt.range();
+                    (mt, format!("{:04X}-{:04X}    {mt}", r.start(), r.end()))
+                })
+                .collect(),
         }
-        MemMapView(map)
     }
 }
 
-impl WindowView for MemMapView {
-    fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
-        let mut open = true;
+impl super::Window for MemoryMap {
+    fn name(&self) -> &'static str {
+        "Memory Map"
+    }
 
-        ui.window("Memory Map")
-            .size([225.0, 290.0], Condition::FirstUseEver)
-            .position([720.0, 225.0], Condition::FirstUseEver)
-            .opened(&mut open)
-            .build(|| {
-                let pc = state.cpu().pc;
-
-                ui.spacing();
-                for (mt, s) in self.0.iter() {
-                    let c = if MemoryType::at(pc) == *mt {
-                        utils::GREEN
-                    } else {
-                        utils::WHITE
-                    };
-
-                    ui.text_colored(c, s);
-                    ui.spacing();
-                }
+    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool) {
+        egui::Window::new(self.name())
+            .default_pos([915.0, 700.0])
+            .default_size([225.0, 290.0])
+            .open(open)
+            .show(ctx, |ui| {
+                use super::View;
+                self.ui(ui, state);
             });
+    }
+}
 
-        open
+impl super::View for MemoryMap {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState) {
+        let pc = state.cpu().pc;
+
+        for (mt, s) in &self.map {
+            let color = if MemoryType::at(pc) == *mt {
+                Color32::GREEN
+            } else {
+                Color32::WHITE
+            };
+
+            ui.colored_label(color, s);
+        }
     }
 }

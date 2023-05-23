@@ -1,29 +1,62 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
+use egui::{Color32, RichText};
 use gib_core::{cpu::Immediate, dbg};
-use imgui::{Condition, ImString, ListClipper, StyleColor, StyleVar, Ui};
 
 use crate::ui::{state::EmuState, utils};
 
-use super::WindowView;
-
-pub struct DisassemblyView {
+pub struct Disassembly {
     section: dbg::MemoryType,
-    disasm: BTreeMap<u16, ImString>,
+    disasm: BTreeMap<u16, String>,
     follow_pc: bool,
-    goto_addr: Option<u16>,
+    goto_addr: String,
 }
 
-impl DisassemblyView {
-    pub fn new() -> DisassemblyView {
-        DisassemblyView {
+impl Default for Disassembly {
+    fn default() -> Self {
+        Self {
             section: dbg::MemoryType::RomBank(0),
             disasm: BTreeMap::new(),
             follow_pc: false,
-            goto_addr: Some(0),
+            goto_addr: String::new(),
         }
     }
+}
 
+impl super::Window for Disassembly {
+    fn name(&self) -> &'static str {
+        "Disassembly"
+    }
+
+    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool) {
+        egui::Window::new(self.name())
+            .open(open)
+            .default_pos([10.0, 30.0])
+            .default_size([300.0, 650.0])
+            .show(ctx, |ui| {
+                use super::View;
+                self.ui(ui, state);
+            });
+    }
+}
+
+impl super::View for Disassembly {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState) {
+        // Most of the times this call does nothing, so it's cool to have it called every frame
+        self.realign_disasm(state, state.cpu().pc);
+
+        let goto_addr = self.goto_bar_ui(ui, state);
+        if let Some(addr) = goto_addr {
+            self.realign_disasm(state, addr);
+        }
+
+        ui.separator();
+
+        self.disassembly_ui(ui, state, goto_addr);
+    }
+}
+
+impl Disassembly {
     /// If there is alread an instruction decoded at address `from`, do nothing.
     /// Otherwise, fetch the instruction at from, invalidate all the overlapping
     /// instructions and update the disassembly. Do this until it's aligned again.
@@ -31,6 +64,10 @@ impl DisassemblyView {
     fn realign_disasm(&mut self, state: &EmuState, mut from: u16) {
         let cpu = state.cpu();
         let bus = state.bus();
+
+        if self.disasm.contains_key(&from) {
+            return;
+        }
 
         let mut mem_range = self.section.range();
 
@@ -59,7 +96,7 @@ impl DisassemblyView {
 
             self.disasm.insert(
                 from,
-                ImString::from(format!(
+                format!(
                     "{:04X}:  {:02X} {:5}    {}",
                     from,
                     instr.opcode,
@@ -69,122 +106,68 @@ impl DisassemblyView {
                         None => String::new(),
                     },
                     instr.mnemonic
-                )),
+                ),
             );
             from = next;
         }
     }
 
-    /// Scroll disassembly view to the desired address.
-    fn goto(&mut self, ui: &Ui, state: &EmuState, dest: u16) {
-        let [_, h] = ui.content_region_avail();
+    fn goto_bar_ui(&mut self, ui: &mut egui::Ui, state: &EmuState) -> Option<u16> {
+        ui.horizontal(|ui| {
+            let goto_addr = utils::address_edit_ui(ui, "Address", &mut self.goto_addr, true);
+            let goto_addr = ui.button("Goto").clicked() || goto_addr;
 
-        if !self.disasm.contains_key(&dest) {
-            self.realign_disasm(state, dest);
-        }
+            let goto_pc = ui.button("Goto PC").clicked();
 
-        for (i, addr) in self.disasm.keys().enumerate() {
-            if *addr == dest {
-                // Some(h * 0.6) is to compensate for the fact that a disassembly line
-                // is a bit taller that a line of text, due to the radio button.
-                utils::scroll_to(ui, i, Some(h * 0.6));
-                break;
+            ui.checkbox(&mut self.follow_pc, "Follow");
+
+            // Build response
+            if goto_addr {
+                u16::from_str_radix(&self.goto_addr, 16).ok()
+            } else if goto_pc || self.follow_pc {
+                Some(state.cpu().pc)
+            } else {
+                None
             }
-        }
+        })
+        .inner
     }
 
-    fn draw_goto_bar(&mut self, ui: &Ui) -> (bool, bool) {
-        utils::input_addr(ui, "disasm_goto", &mut self.goto_addr, true);
-        ui.same_line();
-
-        let goto_addr = ui.button("Goto");
-        ui.same_line();
-
-        let goto_pc = ui.button("Goto PC");
-        ui.same_line();
-
-        ui.checkbox("Follow", &mut self.follow_pc);
-
-        (goto_addr, goto_pc)
-    }
-
-    fn draw_disasm_view(&mut self, ui: &Ui, state: &mut EmuState, goto_addr: bool, goto_pc: bool) {
+    fn disassembly_ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState, goto_addr: Option<u16>) {
         let pc = state.cpu().pc;
 
-        let [_, h] = ui.content_region_avail();
+        egui::ScrollArea::vertical()
+            .max_height(ui.available_height())
+            .auto_shrink([false; 2])
+            .always_show_scroll(true)
+            .show(ui, |ui| {
+                let cpu = state.cpu_mut();
 
-        ui.child_window("listing")
-            .size([285.0, h])
-            .always_vertical_scrollbar(true)
-            .border(false)
-            .build(|| {
-                if self.follow_pc || goto_pc {
-                    self.goto(ui, state, pc);
-                } else if goto_addr && self.goto_addr.is_some() {
-                    self.goto(ui, state, self.goto_addr.unwrap());
-                }
+                for (addr, instr) in &self.disasm {
+                    let color = match addr.cmp(&pc) {
+                        Ordering::Less => Color32::DARK_GRAY,
+                        Ordering::Equal => Color32::GREEN,
+                        Ordering::Greater => Color32::WHITE,
+                    };
 
-                // Only render currently visible instructions
-                let mut clipper = ListClipper::new(self.disasm.len() as i32)
-                    .items_height(ui.text_line_height_with_spacing())
-                    .begin(ui);
+                    // Render breakpoing and instruction
+                    let mut bk = cpu.breakpoint_at(*addr);
+                    let resp = ui.checkbox(&mut bk, RichText::new(instr).color(color));
 
-                while clipper.step() {
-                    let instrs = self
-                        .disasm
-                        .iter_mut()
-                        .skip(clipper.display_start() as usize)
-                        .take((clipper.display_end() - clipper.display_start()) as usize);
+                    // Scroll to selected instruction or PC
+                    if goto_addr == Some(*addr) {
+                        ui.scroll_to_rect(resp.rect, Some(egui::Align::Center));
+                    }
 
-                    let cpu = state.cpu_mut();
-
-                    let _style_tok = ui.push_style_var(StyleVar::FrameRounding(15.0));
-
-                    for (addr, instr) in instrs {
-                        let color = match addr.cmp(&pc) {
-                            Ordering::Less => utils::DARK_GREY,
-                            Ordering::Equal => utils::GREEN,
-                            Ordering::Greater => utils::WHITE,
-                        };
-
-                        // Render breakpoing and instruction
-                        let _color_tok = ui.push_style_color(StyleColor::Text, color);
-
-                        let mut bk = cpu.breakpoint_at(*addr);
-                        if ui.checkbox(instr, &mut bk) {
-                            if bk {
-                                cpu.set_breakpoint(*addr);
-                            } else {
-                                cpu.clear_breakpoint(*addr);
-                            }
+                    // Set/unset breakpoint
+                    if resp.changed() {
+                        if bk {
+                            cpu.set_breakpoint(*addr);
+                        } else {
+                            cpu.clear_breakpoint(*addr);
                         }
                     }
                 }
             });
-    }
-}
-
-impl WindowView for DisassemblyView {
-    fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool {
-        let mut open = true;
-
-        // 99.9% of the time this does nothing, so it's cool
-        // to have it called every draw loop.
-        let pc = state.cpu().pc;
-        self.realign_disasm(state, pc);
-
-        ui.window("Disassembly")
-            .size([300.0, 650.0], Condition::FirstUseEver)
-            .position([10.0, 30.0], Condition::FirstUseEver)
-            .opened(&mut open)
-            .build(|| {
-                let (goto_addr, goto_pc) = self.draw_goto_bar(ui);
-
-                ui.separator();
-
-                self.draw_disasm_view(ui, state, goto_addr, goto_pc);
-            });
-
-        open
     }
 }

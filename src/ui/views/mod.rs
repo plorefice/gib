@@ -1,27 +1,60 @@
-pub use debugger::*;
-pub use disassembly::*;
-use imgui::Ui;
-pub use memedit::*;
-pub use memmap::*;
-pub use peripherals::*;
+use std::collections::BTreeSet;
 
-use super::state::EmuState;
+use crate::ui::state::EmuState;
 
-mod debugger;
-mod disassembly;
-mod memedit;
-mod memmap;
-mod peripherals;
+pub mod debugger;
+pub mod disassembly;
+pub mod memedit;
+pub mod memmap;
+pub mod peripherals;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum View {
-    Debugger,
-    Disassembly,
-    MemEditor,
-    MemMap,
-    Peripherals,
+pub trait View {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState);
 }
 
-pub trait WindowView {
-    fn draw(&mut self, ui: &Ui, state: &mut EmuState) -> bool;
+pub trait Window {
+    /// `&'static` so we can also use it as a key to store open/close state.
+    fn name(&self) -> &'static str;
+
+    /// Show windows, etc
+    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool);
+}
+
+pub struct WindowManager {
+    windows: Vec<Box<dyn Window>>,
+    open: BTreeSet<String>,
+}
+
+impl Default for WindowManager {
+    fn default() -> Self {
+        let windows: Vec<Box<dyn Window>> = vec![
+            Box::<debugger::Debugger>::default(),
+            Box::<disassembly::Disassembly>::default(),
+            Box::<memedit::MemoryView>::default(),
+            Box::<memmap::MemoryMap>::default(),
+            Box::<peripherals::Peripherals>::default(),
+        ];
+        let open = BTreeSet::from_iter(windows.iter().map(|w| w.name().to_owned()));
+
+        Self { windows, open }
+    }
+}
+
+impl WindowManager {
+    pub fn windows(&mut self, ctx: &egui::Context, state: &mut EmuState) {
+        let Self { windows, open } = self;
+        for window in windows {
+            let name = window.name();
+            let mut is_open = open.contains(name);
+            window.show(ctx, state, &mut is_open);
+
+            if is_open {
+                if !open.contains(name) {
+                    open.insert(name.to_owned());
+                }
+            } else {
+                open.remove(name);
+            }
+        }
+    }
 }
