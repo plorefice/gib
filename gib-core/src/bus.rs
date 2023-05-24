@@ -9,7 +9,7 @@ use crate::{
 };
 
 // Specifies which Memory Bank Controller (if any) is used in the cartridge.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MbcType {
     None,
     Mbc1,
@@ -143,8 +143,9 @@ impl Bus {
     /// This includes resetting all the connected peripherals and clearning RAM contents.
     /// The contents of the whole ROM are preserved.
     pub fn reset(&mut self) {
-        // Preserve ROM contents
+        // Preserve ROM contents and MBC
         let rom_banks = mem::take(&mut self.rom_banks);
+        let mbc = self.mbc;
 
         // Reset the APU to keep sample rate and audio channel intact, the rest can be recreated
         let mut apu = mem::take(&mut self.apu);
@@ -152,6 +153,7 @@ impl Bus {
 
         *self = Self {
             rom_banks,
+            mbc,
             apu,
             ..Default::default()
         };

@@ -61,6 +61,7 @@ impl Emulator {
         };
 
         if let Err(ref evt) = res {
+            tracing::error!(%evt, "Trace event occurred");
             self.trace_event = Some(*evt);
             self.pause();
         };
