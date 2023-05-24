@@ -111,10 +111,10 @@ pub struct Bus {
 impl Default for Bus {
     fn default() -> Bus {
         Bus {
-            rom_banks: vec![],
+            rom_banks: vec![Memory::new(0x4000); 512],
             rom_nn: 1,
 
-            ram_banks: vec![],
+            ram_banks: vec![Memory::new(0x2000); 16],
             ram_nn: 0,
 
             hram: Memory::new(127),
@@ -147,17 +147,6 @@ impl Bus {
         // Check MBC type in the ROM header
         self.mbc = MbcType::try_from(rom[0x147])
             .map_err(|McbTypeError(n)| TraceEvent::UnsupportedMbcType(n))?;
-
-        // Allocate ROM and RAM banks depending on the ROM header
-        let rom_banks = RomBanks::try_from(rom[0x148]).unwrap();
-        let ram_banks = RamBanks::try_from(rom[0x149]).unwrap();
-
-        for _ in 0..rom_banks.0 {
-            self.rom_banks.push(Memory::new(0x4000));
-        }
-        for _ in 0..ram_banks.0 {
-            self.ram_banks.push(Memory::new(0x2000));
-        }
 
         // Load ROM into its allocated banks
         for (n, chunk) in rom.chunks(0x4000).enumerate() {

@@ -10,7 +10,7 @@ pub struct Memory {
 impl Memory {
     pub fn new(size: u16) -> Memory {
         Memory {
-            data: vec![0; usize::from(size)],
+            data: vec![0xff; usize::from(size)],
         }
     }
 }
