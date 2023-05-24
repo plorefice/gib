@@ -10,6 +10,7 @@ pub struct Disassembly {
     disasm: BTreeMap<u16, String>,
     follow_pc: bool,
     goto_addr: String,
+    scroll_offset: f32,
 }
 
 impl Default for Disassembly {
@@ -19,6 +20,7 @@ impl Default for Disassembly {
             disasm: BTreeMap::new(),
             follow_pc: false,
             goto_addr: String::new(),
+            scroll_offset: 0.0,
         }
     }
 }
@@ -136,14 +138,34 @@ impl Disassembly {
     fn disassembly_ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState, goto_addr: Option<u16>) {
         let pc = state.cpu().pc;
 
-        egui::ScrollArea::vertical()
+        let row_height = ui.spacing().interact_size.y;
+
+        // Scroll to selected instruction or PC
+        if let Some(i) = goto_addr.and_then(|a| self.disasm.iter().position(|(&x, _)| x == a)) {
+            let spacing_y = ui.spacing().item_spacing.y;
+            let area_offset = ui.cursor();
+
+            let y = area_offset.top() + i as f32 * (row_height + spacing_y) - self.scroll_offset;
+            let target_rect =
+                egui::Rect::from_x_y_ranges(0.0..=ui.available_width(), y..=y + row_height);
+
+            ui.scroll_to_rect(target_rect, Some(egui::Align::Center));
+        }
+
+        // Show disassembly
+        let output = egui::ScrollArea::vertical()
             .max_height(ui.available_height())
             .auto_shrink([false; 2])
             .always_show_scroll(true)
-            .show(ui, |ui| {
+            .show_rows(ui, row_height, self.disasm.len(), |ui, row_range| {
                 let cpu = state.cpu_mut();
 
-                for (addr, instr) in &self.disasm {
+                for (addr, instr) in self
+                    .disasm
+                    .iter()
+                    .skip(row_range.start)
+                    .take(row_range.count())
+                {
                     let color = match addr.cmp(&pc) {
                         Ordering::Less => Color32::DARK_GRAY,
                         Ordering::Equal => Color32::GREEN,
@@ -152,15 +174,12 @@ impl Disassembly {
 
                     // Render breakpoing and instruction
                     let mut bk = cpu.breakpoint_at(*addr);
-                    let resp = ui.checkbox(&mut bk, RichText::new(instr).color(color));
-
-                    // Scroll to selected instruction or PC
-                    if goto_addr == Some(*addr) {
-                        ui.scroll_to_rect(resp.rect, Some(egui::Align::Center));
-                    }
 
                     // Set/unset breakpoint
-                    if resp.changed() {
+                    if ui
+                        .checkbox(&mut bk, RichText::new(instr).color(color))
+                        .changed()
+                    {
                         if bk {
                             cpu.set_breakpoint(*addr);
                         } else {
@@ -169,5 +188,8 @@ impl Disassembly {
                     }
                 }
             });
+
+        // Save scroll state for the next iteration
+        self.scroll_offset = output.state.offset.y;
     }
 }
