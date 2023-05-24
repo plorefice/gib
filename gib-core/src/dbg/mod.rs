@@ -1,6 +1,6 @@
 use std::{fmt, ops::RangeInclusive};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemoryType {
     RomBank(u8),
     VideoRam,

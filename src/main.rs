@@ -1,28 +1,52 @@
-use clap::{App, Arg};
+use std::path::PathBuf;
+
+use clap::Parser;
+
+use crate::ui::EmuUi;
 
 mod ui;
 
-fn main() {
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Use development UI
+    #[arg(short, long)]
+    devel: bool,
+
+    /// ROM file to run
+    rom: Option<PathBuf>,
+}
+
+fn main() -> Result<(), eframe::Error> {
     env_logger::init();
 
-    let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(
-            Arg::new("devel")
-                .short('d')
-                .long("devel")
-                .help("Open development GUI"),
-        )
-        .arg(Arg::new("ROM").help("ROM file to run").index(1))
-        .get_matches();
+    let cli = Cli::parse();
 
-    let mut emu = ui::EmuUi::new(matches.is_present("devel")).unwrap();
+    let options = eframe::NativeOptions {
+        initial_window_size: Some(
+            if cli.devel {
+                EmuUi::DEVEL_WINDOW_SIZE
+            } else {
+                EmuUi::WINDOW_SIZE
+            }
+            .into(),
+        ),
+        maximized: cli.devel,
+        renderer: eframe::Renderer::Wgpu,
+        ..Default::default()
+    };
 
-    if let Some(ref rom) = matches.value_of("ROM") {
-        emu.load_rom(rom).expect("error loading rom");
-    }
-
-    emu.run().expect("while running emulator");
+    eframe::run_native(
+        "gib",
+        options,
+        Box::new(move |cc| match EmuUi::new(cc, cli.devel) {
+            Ok(mut app) => {
+                if let Some(rom) = cli.rom {
+                    app.load_rom(rom).expect("failed to load rom");
+                }
+                Box::new(app)
+            }
+            Err(e) => panic!("{e}"),
+        }),
+    )
 }

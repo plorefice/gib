@@ -1,18 +1,13 @@
-use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc, time::Instant};
+use std::{path::Path, thread};
 
 use anyhow::Error;
-use context::UiContext;
 use crossbeam::queue::ArrayQueue;
+use egui::Key;
 use gib_core::{self, io::JoypadState};
-use imgui::{Condition, Image, StyleVar, TextureId, Ui, WindowFlags};
+use parking_lot::Mutex;
 use sound::SoundEngine;
 use state::EmuState;
-use views::{
-    DebuggerView, DisassemblyView, MemEditView, MemMapView, PeripheralView, View, WindowView,
-};
-use winit::event::VirtualKeyCode;
 
-mod context;
 mod sound;
 mod state;
 mod utils;
@@ -22,51 +17,44 @@ const EMU_X_RES: usize = 160;
 const EMU_Y_RES: usize = 144;
 
 /// Emulator window width (in gaming mode)
-const EMU_WIN_X_RES: f64 = (EMU_X_RES * 2) as f64;
+const EMU_WIN_X_RES: f32 = (EMU_X_RES * 2) as f32;
 /// Emulator window height (in gaming mode)
-const EMU_WIN_Y_RES: f64 = (EMU_Y_RES * 2) as f64 + 19.5;
+const EMU_WIN_Y_RES: f32 = (EMU_Y_RES * 2) as f32 + 24.;
 
-/// Mapping between VirtualKey and joypad button
-const KEYMAP: [(VirtualKeyCode, JoypadState); 8] = [
-    (VirtualKeyCode::Up, JoypadState::UP),
-    (VirtualKeyCode::Down, JoypadState::DOWN),
-    (VirtualKeyCode::Left, JoypadState::LEFT),
-    (VirtualKeyCode::Right, JoypadState::RIGHT),
-    (VirtualKeyCode::Z, JoypadState::B),
-    (VirtualKeyCode::X, JoypadState::A),
-    (VirtualKeyCode::Back, JoypadState::SELECT),
-    (VirtualKeyCode::Return, JoypadState::START),
+/// Mapping between keycode and joypad button
+const KEYMAP: [(Key, JoypadState); 8] = [
+    (Key::ArrowUp, JoypadState::UP),
+    (Key::ArrowDown, JoypadState::DOWN),
+    (Key::ArrowLeft, JoypadState::LEFT),
+    (Key::ArrowRight, JoypadState::RIGHT),
+    (Key::Z, JoypadState::B),
+    (Key::X, JoypadState::A),
+    (Key::Backspace, JoypadState::SELECT),
+    (Key::Enter, JoypadState::START),
 ];
-
-#[derive(Default)]
-pub struct GuiState {
-    debug: bool,
-    should_quit: bool,
-    file_dialog: Option<utils::FileDialog>,
-    views: HashMap<View, Box<dyn WindowView>>,
-}
 
 use std::sync::Arc;
 
+use crate::ui::views::WindowManager;
+
 pub struct EmuUi {
-    ctx: Rc<RefCell<UiContext>>,
-    snd: SoundEngine,
-    gui: GuiState,
-
-    emu: Option<EmuState>,
+    emu: Option<Arc<Mutex<EmuState>>>,
     vpu_buffer: Vec<u8>,
-    vpu_texture: Option<TextureId>,
+    vpu_texture: egui::TextureHandle,
 
+    snd: SoundEngine,
     snd_sink: Arc<ArrayQueue<i16>>,
+
+    window_manager: WindowManager,
+    show_development_ui: bool,
 }
 
 impl EmuUi {
-    pub fn new(debug: bool) -> Result<EmuUi, Error> {
-        let gui = GuiState {
-            debug,
-            ..Default::default()
-        };
+    pub const WINDOW_SIZE: [f32; 2] = [EMU_WIN_X_RES, EMU_WIN_Y_RES];
 
+    pub const DEVEL_WINDOW_SIZE: [f32; 2] = [1440., 720.];
+
+    pub fn new(cc: &eframe::CreationContext<'_>, show_development_ui: bool) -> Result<Self, Error> {
         // Create a sample channel that can hold up to 1024 samples.
         // At 44.1KHz, this is about 23ms worth of audio.
         let sink = Arc::new(ArrayQueue::new(1024));
@@ -77,23 +65,24 @@ impl EmuUi {
         let mut snd = SoundEngine::new()?;
         snd.start(sink.clone())?;
 
-        // In debug mode, the interface is much more cluttered, so default to a bigger size
-        let ctx = if debug {
-            UiContext::new(1440.0, 720.0)
-        } else {
-            UiContext::new(EMU_WIN_X_RES, EMU_WIN_Y_RES)
-        };
+        // Allocate a blank screen
+        let vpu_buffer = vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4];
+        let vpu_texture = cc.egui_ctx.load_texture(
+            "gb-screen",
+            egui::ColorImage::from_rgba_unmultiplied([EMU_X_RES, EMU_Y_RES], &vpu_buffer),
+            egui::TextureOptions::NEAREST,
+        );
 
         Ok(EmuUi {
-            ctx: Rc::from(RefCell::from(ctx)),
-            snd,
-            gui,
-
             emu: None,
-            vpu_buffer: vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4],
-            vpu_texture: None,
+            vpu_buffer,
+            vpu_texture,
 
+            snd,
             snd_sink: sink,
+
+            window_manager: Default::default(),
+            show_development_ui,
         })
     }
 
@@ -103,262 +92,144 @@ impl EmuUi {
             let mut emu = EmuState::new(rom)?;
             emu.set_audio_sink(self.snd_sink.clone(), self.snd.get_sample_rate());
             emu.set_running();
+
+            let emu = Arc::new(Mutex::new(emu));
+            {
+                let emu = emu.clone();
+                thread::spawn(move || loop {
+                    emu.lock().do_step();
+                });
+            }
+
             Some(emu)
         };
-
-        if self.gui.debug {
-            let views = &mut self.gui.views;
-
-            // Start a new UI from scratch
-            views.clear();
-
-            views.insert(View::Disassembly, Box::new(DisassemblyView::new()));
-            views.insert(View::Debugger, Box::new(DebuggerView::new()));
-            views.insert(View::MemEditor, Box::new(MemEditView::new()));
-            views.insert(View::Peripherals, Box::new(PeripheralView::new()));
-        }
 
         Ok(())
     }
 
-    /// Run the emulator UI.
-    ///
-    /// This function loops until the window is closed or an error occurs.
-    pub fn run(&mut self) -> Result<(), Error> {
-        let mut last_frame = Instant::now();
-
-        loop {
-            let ctx = self.ctx.clone();
-            let mut ctx = ctx.borrow_mut();
-
-            // Compute time elapsed since last frame
-            let frame_start = Instant::now();
-            let delta = frame_start - last_frame;
-            last_frame = frame_start;
-
-            // Poll the GUI context for events
-            let do_render = ctx.poll_events();
-
-            if self.gui.should_quit || ctx.should_quit() {
-                return Ok(());
-            }
-
-            // Sync the emulator state to the GUI
-            if let Some(ref mut emu) = self.emu {
-                // Forward keypresses to the emulator
-                for (vk, js) in KEYMAP.iter() {
-                    if ctx.is_key_pressed(*vk) {
-                        emu.gameboy_mut().press_key(*js);
-                    } else {
-                        emu.gameboy_mut().release_key(*js);
-                    }
-                }
-
-                // Enable/disable turbo mode
-                emu.set_turbo(ctx.is_key_pressed(VirtualKeyCode::Space));
-
-                // Perform a single emulator step
-                emu.do_step();
-            }
-
-            // Render if requested
-            if do_render {
-                // TODO this really needs to be done only if some changes
-                // have happened in the last interval.
-                if let Some(ref emu) = self.emu {
-                    emu.gameboy().rasterize(&mut self.vpu_buffer[..]);
-                }
-
-                ctx.prepare_screen_texture(&mut self.vpu_texture, &self.vpu_buffer);
-
-                ctx.render(delta, |ui| {
-                    if self.gui.debug {
-                        self.draw_debug_ui(delta.as_secs_f32(), ui)
-                    } else {
-                        self.draw_game_ui(delta.as_secs_f32(), ui)
-                    }
-                });
-            }
-        }
-    }
-
-    /// Draws the gaming-mode interface, with just a simple menu bar
-    /// and a fullscreen emulator screen view.
-    fn draw_game_ui(&mut self, delta_s: f32, ui: &Ui) {
-        self.draw_menu_bar(delta_s, ui);
-
-        // Do not show window borders
-        let style_vars = [
-            StyleVar::WindowBorderSize(0.0),
-            StyleVar::WindowRounding(0.0),
-            StyleVar::WindowPadding([0.0, 0.0]),
-        ];
-
-        let win_x = EMU_WIN_X_RES as f32;
-        let win_y = EMU_WIN_Y_RES as f32 - 18.0; // account for menu bar
-
-        let _style_toks = style_vars.map(|var| ui.push_style_var(var));
-
-        ui.window("Screen")
-            .size([win_x, win_y], Condition::FirstUseEver)
-            .position([0.0, 19.5], Condition::FirstUseEver)
-            .flags(
-                // Disable any window feature
-                WindowFlags::NO_TITLE_BAR
-                    | WindowFlags::NO_RESIZE
-                    | WindowFlags::NO_MOVE
-                    | WindowFlags::NO_SCROLLBAR
-                    | WindowFlags::NO_SCROLL_WITH_MOUSE,
-            )
-            .build(|| {
-                // Display event, if any
-                if let Some(ref emu) = self.emu {
-                    if let Some(ref evt) = emu.last_event() {
-                        ui.text_colored(utils::RED, evt.to_string());
-                    }
-                }
-
-                if let Some(texture) = self.vpu_texture {
-                    Image::new(texture, [win_x, win_y]).build(ui);
-                }
-            });
-    }
-
-    /// Draws the debug-mode interface
-    fn draw_debug_ui(&mut self, delta_s: f32, ui: &Ui) {
-        self.draw_menu_bar(delta_s, ui);
-
-        if self.emu.is_some() {
-            self.draw_screen_window(ui);
-        }
-
+    fn update_emulation(&mut self, ctx: &egui::Context) {
         if let Some(ref mut emu) = self.emu {
-            self.gui.views.retain(|_, view| view.draw(ui, emu));
+            let mut emu = emu.lock();
+
+            // Forward keypresses to the emulator
+            for &(vk, js) in KEYMAP.iter() {
+                if ctx.input(|i| i.key_down(vk)) {
+                    emu.gameboy_mut().press_key(js);
+                } else {
+                    emu.gameboy_mut().release_key(js);
+                }
+            }
+
+            // Enable/disable turbo mode
+            emu.set_turbo(ctx.input(|i| i.key_down(Key::Space)));
+
+            // Render to texture
+            emu.gameboy().rasterize(&mut self.vpu_buffer[..]);
+
+            // Update texture data
+            ctx.tex_manager().write().set(
+                self.vpu_texture.id(),
+                egui::epaint::ImageDelta::full(
+                    egui::ColorImage::from_rgba_unmultiplied(
+                        [EMU_X_RES, EMU_Y_RES],
+                        &self.vpu_buffer,
+                    ),
+                    egui::TextureOptions::NEAREST,
+                ),
+            );
         }
     }
+}
 
-    fn draw_menu_bar(&mut self, delta_s: f32, ui: &Ui) {
-        let emu_running = self.emu.is_some();
+impl eframe::App for EmuUi {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.style(ctx);
 
-        self.draw_file_dialog(delta_s, ui);
+        self.update_emulation(ctx);
 
-        ui.main_menu_bar(|| {
-            ui.menu("Emulator", || {
-                if ui.menu_item("Load ROM...") {
-                    self.gui.file_dialog = Some(utils::FileDialog::new("Load ROM..."));
-                }
+        if self.show_development_ui {
+            self.debug_ui(ctx, frame);
+        } else {
+            self.game_ui(ctx, frame);
+        }
 
-                ui.separator();
+        // The UI needs to be continuously refreshed, since the emulator updates in backgronud
+        ctx.request_repaint();
+    }
+}
 
-                if ui.menu_item("Save screen") {
-                    std::fs::write("screen-dump.bin", &self.vpu_buffer[..]).unwrap();
-                }
+impl EmuUi {
+    fn style(&mut self, ctx: &egui::Context) {
+        let mut style = (*ctx.style()).clone();
+        style.override_text_style = Some(egui::TextStyle::Monospace);
+        ctx.set_style(style);
+    }
 
-                if ui.menu_item_config("Reset").enabled(emu_running).build() {
-                    if let Some(ref mut emu) = self.emu {
-                        emu.reset().expect("error during reset");
-                    }
-                }
-
-                self.gui.should_quit = ui.menu_item("Exit");
-            });
-
-            // Show debug-related menus in debug mode only
-            if self.gui.debug {
-                ui.menu("Hardware", || {
-                    if ui
-                        .menu_item_config("Memory Map")
-                        .enabled(emu_running)
-                        .build()
-                    {
-                        self.gui
-                            .views
-                            .entry(View::MemMap)
-                            .or_insert_with(|| Box::new(MemMapView::new()));
-                    }
-
-                    if ui
-                        .menu_item_config("Peripherals")
-                        .enabled(emu_running)
-                        .build()
-                    {
-                        self.gui
-                            .views
-                            .entry(View::Peripherals)
-                            .or_insert_with(|| Box::new(PeripheralView::new()));
-                    }
-                });
-
-                ui.menu("Debugging", || {
-                    if ui.menu_item_config("Debugger").enabled(emu_running).build() {
-                        self.gui
-                            .views
-                            .entry(View::Debugger)
-                            .or_insert_with(|| Box::new(DebuggerView::new()));
-                    }
-
-                    if ui
-                        .menu_item_config("Disassembler")
-                        .enabled(emu_running)
-                        .build()
-                    {
-                        self.gui
-                            .views
-                            .entry(View::Disassembly)
-                            .or_insert_with(|| Box::new(DisassemblyView::new()));
-                    }
-
-                    if ui
-                        .menu_item_config("Memory Editor")
-                        .enabled(emu_running)
-                        .build()
-                    {
-                        self.gui
-                            .views
-                            .entry(View::MemEditor)
-                            .or_insert_with(|| Box::new(MemEditView::new()));
+    fn game_ui(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("Emulator", |ui| {
+                    if ui.button("Quit").clicked() {
+                        frame.close();
                     }
                 })
+            })
+        });
+
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none())
+            .show(ctx, |ui| {
+                ui.image(&self.vpu_texture, self.vpu_texture.size_vec2() * 2.)
+            });
+    }
+
+    fn debug_ui(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("Emulator", |ui| {
+                    if ui.button("Load ROM...").clicked() {
+                        if let Some(path) = rfd::FileDialog::new().pick_file() {
+                            self.load_rom(path).unwrap();
+                        }
+                        ui.close_menu();
+                    }
+
+                    if ui.button("Save screen").clicked() {
+                        std::fs::write("screen-dump.bin", &self.vpu_buffer[..]).ok();
+                        ui.close_menu();
+                    }
+
+                    if ui
+                        .add_enabled(self.emu.is_some(), egui::Button::new("Reset"))
+                        .clicked()
+                    {
+                        let mut emu = self.emu.as_mut().unwrap().lock();
+                        emu.reset().expect("error during reset");
+                        ui.close_menu();
+                    }
+
+                    if ui.button("Quit").clicked() {
+                        frame.close();
+                    }
+                })
+            })
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if let Some(ref mut emu) = self.emu {
+                self.window_manager.windows(ui.ctx(), &mut emu.lock())
             }
+
+            // Draw screen last for focus
+            self.screen_ui(ui);
         });
     }
 
-    fn draw_file_dialog(&mut self, delta_s: f32, ui: &Ui) {
-        let mut fd_closed = false;
-        let mut fd_chosen = None;
-
-        if let Some(ref mut fd) = self.gui.file_dialog {
-            fd.build(delta_s, ui, |res| {
-                fd_closed = true;
-                fd_chosen = res;
-            });
-        }
-        if fd_closed {
-            self.gui.file_dialog = None;
-        }
-
-        if let Some(ref rom_file) = fd_chosen {
-            if let Err(evt) = self.load_rom(rom_file) {
-                ui.popup("Error loading ROM", || {
-                    ui.text(format!("{}", evt));
-                });
-                ui.open_popup("Error loading ROM");
-            }
-        }
-    }
-
-    fn draw_screen_window(&mut self, ui: &Ui) {
-        ui.window("Screen")
-            .size(
-                [EMU_X_RES as f32 + 15.0, EMU_Y_RES as f32 + 40.0],
-                Condition::FirstUseEver,
-            )
-            .position([745.0, 30.0], Condition::FirstUseEver)
-            .resizable(false)
-            .build(|| {
-                if let Some(texture) = self.vpu_texture {
-                    Image::new(texture, [EMU_X_RES as f32, EMU_Y_RES as f32]).build(ui);
-                }
+    fn screen_ui(&mut self, ui: &mut egui::Ui) {
+        egui::Window::new("Screen")
+            .default_pos([730., 30.])
+            .show(ui.ctx(), |ui| {
+                ui.image(&self.vpu_texture, self.vpu_texture.size_vec2());
             });
     }
 }
