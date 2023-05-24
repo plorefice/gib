@@ -14,6 +14,7 @@ pub enum MbcType {
     None,
     Mbc1,
     Mbc3,
+    Mbc5,
 }
 
 // The error type returned when parsing the MBC type code fails.
@@ -28,6 +29,7 @@ impl TryFrom<u8> for MbcType {
             0x00 => Ok(MbcType::None),
             0x01..=0x03 => Ok(MbcType::Mbc1),
             0x0f..=0x13 => Ok(MbcType::Mbc3),
+            0x19..=0x1e => Ok(MbcType::Mbc5),
             _ => Err(McbTypeError(n)),
         }
     }
