@@ -162,15 +162,7 @@ impl EmuUi {
     }
 
     fn game_ui(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("Emulator", |ui| {
-                    if ui.button("Quit").clicked() {
-                        frame.close();
-                    }
-                })
-            })
-        });
+        egui::TopBottomPanel::top("menubar").show(ctx, |ui| self.emulation_menu_ui(ui, frame));
 
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
@@ -180,32 +172,7 @@ impl EmuUi {
     }
 
     fn debug_ui(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("Emulator", |ui| {
-                    if ui.button("Load ROM...").clicked() {
-                        if let Some(path) = rfd::FileDialog::new().pick_file() {
-                            self.load_rom(path).unwrap();
-                        }
-                        ui.close_menu();
-                    }
-
-                    if ui.button("Save screen").clicked() {
-                        std::fs::write("screen-dump.bin", &self.vpu_buffer[..]).ok();
-                        ui.close_menu();
-                    }
-
-                    if ui.button("Reset").clicked() {
-                        self.emu.lock().reset();
-                        ui.close_menu();
-                    }
-
-                    if ui.button("Quit").clicked() {
-                        frame.close();
-                    }
-                })
-            })
-        });
+        egui::TopBottomPanel::top("menubar").show(ctx, |ui| self.emulation_menu_ui(ui, frame));
 
         egui::CentralPanel::default().show(ctx, |ui| {
             self.window_manager.windows(ui.ctx(), &mut self.emu.lock());
@@ -221,5 +188,34 @@ impl EmuUi {
             .show(ui.ctx(), |ui| {
                 ui.image(&self.vpu_texture, self.vpu_texture.size_vec2());
             });
+    }
+
+    fn emulation_menu_ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        egui::menu::bar(ui, |ui| {
+            ui.menu_button("Emulator", |ui| {
+                if ui.button("Load ROM...").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        self.load_rom(path).unwrap();
+                    }
+                    ui.close_menu();
+                }
+
+                ui.separator();
+
+                if ui.button("Save screen").clicked() {
+                    std::fs::write("screen-dump.bin", &self.vpu_buffer[..]).ok();
+                    ui.close_menu();
+                }
+
+                if ui.button("Reset").clicked() {
+                    self.emu.lock().reset();
+                    ui.close_menu();
+                }
+
+                if ui.button("Quit").clicked() {
+                    frame.close();
+                }
+            })
+        });
     }
 }
