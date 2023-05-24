@@ -50,7 +50,7 @@ pub enum WritebackOp {
 }
 
 #[derive(Clone)]
-pub struct CPU {
+pub struct Cpu {
     // Registers
     pub af: u16,
     pub bc: u16,
@@ -84,9 +84,9 @@ pub struct CPU {
     ignore_next_halt: bool,
 }
 
-impl Default for CPU {
-    fn default() -> CPU {
-        CPU {
+impl Default for Cpu {
+    fn default() -> Cpu {
+        Cpu {
             af: 0x01B0,
             bc: 0x0013,
             de: 0x00D8,
@@ -117,9 +117,9 @@ impl Default for CPU {
     }
 }
 
-impl CPU {
-    pub fn new() -> CPU {
-        CPU::default()
+impl Cpu {
+    pub fn new() -> Cpu {
+        Cpu::default()
     }
 
     pub fn tick(&mut self, bus: &mut impl MemRW) -> Result<(), dbg::TraceEvent> {
@@ -423,7 +423,7 @@ impl CPU {
 }
 
 #[rustfmt::skip]
-impl CPU {
+impl Cpu {
     pub fn c(&self) -> u8 { self.bc as u8 }
     pub fn e(&self) -> u8 { self.de as u8 }
     pub fn l(&self) -> u8 { self.hl as u8 }

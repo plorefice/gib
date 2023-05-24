@@ -1,5 +1,5 @@
 use crate::{
-    cpu::{CPU, OPCODES},
+    cpu::{Cpu, OPCODES},
     dbg,
     mem::MemR,
 };
@@ -18,7 +18,7 @@ pub struct Instruction {
     pub size: u8,
 }
 
-impl CPU {
+impl Cpu {
     pub fn disasm(&self, mem: &impl MemR, addr: u16) -> Result<Instruction, dbg::TraceEvent> {
         let opcode = mem.read(addr)?;
         let info = &OPCODES[opcode as usize];

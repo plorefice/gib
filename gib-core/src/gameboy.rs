@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crossbeam::queue::ArrayQueue;
 
-use crate::{bus::Bus, cpu::CPU, dbg, io::JoypadState};
+use crate::{bus::Bus, cpu::Cpu, dbg, io::JoypadState};
 
 pub const CPU_CLOCK: u64 = 4_194_304; // Hz
 pub const HSYNC_CLOCK: u64 = 9_198; // Hz
@@ -10,7 +10,7 @@ pub const HSYNC_CLOCK: u64 = 9_198; // Hz
 const CYCLES_PER_HSYNC: u64 = CPU_CLOCK / HSYNC_CLOCK;
 
 pub struct GameBoy {
-    cpu: CPU,
+    cpu: Cpu,
     bus: Bus,
 
     cycles: u64,
@@ -19,7 +19,7 @@ pub struct GameBoy {
 impl Default for GameBoy {
     fn default() -> GameBoy {
         GameBoy {
-            cpu: CPU::new(),
+            cpu: Cpu::new(),
             bus: Bus::new(),
 
             cycles: 0x18FCC,
@@ -135,11 +135,11 @@ impl GameBoy {
         self.cycles
     }
 
-    pub fn cpu(&self) -> &CPU {
+    pub fn cpu(&self) -> &Cpu {
         &self.cpu
     }
 
-    pub fn cpu_mut(&mut self) -> &mut CPU {
+    pub fn cpu_mut(&mut self) -> &mut Cpu {
         &mut self.cpu
     }
 

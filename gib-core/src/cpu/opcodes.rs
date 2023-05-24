@@ -1,5 +1,5 @@
 use crate::{
-    cpu::{MemoryAddressing::*, OpcodeInfo, OperandLocation::*, WritebackOp, CPU},
+    cpu::{Cpu, MemoryAddressing::*, OpcodeInfo, OperandLocation::*, WritebackOp},
     dbg,
 };
 
@@ -233,7 +233,7 @@ macro_rules! set {
     };
 }
 
-impl CPU {
+impl Cpu {
     #[rustfmt::skip]
     pub fn op(&mut self) -> Result<(), dbg::TraceEvent> {
         match self.opcode {
@@ -1222,7 +1222,7 @@ mod test {
     struct CpuTest {
         ticks: usize,
         memory: Vec<u8>,
-        setup_fn: Box<dyn FnMut(&mut CPU)>,
+        setup_fn: Box<dyn FnMut(&mut Cpu)>,
         target_states: Option<Vec<CpuState>>,
         target_memory: Option<Vec<u8>>,
     }
@@ -1250,7 +1250,7 @@ mod test {
 
         fn setup<F: 'static>(mut self, setup: F) -> CpuTest
         where
-            F: FnMut(&mut CPU),
+            F: FnMut(&mut Cpu),
         {
             self.setup_fn = Box::new(setup);
             self
@@ -1258,9 +1258,9 @@ mod test {
 
         fn run<F>(mut self, mut verify: F)
         where
-            F: FnMut(&mut CPU, &[u8]),
+            F: FnMut(&mut Cpu, &[u8]),
         {
-            let mut cpu = CPU::new();
+            let mut cpu = Cpu::new();
 
             // Reset CPU state for test purposes
             cpu.af = 0;

@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Error;
 use crossbeam::queue::ArrayQueue;
-use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
+use gib_core::{bus::Bus, cpu::Cpu, dbg, GameBoy};
 
 pub struct EmuState {
     gb: GameBoy,
@@ -162,11 +162,11 @@ impl EmuState {
         &mut self.gb
     }
 
-    pub fn cpu(&self) -> &CPU {
+    pub fn cpu(&self) -> &Cpu {
         self.gb.cpu()
     }
 
-    pub fn cpu_mut(&mut self) -> &mut CPU {
+    pub fn cpu_mut(&mut self) -> &mut Cpu {
         self.gb.cpu_mut()
     }
 
