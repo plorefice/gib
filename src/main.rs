@@ -18,7 +18,7 @@ struct Cli {
 }
 
 fn main() -> Result<(), eframe::Error> {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
 

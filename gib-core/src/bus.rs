@@ -167,6 +167,8 @@ impl Bus {
         self.mbc = MbcType::try_from(rom[0x147])
             .map_err(|McbTypeError(n)| TraceEvent::UnsupportedMbcType(n))?;
 
+        tracing::debug!("Cartridge MBC type: {:?}", self.mbc);
+
         // Load ROM into its allocated banks
         for (n, chunk) in rom.chunks(0x4000).enumerate() {
             for (i, b) in chunk.iter().enumerate() {
