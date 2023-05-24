@@ -78,6 +78,7 @@ pub struct Cpu {
     paused: bool,
     breakpoints: HashSet<u16>,
     pub call_stack: Vec<u16>,
+    rollback_on_error: bool,
 
     // Hacks/workarounds
     pub halt_bug: bool,
@@ -110,6 +111,7 @@ impl Default for Cpu {
             paused: false,
             breakpoints: HashSet::new(),
             call_stack: vec![0x0100],
+            rollback_on_error: false,
 
             halt_bug: false,
             ignore_next_halt: false,
@@ -125,7 +127,8 @@ impl Cpu {
     pub fn tick(&mut self, bus: &mut impl MemRW) -> Result<(), dbg::TraceEvent> {
         use CpuState::*;
 
-        let saved_ctx = self.clone();
+        let saved_pc = self.pc;
+        let mut saved_ctx = self.rollback_on_error.then(|| self.clone());
 
         self.intr_enabled.tick();
         self.halted.tick();
@@ -156,7 +159,7 @@ impl Cpu {
         // following a HALT, under certain conditions.
         if self.halt_bug {
             self.halt_bug = false;
-            self.pc = saved_ctx.pc;
+            self.pc = saved_pc;
         }
 
         match res {
@@ -170,7 +173,9 @@ impl Cpu {
             Err(e) => {
                 // Restore previous state on error. Note that this is for debugging purposes only,
                 // the side effects of the instruction (eg. memory writes) are NOT rolled back.
-                *self = saved_ctx;
+                if let Some(ctx) = saved_ctx.take() {
+                    *self = ctx;
+                }
                 Err(e)
             }
             Ok(()) => {
@@ -419,6 +424,14 @@ impl Cpu {
 
     pub fn breakpoints(&self) -> &HashSet<u16> {
         &self.breakpoints
+    }
+
+    pub fn allow_rollback_on_error(&mut self, allow: bool) {
+        self.rollback_on_error = allow;
+    }
+
+    pub fn rollback_on_error(&self) -> bool {
+        self.rollback_on_error
     }
 }
 

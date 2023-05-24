@@ -46,7 +46,7 @@ pub struct EmuUi {
     snd_sink: Arc<ArrayQueue<i16>>,
 
     window_manager: WindowManager,
-    show_development_ui: bool,
+    debug_mode: bool,
 }
 
 impl EmuUi {
@@ -54,7 +54,7 @@ impl EmuUi {
 
     pub const DEVEL_WINDOW_SIZE: [f32; 2] = [1440., 720.];
 
-    pub fn new(cc: &eframe::CreationContext<'_>, show_development_ui: bool) -> Result<Self, Error> {
+    pub fn new(cc: &eframe::CreationContext<'_>, debug_mode: bool) -> Result<Self, Error> {
         // Create a sample channel that can hold up to 1024 samples.
         // At 44.1KHz, this is about 23ms worth of audio.
         let sink = Arc::new(ArrayQueue::new(1024));
@@ -82,7 +82,7 @@ impl EmuUi {
             snd_sink: sink,
 
             window_manager: Default::default(),
-            show_development_ui,
+            debug_mode,
         })
     }
 
@@ -92,6 +92,11 @@ impl EmuUi {
 
         emu.load_rom(rom)?;
         emu.set_audio_sink(self.snd_sink.clone(), self.snd.get_sample_rate());
+
+        if self.debug_mode {
+            emu.cpu_mut().allow_rollback_on_error(true);
+        }
+
         emu.set_running();
 
         let emu = self.emu.clone();
@@ -137,7 +142,7 @@ impl eframe::App for EmuUi {
 
         self.update_emulation(ctx);
 
-        if self.show_development_ui {
+        if self.debug_mode {
             self.debug_ui(ctx, frame);
         } else {
             self.game_ui(ctx, frame);
