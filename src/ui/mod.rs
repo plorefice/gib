@@ -38,7 +38,7 @@ use std::sync::Arc;
 use crate::ui::views::WindowManager;
 
 pub struct EmuUi {
-    emu: Option<Arc<Mutex<EmuState>>>,
+    emu: Arc<Mutex<EmuState>>,
     vpu_buffer: Vec<u8>,
     vpu_texture: egui::TextureHandle,
 
@@ -74,7 +74,7 @@ impl EmuUi {
         );
 
         Ok(EmuUi {
-            emu: None,
+            emu: Arc::new(Mutex::new(EmuState::default())),
             vpu_buffer,
             vpu_texture,
 
@@ -88,56 +88,46 @@ impl EmuUi {
 
     /// Loads the ROM file and starts the emulation.
     pub fn load_rom<P: AsRef<Path>>(&mut self, rom: P) -> Result<(), Error> {
-        self.emu = {
-            let mut emu = EmuState::new(rom)?;
-            emu.set_audio_sink(self.snd_sink.clone(), self.snd.get_sample_rate());
-            emu.set_running();
+        let mut emu = self.emu.lock();
 
-            let emu = Arc::new(Mutex::new(emu));
-            {
-                let emu = emu.clone();
-                thread::spawn(move || loop {
-                    emu.lock().do_step();
-                });
-            }
+        emu.load_rom(rom)?;
+        emu.set_audio_sink(self.snd_sink.clone(), self.snd.get_sample_rate());
+        emu.set_running();
 
-            Some(emu)
-        };
+        let emu = self.emu.clone();
+        thread::spawn(move || loop {
+            emu.lock().do_step();
+        });
 
         Ok(())
     }
 
     fn update_emulation(&mut self, ctx: &egui::Context) {
-        if let Some(ref mut emu) = self.emu {
-            let mut emu = emu.lock();
+        let mut emu = self.emu.lock();
 
-            // Forward keypresses to the emulator
-            for &(vk, js) in KEYMAP.iter() {
-                if ctx.input(|i| i.key_down(vk)) {
-                    emu.gameboy_mut().press_key(js);
-                } else {
-                    emu.gameboy_mut().release_key(js);
-                }
+        // Forward keypresses to the emulator
+        for &(vk, js) in KEYMAP.iter() {
+            if ctx.input(|i| i.key_down(vk)) {
+                emu.gameboy_mut().press_key(js);
+            } else {
+                emu.gameboy_mut().release_key(js);
             }
-
-            // Enable/disable turbo mode
-            emu.set_turbo(ctx.input(|i| i.key_down(Key::Space)));
-
-            // Render to texture
-            emu.gameboy().rasterize(&mut self.vpu_buffer[..]);
-
-            // Update texture data
-            ctx.tex_manager().write().set(
-                self.vpu_texture.id(),
-                egui::epaint::ImageDelta::full(
-                    egui::ColorImage::from_rgba_unmultiplied(
-                        [EMU_X_RES, EMU_Y_RES],
-                        &self.vpu_buffer,
-                    ),
-                    egui::TextureOptions::NEAREST,
-                ),
-            );
         }
+
+        // Enable/disable turbo mode
+        emu.set_turbo(ctx.input(|i| i.key_down(Key::Space)));
+
+        // Render to texture
+        emu.gameboy().rasterize(&mut self.vpu_buffer[..]);
+
+        // Update texture data
+        ctx.tex_manager().write().set(
+            self.vpu_texture.id(),
+            egui::epaint::ImageDelta::full(
+                egui::ColorImage::from_rgba_unmultiplied([EMU_X_RES, EMU_Y_RES], &self.vpu_buffer),
+                egui::TextureOptions::NEAREST,
+            ),
+        );
     }
 }
 
@@ -199,11 +189,8 @@ impl EmuUi {
                         ui.close_menu();
                     }
 
-                    if ui
-                        .add_enabled(self.emu.is_some(), egui::Button::new("Reset"))
-                        .clicked()
-                    {
-                        let mut emu = self.emu.as_mut().unwrap().lock();
+                    if ui.button("Reset").clicked() {
+                        let mut emu = self.emu.lock();
                         emu.reset().expect("error during reset");
                         ui.close_menu();
                     }
@@ -216,9 +203,7 @@ impl EmuUi {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            if let Some(ref mut emu) = self.emu {
-                self.window_manager.windows(ui.ctx(), &mut emu.lock())
-            }
+            self.window_manager.windows(ui.ctx(), &mut self.emu.lock());
 
             // Draw screen last for focus
             self.screen_ui(ui);

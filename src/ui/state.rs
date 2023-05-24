@@ -1,4 +1,5 @@
 use std::{
+    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -9,7 +10,7 @@ use gib_core::{bus::Bus, cpu::CPU, dbg, GameBoy};
 
 pub struct EmuState {
     gb: GameBoy,
-    rom_file: PathBuf,
+    rom_file: Option<PathBuf>,
 
     // Sound-related fields
     snd_sink: Option<Arc<ArrayQueue<i16>>>,
@@ -22,16 +23,11 @@ pub struct EmuState {
     trace_event: Option<dbg::TraceEvent>,
 }
 
-impl EmuState {
-    pub fn new<P: AsRef<Path>>(rom: P) -> Result<EmuState, Error> {
-        let mut gb = GameBoy::new();
-        let rom_buf = std::fs::read(rom.as_ref())?;
-
-        gb.load_rom(&rom_buf[..])?;
-
-        Ok(EmuState {
-            gb,
-            rom_file: rom.as_ref().to_path_buf(),
+impl Default for EmuState {
+    fn default() -> Self {
+        Self {
+            gb: GameBoy::new(),
+            rom_file: None,
 
             snd_sink: None,
             snd_sample_rate: 0f32,
@@ -40,7 +36,15 @@ impl EmuState {
             step_to_next: false,
             run_to_breakpoint: false,
             trace_event: None,
-        })
+        }
+    }
+}
+
+impl EmuState {
+    pub fn load_rom<P: AsRef<Path>>(&mut self, rom: P) -> Result<(), Error> {
+        self.rom_file = Some(rom.as_ref().to_path_buf());
+
+        self.reset()
     }
 
     pub fn pause(&mut self) {
@@ -126,11 +130,15 @@ impl EmuState {
 
     /// Reset the emulator's sate.
     pub fn reset(&mut self) -> Result<(), Error> {
+        let Some(rom_file) = self.rom_file.as_ref() else {
+            return Ok(());
+        };
+
         // Save breakpoints to restore after reset
         let bkps = self.cpu().breakpoints().clone();
 
         self.gb = GameBoy::new();
-        self.gb.load_rom(&(std::fs::read(&self.rom_file)?)[..])?;
+        self.gb.load_rom(&(fs::read(rom_file)?)[..])?;
 
         if let Some(ref sink) = self.snd_sink {
             self.gb.set_audio_sink(sink.clone(), self.snd_sample_rate);
