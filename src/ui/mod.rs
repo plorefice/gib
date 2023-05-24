@@ -1,4 +1,8 @@
-use std::{path::Path, thread};
+use std::{
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+    thread,
+};
 
 use anyhow::Error;
 use egui::Key;
@@ -44,8 +48,9 @@ pub struct EmuUi {
     #[allow(dead_code)] // not actually used, but we can't drop it
     sound_engine: SoundEngine,
 
-    window_manager: WindowManager,
     debug_mode: bool,
+    window_manager: WindowManager,
+    close_requested: Arc<AtomicBool>,
 }
 
 impl EmuUi {
@@ -83,8 +88,9 @@ impl EmuUi {
 
             sound_engine,
 
-            window_manager: Default::default(),
             debug_mode,
+            window_manager: Default::default(),
+            close_requested: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -101,8 +107,20 @@ impl EmuUi {
         emu.set_running();
 
         let emu = self.emu.clone();
-        thread::spawn(move || loop {
-            emu.lock().do_step();
+        let close_requested = self.close_requested.clone();
+
+        thread::spawn(move || {
+            while !close_requested.load(Ordering::Relaxed) {
+                let mut emu = emu.lock();
+
+                emu.do_step();
+
+                // Stop the emulation to prevent the CPU spiking to 100%
+                // (not much we can do at this point anyway)
+                if emu.last_event().is_some() {
+                    break;
+                }
+            }
         });
 
         Ok(())
@@ -151,6 +169,10 @@ impl eframe::App for EmuUi {
 
         // The UI needs to be continuously refreshed, since the emulator updates in backgronud
         ctx.request_repaint();
+    }
+
+    fn on_exit(&mut self) {
+        self.close_requested.store(true, Ordering::SeqCst);
     }
 }
 
