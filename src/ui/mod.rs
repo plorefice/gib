@@ -1,12 +1,11 @@
 use std::{path::Path, thread};
 
 use anyhow::Error;
-use crossbeam::queue::ArrayQueue;
 use egui::Key;
 use gib_core::{self, io::JoypadState};
 use parking_lot::Mutex;
 use sound::SoundEngine;
-use state::EmuState;
+use state::Emulator;
 
 mod sound;
 mod state;
@@ -38,12 +37,12 @@ use std::sync::Arc;
 use crate::ui::views::WindowManager;
 
 pub struct EmuUi {
-    emu: Arc<Mutex<EmuState>>,
+    emu: Arc<Mutex<Emulator>>,
     vpu_buffer: Vec<u8>,
     vpu_texture: egui::TextureHandle,
 
-    snd: SoundEngine,
-    snd_sink: Arc<ArrayQueue<i16>>,
+    #[allow(dead_code)] // not actually used, but we can't drop it
+    sound_engine: SoundEngine,
 
     window_manager: WindowManager,
     debug_mode: bool,
@@ -57,13 +56,13 @@ impl EmuUi {
     pub fn new(cc: &eframe::CreationContext<'_>, debug_mode: bool) -> Result<Self, Error> {
         // Create a sample channel that can hold up to 1024 samples.
         // At 44.1KHz, this is about 23ms worth of audio.
-        let sink = Arc::new(ArrayQueue::new(1024));
+        let (source, sink) = gib_core::create_sound_channel(1024);
 
         // Start audio thread.
         // NOTE(windows): this needs to happen before the GUI is created, or the process
         // will throw an error regarding thread creation.
-        let mut snd = SoundEngine::new()?;
-        snd.start(sink.clone())?;
+        let mut sound_engine = SoundEngine::new()?;
+        sound_engine.start(sink)?;
 
         // Allocate a blank screen
         let vpu_buffer = vec![0xFFu8; EMU_X_RES * EMU_Y_RES * 4];
@@ -73,13 +72,16 @@ impl EmuUi {
             egui::TextureOptions::NEAREST,
         );
 
+        // Create and configure the emulator instance
+        let mut emu = Emulator::default();
+        emu.configure_audio_channel(source, sound_engine.get_sample_rate());
+
         Ok(EmuUi {
-            emu: Arc::new(Mutex::new(EmuState::default())),
+            emu: Arc::new(Mutex::new(emu)),
             vpu_buffer,
             vpu_texture,
 
-            snd,
-            snd_sink: sink,
+            sound_engine,
 
             window_manager: Default::default(),
             debug_mode,
@@ -91,7 +93,6 @@ impl EmuUi {
         let mut emu = self.emu.lock();
 
         emu.load_rom(rom)?;
-        emu.set_audio_sink(self.snd_sink.clone(), self.snd.get_sample_rate());
 
         if self.debug_mode {
             emu.cpu_mut().allow_rollback_on_error(true);
@@ -195,8 +196,7 @@ impl EmuUi {
                     }
 
                     if ui.button("Reset").clicked() {
-                        let mut emu = self.emu.lock();
-                        emu.reset().expect("error during reset");
+                        self.emu.lock().reset();
                         ui.close_menu();
                     }
 

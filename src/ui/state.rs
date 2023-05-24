@@ -1,37 +1,20 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{fs, path::Path};
 
 use anyhow::Error;
-use crossbeam::queue::ArrayQueue;
-use gib_core::{bus::Bus, cpu::Cpu, dbg, GameBoy};
+use gib_core::{bus::Bus, cpu::Cpu, dbg, AudioSource, GameBoy};
 
-pub struct EmuState {
-    gb: GameBoy,
-    rom_file: Option<PathBuf>,
-
-    // Sound-related fields
-    snd_sink: Option<Arc<ArrayQueue<i16>>>,
-    snd_sample_rate: f32,
-
-    // Emulation-related fields
+pub struct Emulator {
+    gameboy: GameBoy,
     turbo_mode: bool,
     step_to_next: bool,
     run_to_breakpoint: bool,
     trace_event: Option<dbg::TraceEvent>,
 }
 
-impl Default for EmuState {
+impl Default for Emulator {
     fn default() -> Self {
         Self {
-            gb: GameBoy::new(),
-            rom_file: None,
-
-            snd_sink: None,
-            snd_sample_rate: 0f32,
-
+            gameboy: GameBoy::new(),
             turbo_mode: false,
             step_to_next: false,
             run_to_breakpoint: false,
@@ -40,18 +23,18 @@ impl Default for EmuState {
     }
 }
 
-impl EmuState {
+impl Emulator {
     pub fn load_rom<P: AsRef<Path>>(&mut self, rom: P) -> Result<(), Error> {
-        self.rom_file = Some(rom.as_ref().to_path_buf());
-
-        self.reset()
+        self.gameboy.load_rom(&(fs::read(rom)?)[..])?;
+        self.reset();
+        Ok(())
     }
 
     pub fn pause(&mut self) {
         self.turbo_mode = false;
         self.step_to_next = false;
         self.run_to_breakpoint = false;
-        self.gb.cpu_mut().pause();
+        self.gameboy.cpu_mut().pause();
     }
 
     /// Performs a single emulation step, depending on the emulator's state:
@@ -68,13 +51,11 @@ impl EmuState {
         self.trace_event = None;
 
         let res = if self.step_to_next {
-            let r = self.gb.step();
+            let r = self.gameboy.step();
             self.pause();
             r
-        } else if self.turbo_mode {
-            self.gb.run_for_vblank()
         } else if self.run_to_breakpoint {
-            self.run_to_audio_sync()
+            self.gameboy.run_for_vblank()
         } else {
             Ok(())
         };
@@ -85,23 +66,9 @@ impl EmuState {
         };
     }
 
-    /// Runs the emulator until the audio queue is full, to avoid dropping
-    /// audio samples and cause skipping/popping.
-    fn run_to_audio_sync(&mut self) -> Result<(), dbg::TraceEvent> {
-        if let Some(ref sink) = self.snd_sink {
-            while sink.len() < sink.capacity() {
-                self.gb.step()?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Sets the emulator's audio sink and sample rate.
-    pub fn set_audio_sink(&mut self, sink: Arc<ArrayQueue<i16>>, sample_rate: f32) {
-        self.snd_sink = Some(sink.clone());
-        self.snd_sample_rate = sample_rate;
-
-        self.gb.set_audio_sink(sink, sample_rate);
+    /// Configures the emulator's audio channel.
+    pub fn configure_audio_channel(&mut self, source: AudioSource, sample_rate: f32) {
+        self.gameboy.configure_audio_channel(source, sample_rate);
     }
 
     pub fn last_event(&self) -> &Option<dbg::TraceEvent> {
@@ -120,57 +87,37 @@ impl EmuState {
     ///
     /// In turbo mode, the emulator runs to video-sync rather than audio-sync,
     /// likely dropping audio samples.
-    pub fn set_turbo(&mut self, enable: bool) {
-        self.turbo_mode = enable;
+    pub fn set_turbo(&mut self, turbo: bool) {
+        self.gameboy.enable_audio_sync(!turbo);
     }
 
     pub fn paused(&mut self) -> bool {
-        self.gb.cpu().paused() && !(self.step_to_next || self.run_to_breakpoint)
+        self.gameboy.cpu().paused() && !(self.step_to_next || self.run_to_breakpoint)
     }
 
     /// Reset the emulator's sate.
-    pub fn reset(&mut self) -> Result<(), Error> {
-        let Some(rom_file) = self.rom_file.as_ref() else {
-            return Ok(());
-        };
-
-        // Save breakpoints to restore after reset
-        let bkps = self.cpu().breakpoints().clone();
-
-        self.gb = GameBoy::new();
-        self.gb.load_rom(&(fs::read(rom_file)?)[..])?;
-
-        if let Some(ref sink) = self.snd_sink {
-            self.gb.set_audio_sink(sink.clone(), self.snd_sample_rate);
-        }
-
-        for b in bkps.iter() {
-            self.cpu_mut().set_breakpoint(*b);
-        }
-
-        // Default to running state
+    pub fn reset(&mut self) {
+        self.gameboy.reset();
         self.set_running();
-
-        Ok(())
     }
 
     pub fn gameboy(&self) -> &GameBoy {
-        &self.gb
+        &self.gameboy
     }
 
     pub fn gameboy_mut(&mut self) -> &mut GameBoy {
-        &mut self.gb
+        &mut self.gameboy
     }
 
     pub fn cpu(&self) -> &Cpu {
-        self.gb.cpu()
+        self.gameboy.cpu()
     }
 
     pub fn cpu_mut(&mut self) -> &mut Cpu {
-        self.gb.cpu_mut()
+        self.gameboy.cpu_mut()
     }
 
     pub fn bus(&self) -> &Bus {
-        self.gb.bus()
+        self.gameboy.bus()
     }
 }

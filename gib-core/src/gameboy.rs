@@ -1,6 +1,4 @@
-use std::sync::Arc;
-
-use crossbeam::queue::ArrayQueue;
+use crossbeam::channel::{Receiver, Sender};
 
 use crate::{bus::Bus, cpu::Cpu, dbg, io::JoypadState};
 
@@ -31,6 +29,16 @@ impl GameBoy {
     /// Create a new Game Boy instance.
     pub fn new() -> GameBoy {
         GameBoy::default()
+    }
+
+    /// Resets the Game Boy to its power-up state.
+    ///
+    /// The only things preserved by this operation are some debugging information related to the
+    /// CPU (eg. breakpoints) and the audio channel for the APU, if one was configured.
+    pub fn reset(&mut self) {
+        self.cpu.reset();
+        self.bus.reset();
+        self.cycles = Self::default().cycles;
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), dbg::TraceEvent> {
@@ -109,12 +117,28 @@ impl GameBoy {
         Ok(())
     }
 
-    /// Sets the audio sink for the sound peripheral, along with the required sample rate.
-    /// The emulation speed will be limited by the specified sample rate.
-    /// This is very useful for "sync-by-audio"-style emulator.
-    pub fn set_audio_sink(&mut self, sink: Arc<ArrayQueue<i16>>, sample_rate: f32) {
+    /// Configures the audio channel for the sound peripheral, along with the required sample rate.
+    pub fn configure_audio_channel(&mut self, source: AudioSource, sample_rate: f32) {
         self.bus.apu.set_sample_rate(sample_rate);
-        self.bus.apu.set_audio_sink(sink);
+        self.bus.apu.set_audio_source(source);
+    }
+
+    /// Enables or disables "sync-by-audio" emulation.
+    ///
+    /// When enabled, the emulation will block until one or more audio samples are requested by
+    /// the playback stream. Due to the precise timing of audio playback, this is the best way to
+    /// synchronize emulation speed to real-world timings, provided that the playback sample rate
+    /// matches the sample rate of the Game Boy's APU. It may however introduce some input latency,
+    /// since the emulator can't handle key presses while blocked.
+    ///
+    /// When disabled, the APU will drop sound samples if the audio stream is already saturated.
+    /// This is what's called "turbo speed" in some emulators: emulation will run as fast as
+    /// possible, out-of-sync with wall-clock time, resulting in much higher frame skip and
+    /// crackling audio.
+    pub fn enable_audio_sync(&mut self, enable: bool) {
+        if let Some(ref mut source) = self.bus.apu.audio_source_mut() {
+            source.set_blocking(enable);
+        }
     }
 
     /// Marks the given key as pressed.
@@ -146,4 +170,71 @@ impl GameBoy {
     pub fn bus(&self) -> &Bus {
         &self.bus
     }
+}
+
+/// The trasmitting end of an audio stream's channel.
+pub struct AudioSource {
+    channel: Sender<i16>,
+    blocking: bool,
+}
+
+impl AudioSource {
+    /// Sets the audio source's blocking behavior when pushing a new sample.
+    ///
+    /// If non-blocking, new samples are discarded when there's no space left in the channel.
+    pub fn set_blocking(&mut self, blocking: bool) {
+        self.blocking = blocking
+    }
+
+    /// Pushes a new audio sample to the audio stream.
+    pub fn push(&mut self, sample: i16) {
+        if self.blocking {
+            self.channel.send(sample).ok();
+        } else {
+            self.channel.try_send(sample).ok();
+        }
+    }
+}
+
+/// The receiving end of an audio stream's channel.
+pub struct AudioSink {
+    channel: Receiver<i16>,
+    blocking: bool,
+}
+
+impl AudioSink {
+    /// Sets the audio source's blocking behavior when fetching a sample.
+    ///
+    /// In non-blocking mode, [`AudioSink::pop`] returns `None` if the channel is empty.
+    pub fn set_blocking(&mut self, blocking: bool) {
+        self.blocking = blocking
+    }
+
+    /// Returns the next audio sample in the channel, or `None` in case of errors.
+    pub fn pop(&mut self) -> Option<i16> {
+        if self.blocking {
+            self.channel.recv().ok()
+        } else {
+            self.channel.try_recv().ok()
+        }
+    }
+}
+
+/// Returns both ends of a new audio channel with a given capacity.
+///
+/// Usually, the [`AudioSource`] will be passed to the emulator using
+/// [`GameBoy::configure_audio_channel`], while the [`AudioSink`] will be used by the audio thread
+/// for audio playback.
+pub fn create_sound_channel(capacity: usize) -> (AudioSource, AudioSink) {
+    let (sender, receiver) = crossbeam::channel::bounded(capacity);
+    (
+        AudioSource {
+            channel: sender,
+            blocking: true,
+        },
+        AudioSink {
+            channel: receiver,
+            blocking: true,
+        },
+    )
 }

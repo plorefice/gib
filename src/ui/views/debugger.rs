@@ -1,6 +1,6 @@
 use egui::Color32;
 
-use crate::ui::{state::EmuState, utils};
+use crate::ui::{state::Emulator, utils};
 
 #[derive(Default)]
 pub struct Debugger {
@@ -12,7 +12,7 @@ impl super::Window for Debugger {
         "Debugger"
     }
 
-    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool) {
+    fn show(&mut self, ctx: &egui::Context, state: &mut Emulator, open: &mut bool) {
         egui::Window::new(self.name())
             .open(open)
             .default_pos([330.0, 30.0])
@@ -24,7 +24,7 @@ impl super::Window for Debugger {
 }
 
 impl super::View for Debugger {
-    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState) {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut Emulator) {
         egui::Grid::new("debugger-grid")
             .num_columns(2)
             .show(ui, |ui| {
@@ -39,7 +39,7 @@ impl super::View for Debugger {
 }
 
 impl Debugger {
-    fn left_column_ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState) {
+    fn left_column_ui(&mut self, ui: &mut egui::Ui, state: &mut Emulator) {
         self.cpu_state_ui(ui, state);
 
         ui.separator();
@@ -65,7 +65,7 @@ impl Debugger {
         }
     }
 
-    fn cpu_state_ui(&mut self, ui: &mut egui::Ui, state: &EmuState) {
+    fn cpu_state_ui(&mut self, ui: &mut egui::Ui, state: &Emulator) {
         let cpu = state.cpu();
 
         ui.horizontal(|ui| {
@@ -128,7 +128,7 @@ impl Debugger {
         ));
     }
 
-    fn call_stack_ui(&mut self, ui: &mut egui::Ui, state: &EmuState) {
+    fn call_stack_ui(&mut self, ui: &mut egui::Ui, state: &Emulator) {
         egui::CollapsingHeader::new("Call stack")
             .default_open(true)
             .show(ui, |ui| {

@@ -1,7 +1,7 @@
 use egui::Color32;
 use gib_core::dbg::MemoryType;
 
-use crate::ui::state::EmuState;
+use crate::ui::state::Emulator;
 
 pub struct MemoryMap {
     map: Vec<(MemoryType, String)>,
@@ -26,7 +26,7 @@ impl super::Window for MemoryMap {
         "Memory Map"
     }
 
-    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool) {
+    fn show(&mut self, ctx: &egui::Context, state: &mut Emulator, open: &mut bool) {
         egui::Window::new(self.name())
             .default_pos([915.0, 700.0])
             .default_size([225.0, 290.0])
@@ -39,7 +39,7 @@ impl super::Window for MemoryMap {
 }
 
 impl super::View for MemoryMap {
-    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState) {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut Emulator) {
         let pc = state.cpu().pc;
 
         for (mt, s) in &self.map {

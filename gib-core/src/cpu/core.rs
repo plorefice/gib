@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, mem};
 
 use crate::{cpu::OPCODES, dbg, io::Latch, mem::MemRW};
 
@@ -122,6 +122,20 @@ impl Default for Cpu {
 impl Cpu {
     pub fn new() -> Cpu {
         Cpu::default()
+    }
+
+    /// Resets the core to its power-up state, preserving breakpoints and other debug utilities.
+    pub fn reset(&mut self) {
+        // Save fields related to debugging and debug information
+        let breakpoints = mem::take(&mut self.breakpoints);
+        let rollback_on_error = self.rollback_on_error;
+
+        // Reset everything else
+        *self = Self {
+            breakpoints,
+            rollback_on_error,
+            ..Default::default()
+        };
     }
 
     pub fn tick(&mut self, bus: &mut impl MemRW) -> Result<(), dbg::TraceEvent> {

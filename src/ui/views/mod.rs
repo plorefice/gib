@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::ui::state::EmuState;
+use crate::ui::state::Emulator;
 
 pub mod debugger;
 pub mod disassembly;
@@ -9,7 +9,7 @@ pub mod memmap;
 pub mod peripherals;
 
 pub trait View {
-    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState);
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut Emulator);
 }
 
 pub trait Window {
@@ -17,7 +17,7 @@ pub trait Window {
     fn name(&self) -> &'static str;
 
     /// Show windows, etc
-    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool);
+    fn show(&mut self, ctx: &egui::Context, state: &mut Emulator, open: &mut bool);
 }
 
 pub struct WindowManager {
@@ -41,7 +41,7 @@ impl Default for WindowManager {
 }
 
 impl WindowManager {
-    pub fn windows(&mut self, ctx: &egui::Context, state: &mut EmuState) {
+    pub fn windows(&mut self, ctx: &egui::Context, state: &mut Emulator) {
         let Self { windows, open } = self;
         for window in windows {
             let name = window.name();

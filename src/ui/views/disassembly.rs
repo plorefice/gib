@@ -3,7 +3,7 @@ use std::{cmp::Ordering, collections::BTreeMap};
 use egui::{Color32, RichText};
 use gib_core::{cpu::Immediate, dbg};
 
-use crate::ui::{state::EmuState, utils};
+use crate::ui::{state::Emulator, utils};
 
 pub struct Disassembly {
     section: dbg::MemoryType,
@@ -30,7 +30,7 @@ impl super::Window for Disassembly {
         "Disassembly"
     }
 
-    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool) {
+    fn show(&mut self, ctx: &egui::Context, state: &mut Emulator, open: &mut bool) {
         egui::Window::new(self.name())
             .open(open)
             .default_pos([10.0, 30.0])
@@ -43,7 +43,7 @@ impl super::Window for Disassembly {
 }
 
 impl super::View for Disassembly {
-    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState) {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut Emulator) {
         // Most of the times this call does nothing, so it's cool to have it called every frame
         self.realign_disasm(state, state.cpu().pc);
 
@@ -63,7 +63,7 @@ impl Disassembly {
     /// Otherwise, fetch the instruction at from, invalidate all the overlapping
     /// instructions and update the disassembly. Do this until it's aligned again.
     /// If `from` is outside the current memory space, swap it and reload disasm.
-    fn realign_disasm(&mut self, state: &EmuState, mut from: u16) {
+    fn realign_disasm(&mut self, state: &Emulator, mut from: u16) {
         let cpu = state.cpu();
         let bus = state.bus();
 
@@ -114,7 +114,7 @@ impl Disassembly {
         }
     }
 
-    fn goto_bar_ui(&mut self, ui: &mut egui::Ui, state: &EmuState) -> Option<u16> {
+    fn goto_bar_ui(&mut self, ui: &mut egui::Ui, state: &Emulator) -> Option<u16> {
         ui.horizontal(|ui| {
             let goto_addr = utils::address_edit_ui(ui, "Address", &mut self.goto_addr, true);
             let goto_addr = ui.button("Goto").clicked() || goto_addr;
@@ -135,7 +135,7 @@ impl Disassembly {
         .inner
     }
 
-    fn disassembly_ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState, goto_addr: Option<u16>) {
+    fn disassembly_ui(&mut self, ui: &mut egui::Ui, state: &mut Emulator, goto_addr: Option<u16>) {
         let pc = state.cpu().pc;
 
         let row_height = ui.spacing().interact_size.y;

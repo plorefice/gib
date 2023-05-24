@@ -2,7 +2,7 @@ use std::{fmt::Write, ops::Range};
 
 use gib_core::{dbg, mem::MemR};
 
-use crate::ui::{state::EmuState, utils};
+use crate::ui::{state::Emulator, utils};
 
 /// View containing an hexadecimal dump of a selectable memory region.
 pub struct MemoryView {
@@ -34,7 +34,7 @@ impl super::Window for MemoryView {
         "Memory Editor"
     }
 
-    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool) {
+    fn show(&mut self, ctx: &egui::Context, state: &mut Emulator, open: &mut bool) {
         egui::Window::new(self.name())
             .default_pos([330.0, 220.0])
             .default_size([565.0, 460.0])
@@ -47,7 +47,7 @@ impl super::Window for MemoryView {
 }
 
 impl super::View for MemoryView {
-    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState) {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut Emulator) {
         // Refresh automatically the first time
         if self.buffer.as_ref().is_empty() {
             self.buffer.refresh(self.section, state);
@@ -164,7 +164,7 @@ impl MemoryView {
     /// Draws the memory change buttons and search input box on top of the memory viewer.
     ///
     /// Returns whether the "Find next match" button was pressed.
-    fn toolbar_ui(&mut self, ui: &mut egui::Ui, state: &EmuState) -> bool {
+    fn toolbar_ui(&mut self, ui: &mut egui::Ui, state: &Emulator) -> bool {
         use dbg::MemoryType::*;
 
         ui.horizontal(|ui| {
@@ -239,7 +239,7 @@ impl MemoryBuffer {
     }
 
     /// Rebuilds the buffer contents, by reading and rasterizing the whole memory section.
-    fn refresh(&mut self, section: dbg::MemoryType, state: &EmuState) {
+    fn refresh(&mut self, section: dbg::MemoryType, state: &Emulator) {
         let bus = state.bus();
 
         let (mut ptr, end): (u32, u32) = {

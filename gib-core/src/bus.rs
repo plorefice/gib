@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, mem};
 
 use dbg::{McbOp, TraceEvent};
 
@@ -136,6 +136,25 @@ impl Default for Bus {
 impl Bus {
     pub fn new() -> Bus {
         Bus::default()
+    }
+
+    /// Resets the internal bus to its power-up state.
+    ///
+    /// This includes resetting all the connected peripherals and clearning RAM contents.
+    /// The contents of the whole ROM are preserved.
+    pub fn reset(&mut self) {
+        // Preserve ROM contents
+        let rom_banks = mem::take(&mut self.rom_banks);
+
+        // Reset the APU to keep sample rate and audio channel intact, the rest can be recreated
+        let mut apu = mem::take(&mut self.apu);
+        apu.reset();
+
+        *self = Self {
+            rom_banks,
+            apu,
+            ..Default::default()
+        };
     }
 
     pub fn load_rom(&mut self, rom: &[u8]) -> Result<(), TraceEvent> {

@@ -1,6 +1,6 @@
 use egui::Color32;
 
-use crate::ui::{state::EmuState, utils};
+use crate::ui::{state::Emulator, utils};
 
 #[derive(Default)]
 pub struct Peripherals;
@@ -10,7 +10,7 @@ impl super::Window for Peripherals {
         "Peripherals"
     }
 
-    fn show(&mut self, ctx: &egui::Context, state: &mut EmuState, open: &mut bool) {
+    fn show(&mut self, ctx: &egui::Context, state: &mut Emulator, open: &mut bool) {
         egui::Window::new(self.name())
             .default_pos([915.0, 30.0])
             .default_size([310.0, 650.0])
@@ -23,7 +23,7 @@ impl super::Window for Peripherals {
 }
 
 impl super::View for Peripherals {
-    fn ui(&mut self, ui: &mut egui::Ui, state: &mut EmuState) {
+    fn ui(&mut self, ui: &mut egui::Ui, state: &mut Emulator) {
         egui::CollapsingHeader::new("Video Display").show(ui, |ui| {
             ui.label("NOT IMPLEMENTED YET!");
         });
@@ -57,7 +57,7 @@ impl super::View for Peripherals {
 }
 
 impl Peripherals {
-    fn sound_controller_ui(&self, ui: &mut egui::Ui, state: &EmuState) {
+    fn sound_controller_ui(&self, ui: &mut egui::Ui, state: &Emulator) {
         let apu = &state.bus().apu;
 
         egui::Grid::new("sweep-channel")
@@ -129,7 +129,7 @@ impl Peripherals {
         ui.label("Noise Channel");
     }
 
-    fn timers_ui(&self, ui: &mut egui::Ui, state: &EmuState) {
+    fn timers_ui(&self, ui: &mut egui::Ui, state: &Emulator) {
         let timer = &state.bus().tim;
 
         ui.horizontal(|ui| {
@@ -162,7 +162,7 @@ impl Peripherals {
         });
     }
 
-    fn interrupts_ui(&self, ui: &mut egui::Ui, state: &EmuState) {
+    fn interrupts_ui(&self, ui: &mut egui::Ui, state: &Emulator) {
         let itr = &state.bus().itr;
         let irqs = [
             (0, "BLANK"),

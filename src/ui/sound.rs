@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use anyhow::{anyhow, Error};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     Device, OutputCallbackInfo, Stream, StreamConfig,
 };
-use crossbeam::queue::ArrayQueue;
+use gib_core::AudioSink;
 
 /// Component responsible for audio playback.
 pub struct SoundEngine {
@@ -37,15 +35,15 @@ impl SoundEngine {
     }
 
     /// Starts the sound engine. The audio playback happens in a seprate thread,
-    /// with audio samples being received from the provided sample queue.
+    /// with audio samples being received from the provided channel.
     ///
     /// An error is returned if a new audio stream cannot be created.
-    pub fn start(&mut self, sample_queue: Arc<ArrayQueue<i16>>) -> Result<(), Error> {
-        // This closure will fetch the next sample from the queue, or replicate the last sample
+    pub fn start(&mut self, mut sink: AudioSink) -> Result<(), Error> {
+        // This closure will fetch the next sample from the stream, or replicate the last sample
         // if no new sample is available.
         let mut last_sample = 0f32;
         let mut next_sample = move || {
-            if let Some(sample) = sample_queue.pop() {
+            if let Some(sample) = sink.pop() {
                 last_sample = sample as f32 * 0.001;
             }
             last_sample

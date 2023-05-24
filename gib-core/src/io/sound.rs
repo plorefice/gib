@@ -1,12 +1,12 @@
-use std::sync::Arc;
+use std::mem;
 
 use bitflags::bitflags;
-use crossbeam::queue::ArrayQueue;
 
 use crate::{
     dbg,
     io::{InterruptSource, IoReg, IrqSource},
     mem::{MemR, MemW},
+    AudioSource,
 };
 
 const FRAME_SEQUENCER_CLOCK_RELOAD: u32 = 4_194_304 / 512;
@@ -839,7 +839,7 @@ pub struct APU {
 
     // Audio sample channel
     sample_rate_counter: f32,
-    sample_channel: Option<Arc<ArrayQueue<i16>>>,
+    sample_channel: Option<AudioSource>,
     sample_period: f32,
 
     // Frame sequencer clocks
@@ -892,6 +892,21 @@ impl APU {
         let mut apu = APU::default();
         apu.set_sample_rate(sample_rate);
         apu
+    }
+
+    /// Resets the audio peripheral to its power-up state.
+    ///
+    /// Sound channel and sample rate are preserved.
+    pub fn reset(&mut self) {
+        // Preserve audio information
+        let sample_channel = mem::take(&mut self.sample_channel);
+        let sample_period = self.sample_period;
+
+        *self = Self {
+            sample_channel,
+            sample_period,
+            ..Default::default()
+        };
     }
 
     /// Advances the sound controller state machine by a single M-cycle.
@@ -959,7 +974,7 @@ impl APU {
 
                 // If the peripheral is disabled, no sound is emitted.
                 if !self.nr52.contains(NR52::PWR_CTRL) {
-                    sink.push(0).unwrap_or(());
+                    sink.push(0);
                 } else {
                     // Update LEFT speaker
                     if self.nr51.contains(NR51::OUT1_L) {
@@ -995,7 +1010,7 @@ impl APU {
 
                     // Produce a sample which is an average of the two channels.
                     // TODO implement true stero sound.
-                    sink.push((so1 + so2) / 2).unwrap_or(());
+                    sink.push((so1 + so2) / 2);
                 }
             }
         }
@@ -1064,9 +1079,14 @@ impl APU {
         self.sample_rate_counter = 0f32;
     }
 
-    /// Sets the current audio sink.
-    pub fn set_audio_sink(&mut self, sink: Arc<ArrayQueue<i16>>) {
-        self.sample_channel = Some(sink);
+    /// Configures the provided audio source as audio output.
+    pub fn set_audio_source(&mut self, source: AudioSource) {
+        self.sample_channel = Some(source);
+    }
+
+    /// Returns a mutable reference to the audio source, if configured.
+    pub fn audio_source_mut(&mut self) -> Option<&mut AudioSource> {
+        self.sample_channel.as_mut()
     }
 }
 
