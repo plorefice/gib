@@ -1,125 +1,61 @@
-use common::RomTest;
+use std::fs;
 
-mod common;
+use gib_core::GameBoy;
 
-#[test]
-fn blargg_cpu_instrs() {
-    RomTest::new(include_bytes!("../assets/roms/blargg/cpu_instrs.gb"))
-        .must_run_and_match(225_000_000u64, include_bytes!("blargg/cpu_instrs.bin"));
+macro_rules! test_cases {
+    (
+        $(
+            $name:ident($path:expr) $seconds:expr;
+        )+
+    ) => {
+        $(
+            #[test]
+            fn $name() {
+                run_test($path, $seconds);
+            }
+        )+
+    };
 }
 
-#[test]
-fn blargg_instr_timing() {
-    RomTest::new(include_bytes!("../assets/roms/blargg/instr_timing.gb"))
-        .must_run_and_match(3_000_000u64, include_bytes!("blargg/instr_timing.bin"));
+test_cases! {
+    cpu_instrs("cpu_instrs/cpu_instrs") 55;
+    instr_timing("instr_timing/instr_timing") 1;
+    mem_timing("mem_timing/mem_timing") 3;
+    mem_timing_2("mem_timing-2/mem_timing") 4;
+    halt_bug("halt_bug") 2;
+
+    dmg_sound_01_registers("dmg_sound/rom_singles/01-registers") 5;
+    dmg_sound_02_len_ctr("dmg_sound/rom_singles/02-len ctr") 10;
+    dmg_sound_04_sweep("dmg_sound/rom_singles/04-sweep") 5;
+    dmg_sound_05_sweep_details("dmg_sound/rom_singles/05-sweep details") 5;
+    dmg_sound_06_overflow_on_trigger("dmg_sound/rom_singles/06-overflow on trigger") 5;
+    dmg_sound_07_len_sweep_period_sync("dmg_sound/rom_singles/07-len sweep period sync") 5;
+    dmg_sound_08_len_ctr_during_power("dmg_sound/rom_singles/08-len ctr during power") 5;
+    dmg_sound_11_regs_after_power("dmg_sound/rom_singles/11-regs after power") 5;
 }
 
-#[test]
-fn blargg_mem_timing() {
-    RomTest::new(include_bytes!("../assets/roms/blargg/mem_timing.gb"))
-        .must_run_and_match(7_000_000u64, include_bytes!("blargg/mem_timing.bin"));
-}
+fn run_test(name: &str, seconds: u64) {
+    let path = format!("assets/roms/blargg/{name}");
 
-#[test]
-fn blargg_mem_timing_2() {
-    RomTest::new(include_bytes!("../assets/roms/blargg/mem_timing-2.gb"))
-        .must_run_and_match(12_000_000u64, include_bytes!("blargg/mem_timing-2.bin"));
-}
+    let rom = fs::read(format!("{path}.gb")).expect("failed to load test binary");
 
-#[test]
-fn blargg_halt_bug() {
-    RomTest::new(include_bytes!("../assets/roms/blargg/halt_bug.gb"))
-        .must_run_and_match(10_000_000u64, include_bytes!("blargg/halt_bug.bin"));
-}
+    let image = image::io::Reader::open(format!("{path}-dmg.png"))
+        .or_else(|_| image::io::Reader::open(format!("{path}-dmg-cgb.png")))
+        .expect("screenshot not found")
+        .decode()
+        .expect("invalid screenshot format");
 
-/*
- * dmg_sound-2 single ROMs
- */
+    let mut gameboy = GameBoy::new();
+    gameboy.load_rom(&rom).unwrap();
 
-#[test]
-fn blargg_dmg_sound_01_registers() {
-    RomTest::new(include_bytes!(
-        "../assets/roms/blargg/dmg_sound-2/01-registers.gb"
-    ))
-    .must_run_and_match(
-        4_000_000u64,
-        include_bytes!("blargg/dmg_sound-2/01-registers.bin"),
-    )
-}
+    let emulated_cycles = seconds * gib_core::CPU_CLOCK;
 
-#[test]
-fn blargg_dmg_sound_02_len_ctl() {
-    RomTest::new(include_bytes!(
-        "../assets/roms/blargg/dmg_sound-2/02-len ctr.gb"
-    ))
-    .must_run_and_match(
-        40_000_000u64,
-        include_bytes!("blargg/dmg_sound-2/02-len ctr.bin"),
-    )
-}
+    while gameboy.clock_cycles() < emulated_cycles {
+        gameboy.run_for_vblank().expect("unexpected trace event");
+    }
 
-#[test]
-fn blargg_dmg_sound_04_sweep() {
-    RomTest::new(include_bytes!(
-        "../assets/roms/blargg/dmg_sound-2/04-sweep.gb"
-    ))
-    .must_run_and_match(
-        6_000_000u64,
-        include_bytes!("blargg/dmg_sound-2/04-sweep.bin"),
-    )
-}
+    let mut buffer = vec![0xff; 160 * 144 * 4];
+    gameboy.rasterize(&mut buffer);
 
-#[test]
-fn blargg_dmg_sound_05_sweep_details() {
-    RomTest::new(include_bytes!(
-        "../assets/roms/blargg/dmg_sound-2/05-sweep details.gb"
-    ))
-    .must_run_and_match(
-        6_000_000u64,
-        include_bytes!("blargg/dmg_sound-2/05-sweep details.bin"),
-    )
-}
-
-#[test]
-fn blargg_dmg_sound_06_overflow_on_trigger() {
-    RomTest::new(include_bytes!(
-        "../assets/roms/blargg/dmg_sound-2/06-overflow on trigger.gb"
-    ))
-    .must_run_and_match(
-        6_000_000u64,
-        include_bytes!("blargg/dmg_sound-2/06-overflow on trigger.bin"),
-    )
-}
-
-#[test]
-fn blargg_dmg_sound_07_len_sweep_period_sync() {
-    RomTest::new(include_bytes!(
-        "../assets/roms/blargg/dmg_sound-2/07-len sweep period sync.gb"
-    ))
-    .must_run_and_match(
-        4_000_000u64,
-        include_bytes!("blargg/dmg_sound-2/07-len sweep period sync.bin"),
-    )
-}
-
-#[test]
-fn blargg_dmg_sound_08_len_ctr_during_power() {
-    RomTest::new(include_bytes!(
-        "../assets/roms/blargg/dmg_sound-2/08-len ctr during power.gb"
-    ))
-    .must_run_and_match(
-        9_000_000u64,
-        include_bytes!("blargg/dmg_sound-2/08-len ctr during power.bin"),
-    )
-}
-
-#[test]
-fn blargg_dmg_sound_11_regs_after_power() {
-    RomTest::new(include_bytes!(
-        "../assets/roms/blargg/dmg_sound-2/11-regs after power.gb"
-    ))
-    .must_run_and_match(
-        6_000_000u64,
-        include_bytes!("blargg/dmg_sound-2/11-regs after power.bin"),
-    )
+    assert_eq!(buffer, image.to_rgba8().to_vec());
 }

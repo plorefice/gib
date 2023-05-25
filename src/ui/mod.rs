@@ -225,7 +225,15 @@ impl EmuUi {
                 ui.separator();
 
                 if ui.button("Save screen").clicked() {
-                    std::fs::write("screen-dump.bin", &self.vpu_buffer[..]).ok();
+                    image::save_buffer(
+                        "screenshot.png",
+                        &self.vpu_buffer,
+                        EMU_X_RES as u32,
+                        EMU_Y_RES as u32,
+                        image::ColorType::Rgba8,
+                    )
+                    .ok();
+
                     ui.close_menu();
                 }
 

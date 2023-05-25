@@ -5,8 +5,6 @@ use std::{
 
 use gib_core::GameBoy;
 
-mod common;
-
 macro_rules! test_cases {
     (
         $(
@@ -81,9 +79,10 @@ fn run_test(name: &str) {
     let mut gameboy = GameBoy::new();
     gameboy.load_rom(&rom).unwrap();
 
+    let start = Instant::now();
     let timeout = Duration::from_secs(5);
 
-    while Instant::now().elapsed() < timeout {
+    while start.elapsed() < timeout {
         gameboy.run_for_vblank().expect("unexpected trace event");
 
         let cpu = gameboy.cpu();

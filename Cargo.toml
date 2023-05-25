@@ -16,6 +16,7 @@ crossbeam = "0.8.2"
 eframe = { version = "0.21.0", default-features = false, features = ["wgpu"] }
 egui = "0.21.0"
 gib-core = { path = "gib-core" }
+image = { version = "0.24.6", default-features = false, features = ["png"] }
 parking_lot = "0.12.1"
 pollster = "0.3.0"
 rfd = { version = "0.11.4", default-features = false, features = [
