@@ -191,7 +191,7 @@ impl DMATransfer {
     }
 }
 
-pub struct PPU {
+pub struct Ppu {
     tdt: [Tile; 384],  // Tile Data Table
     oam: [Sprite; 40], // Object Attribute Memory
     bgtm0: [u8; 1024], // Background Tile Map #0
@@ -227,9 +227,9 @@ pub struct PPU {
     vblank_irq_pending: bool,
 }
 
-impl Default for PPU {
-    fn default() -> PPU {
-        PPU {
+impl Default for Ppu {
+    fn default() -> Ppu {
+        Ppu {
             tdt: [Tile::default(); 384],
             oam: [Sprite::default(); 40],
             bgtm0: [0; 1024],
@@ -261,9 +261,9 @@ impl Default for PPU {
     }
 }
 
-impl PPU {
-    pub fn new() -> PPU {
-        PPU::default()
+impl Ppu {
+    pub fn new() -> Ppu {
+        Ppu::default()
     }
 
     /// Advances the LCD controller state machine by a single M-cycle.
@@ -610,7 +610,7 @@ impl PPU {
     }
 }
 
-impl InterruptSource for PPU {
+impl InterruptSource for Ppu {
     fn get_and_clear_irq(&mut self) -> Option<IrqSource> {
         if self.vblank_irq_pending {
             self.vblank_irq_pending = false;
@@ -625,7 +625,7 @@ impl InterruptSource for PPU {
     }
 }
 
-impl MemR for PPU {
+impl MemR for Ppu {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         Ok(match addr {
             0x8000..=0x97FF => {
@@ -665,7 +665,7 @@ impl MemR for PPU {
     }
 }
 
-impl MemW for PPU {
+impl MemW for Ppu {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         match addr {
             0x8000..=0x97FF => {

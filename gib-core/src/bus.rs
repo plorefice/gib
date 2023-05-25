@@ -4,7 +4,7 @@ use dbg::{McbOp, TraceEvent};
 
 use crate::{
     dbg,
-    io::{InterruptSource, IrqController, Joypad, Serial, Timer, APU, PPU},
+    io::{Apu, InterruptSource, IrqController, Joypad, Ppu, Serial, Timer},
     mem::{MemR, MemRW, MemW, Memory},
 };
 
@@ -100,8 +100,8 @@ pub struct Bus {
     pub wram_00: Memory,
     pub wram_nn: Memory,
 
-    pub apu: APU,
-    pub ppu: PPU,
+    pub apu: Apu,
+    pub ppu: Ppu,
     pub tim: Timer,
     pub sdt: Serial,
     pub joy: Joypad,
@@ -123,8 +123,8 @@ impl Default for Bus {
             wram_00: Memory::new(0x1000),
             wram_nn: Memory::new(0x1000),
 
-            apu: APU::default(),
-            ppu: PPU::new(),
+            apu: Apu::default(),
+            ppu: Ppu::new(),
             tim: Timer::new(),
             sdt: Serial::new(),
             joy: Joypad::new(),

@@ -825,7 +825,7 @@ impl MemW for NoiseChannel {
     }
 }
 
-pub struct APU {
+pub struct Apu {
     // Channels
     pub ch1: ToneChannel,
     pub ch2: ToneChannel,
@@ -847,9 +847,9 @@ pub struct APU {
     frame_sequencer_ticks: u32,
 }
 
-impl Default for APU {
-    fn default() -> APU {
-        APU {
+impl Default for Apu {
+    fn default() -> Apu {
+        Apu {
             ch1: ToneChannel::new(
                 NRx0::from_bits_truncate(0x80),
                 NRx1::from_bits_truncate(0x8F),
@@ -886,10 +886,10 @@ impl Default for APU {
     }
 }
 
-impl APU {
+impl Apu {
     /// Instantiates a new APU producing samples at a frequency of `sample_rate`.
-    pub fn new(sample_rate: f32) -> APU {
-        let mut apu = APU::default();
+    pub fn new(sample_rate: f32) -> Apu {
+        let mut apu = Apu::default();
         apu.set_sample_rate(sample_rate);
         apu
     }
@@ -1090,13 +1090,13 @@ impl APU {
     }
 }
 
-impl InterruptSource for APU {
+impl InterruptSource for Apu {
     fn get_and_clear_irq(&mut self) -> Option<IrqSource> {
         None
     }
 }
 
-impl MemR for APU {
+impl MemR for Apu {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         Ok(match addr {
             0xFF10..=0xFF14 => self.ch1.read(addr - 0xFF10)?,
@@ -1116,7 +1116,7 @@ impl MemR for APU {
     }
 }
 
-impl MemW for APU {
+impl MemW for Apu {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         // Writes to any register in range NR10-NR51 are ignored if the peripheral is off,
         // except the length counters, which can still be written while off.
