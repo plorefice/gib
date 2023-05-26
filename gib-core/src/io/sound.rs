@@ -264,6 +264,8 @@ impl ToneChannel {
     fn tick_len_ctr(&mut self) {
         // When clocked while enabled by NRx4, the length counter is decremented
         if self.nrx4.contains(NRx4::LEN_EN) {
+            tracing::trace!(before = self.length_counter, "Length counter tick");
+
             self.length_counter = self.length_counter.saturating_sub(1);
 
             // If it reaches zero, the channel is disabled
@@ -346,11 +348,11 @@ impl ToneChannel {
         // If the length counter was PREVIOUSLY disabled and now enabled and the length counter
         // is not zero, it is decremented. If this decrement makes it zero and trigger is clear,
         // the channel is disabled.
-        if nrx4.contains(NRx4::LEN_EN)
-            && !self.nrx4.contains(NRx4::LEN_EN)
-            && self.should_dec_counter_on_enable
-        {
-            self.length_counter = self.length_counter.saturating_sub(1);
+        let length_counter_decrement =
+            u32::from(nrx4.contains(NRx4::LEN_EN) && self.should_dec_counter_on_enable);
+
+        if !self.nrx4.contains(NRx4::LEN_EN) {
+            self.length_counter = self.length_counter.saturating_sub(length_counter_decrement);
 
             if !nrx4.contains(NRx4::TRIGGER) && self.length_counter == 0 {
                 self.enabled = false;
@@ -361,12 +363,15 @@ impl ToneChannel {
 
         // When a TRIGGER occurs, a number of things happen
         if self.nrx4.contains(NRx4::TRIGGER) {
+            tracing::trace!("Tone channel trigger!");
+
             // Channel is enabled
             self.enabled = true;
 
             // If length counter is zero, it is set to maximum
             if self.length_counter == 0 {
-                self.length_counter = TONE_CH_LEN_MAX;
+                tracing::trace!("Resetting length counter to max on trigger");
+                self.length_counter = TONE_CH_LEN_MAX - length_counter_decrement;
             }
 
             // Frequency timer is reloaded with period
@@ -403,7 +408,7 @@ impl ToneChannel {
 
 impl MemR for ToneChannel {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
-        Ok(match addr {
+        let val = match addr {
             0 => {
                 if self.sweep_support {
                     self.nrx0.bits() | 0x80
@@ -416,13 +421,17 @@ impl MemR for ToneChannel {
             3 => self.nrx3.0 | 0xFF,
             4 => self.nrx4.bits() | 0xBF,
             _ => unreachable!(),
-        })
+        };
+
+        tracing::trace!(addr, val, "Tone channel register read");
+
+        Ok(val)
     }
 }
 
 impl MemW for ToneChannel {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
-        tracing::trace!(addr, val, "Tone channel read access");
+        tracing::trace!(addr, val, "Tone channel register write");
 
         match addr {
             0 => {
@@ -578,11 +587,11 @@ impl WaveChannel {
         // If the length counter was PREVIOUSLY disabled and now enabled and the length counter
         // is not zero, it is decremented. If this decrement makes it zero and trigger is clear,
         // the channel is disabled.
-        if nrx4.contains(NRx4::LEN_EN)
-            && !self.nrx4.contains(NRx4::LEN_EN)
-            && self.should_dec_counter_on_enable
-        {
-            self.length_counter = self.length_counter.saturating_sub(1);
+        let length_counter_decrement =
+            u32::from(nrx4.contains(NRx4::LEN_EN) && self.should_dec_counter_on_enable);
+
+        if !self.nrx4.contains(NRx4::LEN_EN) {
+            self.length_counter = self.length_counter.saturating_sub(length_counter_decrement);
 
             if !nrx4.contains(NRx4::TRIGGER) && self.length_counter == 0 {
                 self.enabled = false;
@@ -593,12 +602,15 @@ impl WaveChannel {
 
         // When a TRIGGER occurs, a number of things happen
         if self.nrx4.contains(NRx4::TRIGGER) {
+            tracing::trace!("Wave channel trigger!");
+
             // Channel is enabled
             self.enabled = true;
 
             // If length counter is zero, it is set to maximum
             if self.length_counter == 0 {
-                self.length_counter = WAVE_CH_LEN_MAX;
+                tracing::trace!("Resetting length counter to max on trigger");
+                self.length_counter = WAVE_CH_LEN_MAX - length_counter_decrement;
             }
 
             // Frequency timer is reloaded with period
@@ -798,11 +810,11 @@ impl NoiseChannel {
         // If the length counter was PREVIOUSLY disabled and now enabled and the length counter
         // is not zero, it is decremented. If this decrement makes it zero and trigger is clear,
         // the channel is disabled.
-        if nrx4.contains(NRx4::LEN_EN)
-            && !self.nrx4.contains(NRx4::LEN_EN)
-            && self.should_dec_counter_on_enable
-        {
-            self.length_counter = self.length_counter.saturating_sub(1);
+        let length_counter_decrement =
+            u32::from(nrx4.contains(NRx4::LEN_EN) && self.should_dec_counter_on_enable);
+
+        if !self.nrx4.contains(NRx4::LEN_EN) {
+            self.length_counter = self.length_counter.saturating_sub(length_counter_decrement);
 
             if !nrx4.contains(NRx4::TRIGGER) && self.length_counter == 0 {
                 self.enabled = false;
@@ -813,12 +825,15 @@ impl NoiseChannel {
 
         // When a TRIGGER occurs, a number of things happen
         if self.nrx4.contains(NRx4::TRIGGER) {
+            tracing::trace!("Noise channel trigger!");
+
             // Channel is enabled
             self.enabled = true;
 
             // If length counter is zero, it is set to maximum
             if self.length_counter == 0 {
-                self.length_counter = TONE_CH_LEN_MAX;
+                tracing::trace!("Resetting length counter to max on trigger");
+                self.length_counter = TONE_CH_LEN_MAX - length_counter_decrement;
             }
 
             // Frequency timer is reloaded with period
