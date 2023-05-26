@@ -119,6 +119,7 @@ pub struct ToneChannel {
 
     // Length counter unit
     length_counter: u32,
+    should_dec_counter_on_enable: bool,
 
     // Frequency sweep unit
     sweep_support: bool,
@@ -157,6 +158,7 @@ impl ToneChannel {
             timer_counter: 0,
 
             length_counter: TONE_CH_LEN_MAX,
+            should_dec_counter_on_enable: true,
 
             sweep_support,
             sweep_enabled: false,
@@ -339,7 +341,23 @@ impl ToneChannel {
 
     /// Handles a write to the NRx4 register.
     fn write_to_nr4(&mut self, val: u8) {
-        self.nrx4 = NRx4::from_bits_truncate(val);
+        let nrx4 = NRx4::from_bits_truncate(val);
+
+        // If the length counter was PREVIOUSLY disabled and now enabled and the length counter
+        // is not zero, it is decremented. If this decrement makes it zero and trigger is clear,
+        // the channel is disabled.
+        if nrx4.contains(NRx4::LEN_EN)
+            && !self.nrx4.contains(NRx4::LEN_EN)
+            && self.should_dec_counter_on_enable
+        {
+            self.length_counter = self.length_counter.saturating_sub(1);
+
+            if !nrx4.contains(NRx4::TRIGGER) && self.length_counter == 0 {
+                self.enabled = false;
+            }
+        }
+
+        self.nrx4 = nrx4;
 
         // When a TRIGGER occurs, a number of things happen
         if self.nrx4.contains(NRx4::TRIGGER) {
@@ -457,6 +475,7 @@ pub struct WaveChannel {
 
     // Length counter unit
     length_counter: u32,
+    should_dec_counter_on_enable: bool,
 
     // Wave functions
     wave_ram: [u8; 16],
@@ -476,6 +495,7 @@ impl Default for WaveChannel {
             timer_counter: 0,
 
             length_counter: WAVE_CH_LEN_MAX,
+            should_dec_counter_on_enable: true,
 
             wave_ram: [0; 16],
             sample_buffer: 0,
@@ -553,7 +573,23 @@ impl WaveChannel {
 
     /// Handles a write to the NRx4 register.
     fn write_to_nr4(&mut self, val: u8) {
-        self.nrx4 = NRx4::from_bits_truncate(val);
+        let nrx4 = NRx4::from_bits_truncate(val);
+
+        // If the length counter was PREVIOUSLY disabled and now enabled and the length counter
+        // is not zero, it is decremented. If this decrement makes it zero and trigger is clear,
+        // the channel is disabled.
+        if nrx4.contains(NRx4::LEN_EN)
+            && !self.nrx4.contains(NRx4::LEN_EN)
+            && self.should_dec_counter_on_enable
+        {
+            self.length_counter = self.length_counter.saturating_sub(1);
+
+            if !nrx4.contains(NRx4::TRIGGER) && self.length_counter == 0 {
+                self.enabled = false;
+            }
+        }
+
+        self.nrx4 = nrx4;
 
         // When a TRIGGER occurs, a number of things happen
         if self.nrx4.contains(NRx4::TRIGGER) {
@@ -629,6 +665,7 @@ pub struct NoiseChannel {
 
     // Length counter unit
     length_counter: u32,
+    should_dec_counter_on_enable: bool,
 
     // Volume control
     volume: i16,
@@ -652,6 +689,7 @@ impl Default for NoiseChannel {
             timer_counter: 0,
 
             length_counter: TONE_CH_LEN_MAX,
+            should_dec_counter_on_enable: true,
 
             volume: 0,
             vol_ctr: 0,
@@ -755,7 +793,23 @@ impl NoiseChannel {
 
     /// Handles a write to the NRx4 register.
     fn write_to_nr4(&mut self, val: u8) {
-        self.nrx4 = NRx4::from_bits_truncate(val);
+        let nrx4 = NRx4::from_bits_truncate(val);
+
+        // If the length counter was PREVIOUSLY disabled and now enabled and the length counter
+        // is not zero, it is decremented. If this decrement makes it zero and trigger is clear,
+        // the channel is disabled.
+        if nrx4.contains(NRx4::LEN_EN)
+            && !self.nrx4.contains(NRx4::LEN_EN)
+            && self.should_dec_counter_on_enable
+        {
+            self.length_counter = self.length_counter.saturating_sub(1);
+
+            if !nrx4.contains(NRx4::TRIGGER) && self.length_counter == 0 {
+                self.enabled = false;
+            }
+        }
+
+        self.nrx4 = nrx4;
 
         // When a TRIGGER occurs, a number of things happen
         if self.nrx4.contains(NRx4::TRIGGER) {
@@ -925,6 +979,15 @@ impl Apu {
         } else {
             (false, false, false)
         };
+
+        // https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Obscure_Behavior
+        // Extra length clocking occurs when writing to NRx4 when the frame sequencer's next step
+        // is one that doesn't clock the length counter.
+        self.ch1.should_dec_counter_on_enable =
+            self.frame_sequencer_clock > 4 && self.frame_sequencer_ticks & 0b1 == 0;
+        self.ch2.should_dec_counter_on_enable = self.ch1.should_dec_counter_on_enable;
+        self.ch3.should_dec_counter_on_enable = self.ch1.should_dec_counter_on_enable;
+        self.ch4.should_dec_counter_on_enable = self.ch1.should_dec_counter_on_enable;
 
         // Internal timer clock tick
         self.ch1.tick();
