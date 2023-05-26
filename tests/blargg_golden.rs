@@ -26,6 +26,7 @@ test_cases! {
 
     dmg_sound_01_registers("dmg_sound/rom_singles/01-registers") 5;
     dmg_sound_02_len_ctr("dmg_sound/rom_singles/02-len ctr") 10;
+    dmg_sound_03_trigger("dmg_sound/rom_singles/03-trigger") 20;
     dmg_sound_04_sweep("dmg_sound/rom_singles/04-sweep") 5;
     dmg_sound_05_sweep_details("dmg_sound/rom_singles/05-sweep details") 5;
     dmg_sound_06_overflow_on_trigger("dmg_sound/rom_singles/06-overflow on trigger") 5;
