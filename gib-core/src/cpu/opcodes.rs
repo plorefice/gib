@@ -205,7 +205,7 @@ macro_rules! srl {
 
 macro_rules! swap {
     ($cpu:ident, $v:expr) => {{
-        let res = ($v >> 4) | ($v << 4);
+        let res = $v.rotate_left(4);
 
         $cpu.set_f(0);
         $cpu.set_zf(res == 0);
@@ -1204,20 +1204,20 @@ mod test {
         mem::{MemR, MemRW, MemW},
     };
 
-    impl<'a> MemR for &'a mut [u8] {
+    impl MemR for &mut [u8] {
         fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
             Ok(self[addr as usize])
         }
     }
 
-    impl<'a> MemW for &'a mut [u8] {
+    impl MemW for &mut [u8] {
         fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
             self[addr as usize] = val;
             Ok(())
         }
     }
 
-    impl<'a> MemRW for &'a mut [u8] {}
+    impl MemRW for &mut [u8] {}
 
     struct CpuTest {
         ticks: usize,
@@ -1248,10 +1248,7 @@ mod test {
             self
         }
 
-        fn setup<F: 'static>(mut self, setup: F) -> CpuTest
-        where
-            F: FnMut(&mut Cpu),
-        {
+        fn setup(mut self, setup: impl FnMut(&mut Cpu) + 'static) -> CpuTest {
             self.setup_fn = Box::new(setup);
             self
         }

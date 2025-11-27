@@ -89,7 +89,7 @@ impl Disassembly {
 
             let next = from + u16::from(instr.size);
 
-            if self.disasm.get(&from).is_some() {
+            if self.disasm.contains_key(&from) {
                 break;
             }
             for addr in from..next {

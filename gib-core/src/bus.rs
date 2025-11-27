@@ -37,10 +37,12 @@ impl TryFrom<u8> for MbcType {
 
 // Specifies the ROM size of the cartridge in 16KB banks.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RomBanks(usize);
 
 // The error type returned when a parsing a ROM size code fails.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RomSizeError(u8);
 
 impl TryFrom<u8> for RomBanks {
@@ -67,10 +69,12 @@ impl TryFrom<u8> for RomBanks {
 
 // Specifies the size of the external RAM in the cartridge in 8KB banks.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RamBanks(usize);
 
 // The error type returned when a parsing a RAM size code fails.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct RamSizeError(u8);
 
 impl TryFrom<u8> for RamBanks {

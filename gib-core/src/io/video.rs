@@ -67,7 +67,7 @@ impl Default for SpriteAttributes {
     }
 }
 
-impl<'a> MemR for &'a [Sprite] {
+impl MemR for &[Sprite] {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         let s = &self[usize::from(addr >> 2)];
 
@@ -81,13 +81,13 @@ impl<'a> MemR for &'a [Sprite] {
     }
 }
 
-impl<'a> MemR for &'a mut [Sprite] {
+impl MemR for &mut [Sprite] {
     fn read(&self, addr: u16) -> Result<u8, dbg::TraceEvent> {
         (self as &[Sprite]).read(addr)
     }
 }
 
-impl<'a> MemW for &'a mut [Sprite] {
+impl MemW for &mut [Sprite] {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         let s = &mut self[usize::from(addr >> 2)];
 
@@ -102,7 +102,7 @@ impl<'a> MemW for &'a mut [Sprite] {
     }
 }
 
-impl<'a> MemRW for &'a mut [Sprite] {}
+impl MemRW for &mut [Sprite] {}
 
 bitflags! {
     /// FF40 - LCDC - LCD Control (R/W)

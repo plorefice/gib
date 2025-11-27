@@ -947,7 +947,7 @@ impl Default for Apu {
 
             sample_rate_counter: 0f32,
             sample_channel: None,
-            sample_period: std::f32::INFINITY,
+            sample_period: f32::INFINITY,
 
             frame_sequencer_clock: FRAME_SEQUENCER_CLOCK_RELOAD,
             frame_sequencer_ticks: 7,
