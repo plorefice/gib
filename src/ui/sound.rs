@@ -20,7 +20,11 @@ impl SoundEngine {
             .default_output_device()
             .ok_or_else(|| anyhow!("no output device found"))?;
 
-        let config = device.default_output_config()?.into();
+        let mut config: StreamConfig = device.default_output_config()?.into();
+
+        // We need a fixed buffer size to ensure consistent audio latency.
+        // 64 samples at 44.1KHz is about 1.5ms of audio, which should be low enough.
+        config.buffer_size = cpal::BufferSize::Fixed(64);
 
         Ok(SoundEngine {
             device,
@@ -34,7 +38,7 @@ impl SoundEngine {
         self.config.sample_rate as f32
     }
 
-    /// Starts the sound engine. The audio playback happens in a seprate thread,
+    /// Starts the sound engine. The audio playback happens in a separate thread,
     /// with audio samples being received from the provided channel.
     ///
     /// An error is returned if a new audio stream cannot be created.

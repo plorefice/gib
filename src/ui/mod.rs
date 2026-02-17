@@ -59,9 +59,9 @@ impl EmuUi {
     pub const DEVEL_WINDOW_SIZE: [f32; 2] = [1440., 720.];
 
     pub fn new(cc: &eframe::CreationContext<'_>, debug_mode: bool) -> Result<Self, Error> {
-        // Create a sample channel that can hold up to 1024 samples.
-        // At 44.1KHz, this is about 23ms worth of audio.
-        let (source, sink) = gib_core::create_sound_channel(1024);
+        // Create a sample channel that can hold up to 32 samples.
+        // Heuristically, this should be enough to prevent audio stuttering, while keeping latency low.
+        let (source, sink) = gib_core::create_sound_channel(32);
 
         // Start audio thread.
         // NOTE(windows): this needs to happen before the GUI is created, or the process
