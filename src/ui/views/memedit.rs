@@ -60,7 +60,7 @@ impl super::View for MemoryView {
 
         ui.separator();
 
-        let mut layouter = |ui: &egui::Ui, s: &str, wrap_width: f32| {
+        let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, wrap_width: f32| {
             use egui::{
                 text::{LayoutJob, TextFormat},
                 Color32, FontId,
@@ -78,19 +78,19 @@ impl super::View for MemoryView {
             let mut layout_job = LayoutJob::default();
 
             if self.matched_ranges.is_empty() {
-                layout_job.append(s, 0., simple);
+                layout_job.append(buf.as_str(), 0., simple);
             } else {
                 let mut cursor_pos = 0;
                 for rng in &self.matched_ranges {
-                    layout_job.append(&s[cursor_pos..rng.start], 0., simple.clone());
-                    layout_job.append(&s[rng.clone()], 0., highlight.clone());
+                    layout_job.append(&buf.as_str()[cursor_pos..rng.start], 0., simple.clone());
+                    layout_job.append(&buf.as_str()[rng.clone()], 0., highlight.clone());
                     cursor_pos = rng.end;
                 }
-                layout_job.append(&s[cursor_pos..], 0., simple);
+                layout_job.append(&buf.as_str()[cursor_pos..], 0., simple);
             }
 
             layout_job.wrap.max_width = wrap_width;
-            ui.fonts(|f| f.layout_job(layout_job))
+            ui.fonts_mut(|f| f.layout_job(layout_job))
         };
 
         egui::ScrollArea::vertical()
@@ -114,7 +114,7 @@ impl super::View for MemoryView {
                     let line = rng.start / self.buffer.line_len;
                     let line_height = rect.height() / self.buffer.lines as f32;
 
-                    let y_start = rect.y_range().start() + line as f32 * line_height;
+                    let y_start = rect.y_range().min + line as f32 * line_height;
 
                     ui.scroll_to_rect(
                         egui::Rect::from_x_y_ranges(

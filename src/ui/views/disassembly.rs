@@ -156,7 +156,7 @@ impl Disassembly {
         let output = egui::ScrollArea::vertical()
             .max_height(ui.available_height())
             .auto_shrink([false; 2])
-            .always_show_scroll(true)
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show_rows(ui, row_height, self.disasm.len(), |ui, row_range| {
                 let cpu = state.cpu_mut();
 

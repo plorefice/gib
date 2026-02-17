@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use egui::ViewportBuilder;
 
 use crate::ui::EmuUi;
 
@@ -23,15 +24,18 @@ fn main() -> Result<(), eframe::Error> {
     let cli = Cli::parse();
 
     let options = eframe::NativeOptions {
-        initial_window_size: Some(
-            if cli.devel {
-                EmuUi::DEVEL_WINDOW_SIZE
-            } else {
-                EmuUi::WINDOW_SIZE
-            }
-            .into(),
-        ),
-        maximized: cli.devel,
+        viewport: ViewportBuilder {
+            maximized: Some(cli.devel),
+            inner_size: Some(
+                if cli.devel {
+                    EmuUi::DEVEL_WINDOW_SIZE
+                } else {
+                    EmuUi::WINDOW_SIZE
+                }
+                .into(),
+            ),
+            ..Default::default()
+        },
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };
@@ -44,7 +48,7 @@ fn main() -> Result<(), eframe::Error> {
                 if let Some(rom) = cli.rom {
                     app.load_rom(rom).expect("failed to load rom");
                 }
-                Box::new(app)
+                Ok(Box::new(app))
             }
             Err(e) => panic!("{e}"),
         }),

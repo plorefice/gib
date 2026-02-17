@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Error;
-use egui::Key;
+use egui::{Key, Widget};
 use gib_core::{self, io::JoypadState};
 use parking_lot::Mutex;
 use sound::SoundEngine;
@@ -187,9 +187,11 @@ impl EmuUi {
         egui::TopBottomPanel::top("menubar").show(ctx, |ui| self.emulation_menu_ui(ui, frame));
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::none())
+            .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
-                ui.image(&self.vpu_texture, self.vpu_texture.size_vec2() * 2.)
+                egui::Image::new(&self.vpu_texture)
+                    .fit_to_exact_size(self.vpu_texture.size_vec2() * 2.)
+                    .ui(ui)
             });
     }
 
@@ -208,18 +210,20 @@ impl EmuUi {
         egui::Window::new("Screen")
             .default_pos([730., 30.])
             .show(ui.ctx(), |ui| {
-                ui.image(&self.vpu_texture, self.vpu_texture.size_vec2());
+                egui::Image::new(&self.vpu_texture)
+                    .fit_to_exact_size(self.vpu_texture.size_vec2() * 2.)
+                    .ui(ui)
             });
     }
 
-    fn emulation_menu_ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-        egui::menu::bar(ui, |ui| {
+    fn emulation_menu_ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("Emulator", |ui| {
                 if ui.button("Load ROM...").clicked() {
                     if let Some(path) = rfd::FileDialog::new().pick_file() {
                         self.load_rom(path).unwrap();
                     }
-                    ui.close_menu();
+                    ui.close();
                 }
 
                 ui.separator();
@@ -234,16 +238,16 @@ impl EmuUi {
                     )
                     .ok();
 
-                    ui.close_menu();
+                    ui.close();
                 }
 
                 if ui.button("Reset").clicked() {
                     self.emu.lock().reset();
-                    ui.close_menu();
+                    ui.close();
                 }
 
                 if ui.button("Quit").clicked() {
-                    frame.close();
+                    todo!("frame.close() doesn't exist anymore");
                 }
             })
         });

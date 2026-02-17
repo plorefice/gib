@@ -9,22 +9,25 @@ version = "0.5.2"
 members = ["gib-core"]
 
 [dependencies]
-anyhow = "1.0.71"
-clap = { version = "4.2.7", features = ["derive"] }
-cpal = "0.15.2"
-crossbeam = "0.8.2"
-eframe = { version = "0.21.0", default-features = false, features = ["wgpu"] }
-egui = "0.21.0"
+anyhow = "1.0.101"
+clap = { version = "4.5.59", features = ["derive"] }
+cpal = "0.17.1"
+crossbeam = "0.8.4"
+eframe = { version = "0.33.3", default-features = false, features = [
+    "wayland",
+    "wgpu",
+] }
+egui = "0.33.3"
 gib-core = { path = "gib-core" }
-image = { version = "0.24.6", default-features = false, features = ["png"] }
-parking_lot = "0.12.1"
-pollster = "0.3.0"
-rfd = { version = "0.11.4", default-features = false, features = [
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+parking_lot = "0.12.5"
+pollster = "0.4.0"
+rfd = { version = "0.17.2", default-features = false, features = [
     "xdg-portal",
 ] }
-tracing = "0.1.37"
-tracing-subscriber = "0.3.17"
-wgpu = "0.15.1"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.22"
+wgpu = "27.0.1"
 
 [profile.dev]
 debug = false

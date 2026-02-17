@@ -31,7 +31,7 @@ impl SoundEngine {
 
     /// Returns the engine's current sample rate.
     pub fn get_sample_rate(&self) -> f32 {
-        self.config.sample_rate.0 as f32
+        self.config.sample_rate as f32
     }
 
     /// Starts the sound engine. The audio playback happens in a seprate thread,

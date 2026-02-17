@@ -40,8 +40,8 @@ fn run_test(name: &str, seconds: u64) {
 
     let rom = fs::read(format!("{path}.gb")).expect("failed to load test binary");
 
-    let image = image::io::Reader::open(format!("{path}-dmg.png"))
-        .or_else(|_| image::io::Reader::open(format!("{path}-dmg-cgb.png")))
+    let image = image::ImageReader::open(format!("{path}-dmg.png"))
+        .or_else(|_| image::ImageReader::open(format!("{path}-dmg-cgb.png")))
         .expect("screenshot not found")
         .decode()
         .expect("invalid screenshot format");
