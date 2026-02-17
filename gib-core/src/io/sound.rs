@@ -17,6 +17,7 @@ const WAVE_CH_LEN_MAX: u32 = 256;
 
 bitflags! {
     // NRx0 - Channel x Sweep register (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct NRx0: u8 {
         const SWEEP_TIME  = 0b_0111_0000;
         const SWEEP_NEG   = 0b_0000_1000;
@@ -28,6 +29,7 @@ bitflags! {
 
 bitflags! {
     // NRx1 - Channel x Sound Length/Wave Pattern Duty (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct NRx1: u8 {
         const WAVE_DUTY = 0b_1100_0000;
         const SOUND_LEN = 0b_0011_1111;
@@ -38,6 +40,7 @@ bitflags! {
 
 bitflags! {
     // NRx2 - Channel x Volume Envelope (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct NRx2: u8 {
         const START_VOL  = 0b_1111_0000;
         const ENV_DIR    = 0b_0000_1000;
@@ -51,6 +54,7 @@ bitflags! {
 
 bitflags! {
     // NR43 - Channel 4 Polynomial Counter (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct NRx3: u8 {
         const CLOCK_SHIFT = 0b_1111_0000;
         const WIDTH_7_BIT = 0b_0000_1000;
@@ -60,6 +64,7 @@ bitflags! {
 
 bitflags! {
     // NRx4 - Channel x Frequency hi data (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct NRx4: u8 {
         const TRIGGER = 0b_1000_0000;
         const LEN_EN  = 0b_0100_0000;
@@ -69,6 +74,7 @@ bitflags! {
 
 bitflags! {
     // NR50 - Channel control / ON-OFF / Volume (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct NR50: u8 {
         const VIN_L_EN  = 0b_1000_0000;
         const LEFT_VOL  = 0b_0111_0000;
@@ -79,6 +85,7 @@ bitflags! {
 
 bitflags! {
     // NR51 - Selection of Sound output terminal (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct NR51: u8 {
         const OUT4_L = 0b_1000_0000;
         const OUT3_L = 0b_0100_0000;
@@ -93,6 +100,7 @@ bitflags! {
 
 bitflags! {
     // NR52 - Sound on/off
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct NR52: u8 {
         const PWR_CTRL = 0b_1000_0000;
         const OUT_4_EN = 0b_0000_1000;

@@ -6,6 +6,7 @@ use crate::{
 };
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct JoypadState: u8 {
         const DOWN   = 0b_1000_0000;
         const UP     = 0b_0100_0000;
@@ -21,6 +22,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct JoyP: u8 {
         const SEL_BTNS = 0b_0010_0000;
         const SEL_DIRS = 0b_0001_0000;

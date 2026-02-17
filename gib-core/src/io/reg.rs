@@ -17,7 +17,7 @@ macro_rules! mem_rw {
 
         impl<'a> MemW for &'a mut $reg {
             fn write(&mut self, _addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
-                self.bits = val;
+                **self = $reg::from_bits_retain(val);
                 Ok(())
             }
         }

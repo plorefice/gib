@@ -48,6 +48,7 @@ struct Sprite {
 }
 
 bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct SpriteAttributes: u8 {
         const BG_PRIO = 0b_1000_0000;
         const FLIP_Y  = 0b_0100_0000;
@@ -106,6 +107,7 @@ impl MemRW for &mut [Sprite] {}
 
 bitflags! {
     /// FF40 - LCDC - LCD Control (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct LCDC: u8 {
         const DISP_EN         = 0b_1000_0000; /// Bit 7 - LCD Display Enable             (0=Off, 1=On)
         const WIN_DISP_SEL    = 0b_0100_0000; /// Bit 6 - Window Tile Map Display Select (0=9800-9BFF, 1=9C00-9FFF)
@@ -124,6 +126,7 @@ mem_rw!(LCDC, 0x00);
 
 bitflags! {
     /// FF41 - STAT - LCDC Status (R/W)
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct STAT: u8 {
         const LYC_INTR = 0b_0100_0000; /// Bit 6 - LYC=LY Coincidence Interrupt (1=Enable) (Read/Write)
         const OAM_INTR = 0b_0010_0000; /// Bit 5 - Mode 2 OAM Interrupt         (1=Enable) (Read/Write)
@@ -145,6 +148,7 @@ mem_rw!(STAT, 0x80);
 
 bitflags! {
     /// Used to keep track of which STAT IRQs are currently active.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     struct STATIRQ: u8 {
         const LYC = 0b_0100_0000;
         const OAM = 0b_0010_0000;
