@@ -23,17 +23,7 @@ test_cases! {
     mem_timing("mem_timing/mem_timing") 3;
     mem_timing_2("mem_timing-2/mem_timing") 4;
     halt_bug("halt_bug") 2;
-
-    dmg_sound_01_registers("dmg_sound/rom_singles/01-registers") 5;
-    dmg_sound_02_len_ctr("dmg_sound/rom_singles/02-len ctr") 10;
-    dmg_sound_03_trigger("dmg_sound/rom_singles/03-trigger") 20;
-    dmg_sound_04_sweep("dmg_sound/rom_singles/04-sweep") 5;
-    dmg_sound_05_sweep_details("dmg_sound/rom_singles/05-sweep details") 5;
-    dmg_sound_06_overflow_on_trigger("dmg_sound/rom_singles/06-overflow on trigger") 5;
-    dmg_sound_07_len_sweep_period_sync("dmg_sound/rom_singles/07-len sweep period sync") 5;
-    dmg_sound_08_len_ctr_during_power("dmg_sound/rom_singles/08-len ctr during power") 5;
-    dmg_sound_09_wave_read_while_on("dmg_sound/rom_singles/09-wave read while on") 5;
-    dmg_sound_11_regs_after_power("dmg_sound/rom_singles/11-regs after power") 5;
+    dmg_sound("dmg_sound/dmg_sound") 40;
 }
 
 fn run_test(name: &str, seconds: u64) {

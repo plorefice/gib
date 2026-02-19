@@ -620,6 +620,12 @@ impl WaveChannel {
         if self.nrx4.contains(NRx4::TRIGGER) {
             tracing::trace!("Wave channel trigger!");
 
+            // Quirk: Triggering the wave channel on the DMG while it reads a sample byte
+            // will alter the first four bytes of wave RAM.
+            if self.enabled && self.timer_counter == APU_CYCLES_PER_TICK {
+                self.corrupt_wave_ram();
+            }
+
             // Channel is enabled
             self.enabled = true;
 
@@ -641,6 +647,22 @@ impl WaveChannel {
             // the channel will be immediately disabled again.
             if !self.dac_on() {
                 self.enabled = false;
+            }
+        }
+    }
+
+    fn corrupt_wave_ram(&mut self) {
+        let pos = ((self.position_counter + 1) % 32) >> 1;
+
+        // If the channel was reading one of the first four bytes, only the first byte will be
+        // rewritten with the byte being read
+        if pos < 4 {
+            self.wave_ram[0] = self.wave_ram[pos];
+        } else {
+            // If the channel was reading one of the later 12 bytes, the first FOUR bytes of wave RAM
+            // will be rewritten with the four aligned bytes that the read was from
+            for i in 0..4 {
+                self.wave_ram[i] = self.wave_ram[(pos & 12) + i];
             }
         }
     }
