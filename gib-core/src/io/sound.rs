@@ -9,6 +9,8 @@ use crate::{
     AudioSource,
 };
 
+const APU_CYCLES_PER_TICK: u32 = 2;
+
 const FRAME_SEQUENCER_CLOCK_RELOAD: u32 = 4_194_304 / 512;
 
 // Maximum length counter value for tone channels
@@ -188,10 +190,10 @@ impl ToneChannel {
 
         // The timer generates an output clock every N input clocks,
         // where N is the timer's period.
-        if self.timer_counter < 4 {
-            self.timer_counter = period - self.timer_counter;
+        if self.timer_counter <= APU_CYCLES_PER_TICK {
+            self.timer_counter = period - (APU_CYCLES_PER_TICK - self.timer_counter);
         } else {
-            self.timer_counter -= 4;
+            self.timer_counter -= APU_CYCLES_PER_TICK;
         }
 
         // Duty   Waveform    Ratio
@@ -497,6 +499,7 @@ pub struct WaveChannel {
     // Wave functions
     wave_ram: [u8; 16],
     sample_buffer: u8,
+    sample_time: u64,
     position_counter: usize,
 }
 
@@ -516,6 +519,7 @@ impl Default for WaveChannel {
 
             wave_ram: [0; 16],
             sample_buffer: 0,
+            sample_time: 0,
             position_counter: 0,
         }
     }
@@ -525,10 +529,14 @@ impl Default for WaveChannel {
 // It should be aggregated without impacting too much on performance.
 impl WaveChannel {
     /// Advances the internal timer state by one M-cycle.
-    fn tick(&mut self) {
+    fn tick(&mut self, cycles: u64) {
         // Every N input clocks, advance the position counter and latch the new sample.
-        if self.timer_counter < 4 {
-            self.timer_counter = self.get_period() - self.timer_counter;
+        if self.timer_counter <= APU_CYCLES_PER_TICK {
+            // Snapshot the sample time at the moment the sample is output, in order to correctly
+            // handle the obscure read/write behavior of the wave RAM.
+            self.sample_time = cycles - (APU_CYCLES_PER_TICK - self.timer_counter) as u64;
+
+            self.timer_counter = self.get_period() - (APU_CYCLES_PER_TICK - self.timer_counter);
 
             self.position_counter = (self.position_counter + 1) % 32;
             self.sample_buffer = self.wave_ram[self.position_counter >> 1];
@@ -540,7 +548,7 @@ impl WaveChannel {
                 self.sample_buffer &= 0x0F;
             }
         } else {
-            self.timer_counter -= 4;
+            self.timer_counter -= APU_CYCLES_PER_TICK;
         }
     }
 
@@ -622,7 +630,9 @@ impl WaveChannel {
             }
 
             // Frequency timer is reloaded with period
-            self.timer_counter = self.get_period();
+            // Quirk: The timer is actually reloaded with period + 3 cycles, in order to
+            // correctly replicate the obscure read/write behavior of the wave RAM.
+            self.timer_counter = self.get_period() + 3 * APU_CYCLES_PER_TICK;
 
             // Wave channel's position is set to 0 but sample buffer is NOT refilled
             self.position_counter = 0;
@@ -726,8 +736,8 @@ impl NoiseChannel {
     fn tick(&mut self) {
         // The timer generates an output clock every N input clocks,
         // where N is the timer's period.
-        if self.timer_counter < 4 {
-            self.timer_counter = self.get_period() - self.timer_counter;
+        if self.timer_counter <= APU_CYCLES_PER_TICK {
+            self.timer_counter = self.get_period() - (APU_CYCLES_PER_TICK - self.timer_counter);
 
             let x = (self.lfsr & 0x1) ^ ((self.lfsr >> 1) & 0x1);
             self.lfsr = (self.lfsr >> 1) | (x << 14);
@@ -736,7 +746,7 @@ impl NoiseChannel {
                 self.lfsr = (self.lfsr & !0b_1000_0000) | (x << 7);
             }
         } else {
-            self.timer_counter -= 4;
+            self.timer_counter -= APU_CYCLES_PER_TICK;
         }
 
         self.waveform_level = !(self.lfsr & 0x1) as i16;
@@ -922,6 +932,9 @@ pub struct Apu {
     // Frame sequencer clocks
     frame_sequencer_clock: u32,
     frame_sequencer_ticks: u32,
+
+    // Internal cycle counter
+    cycles: u64,
 }
 
 impl Default for Apu {
@@ -959,6 +972,8 @@ impl Default for Apu {
 
             frame_sequencer_clock: FRAME_SEQUENCER_CLOCK_RELOAD,
             frame_sequencer_ticks: 7,
+
+            cycles: 0,
         }
     }
 }
@@ -988,8 +1003,17 @@ impl Apu {
 
     /// Advances the sound controller state machine by a single M-cycle.
     pub fn tick(&mut self) {
+        self.update();
+        self.update();
+    }
+
+    /// Advances the sound controller state machine by an APU tick (2 T-cycles).
+    fn update(&mut self) {
+        // Advance internal cycle counter
+        self.cycles += APU_CYCLES_PER_TICK as u64;
+
         // Tick the frame sequencer
-        self.frame_sequencer_clock -= 4;
+        self.frame_sequencer_clock -= APU_CYCLES_PER_TICK;
 
         let (clk_64, clk_128, clk_256) = if self.frame_sequencer_clock == 0 {
             self.frame_sequencer_clock = FRAME_SEQUENCER_CLOCK_RELOAD;
@@ -1006,8 +1030,8 @@ impl Apu {
         // https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Obscure_Behavior
         // Extra length clocking occurs when writing to NRx4 when the frame sequencer's next step
         // is one that doesn't clock the length counter.
-        self.ch1.should_dec_counter_on_enable =
-            self.frame_sequencer_clock > 4 && self.frame_sequencer_ticks & 0b1 == 0;
+        self.ch1.should_dec_counter_on_enable = self.frame_sequencer_clock > APU_CYCLES_PER_TICK
+            && self.frame_sequencer_ticks & 0b1 == 0;
         self.ch2.should_dec_counter_on_enable = self.ch1.should_dec_counter_on_enable;
         self.ch3.should_dec_counter_on_enable = self.ch1.should_dec_counter_on_enable;
         self.ch4.should_dec_counter_on_enable = self.ch1.should_dec_counter_on_enable;
@@ -1015,7 +1039,7 @@ impl Apu {
         // Internal timer clock tick
         self.ch1.tick();
         self.ch2.tick();
-        self.ch3.tick();
+        self.ch3.tick(self.cycles);
         self.ch4.tick();
 
         // Volume envelope clock tick
@@ -1030,7 +1054,7 @@ impl Apu {
             self.ch1.tick_freq_sweep();
         }
 
-        // Lenght counter clock tick
+        // Length counter clock tick
         if clk_256 {
             self.ch1.tick_len_ctr();
             self.ch2.tick_len_ctr();
@@ -1043,7 +1067,7 @@ impl Apu {
 
     /// Update mixer output
     fn tick_mixer(&mut self) {
-        self.sample_rate_counter += 4.0;
+        self.sample_rate_counter += APU_CYCLES_PER_TICK as f32;
 
         // Update the audio channel
         if self.sample_rate_counter > self.sample_period {
@@ -1159,6 +1183,44 @@ impl Apu {
         Ok(())
     }
 
+    /// Handles a read from the wave RAM, which is only allowed when the wave channel is disabled
+    /// or within a few cycles of the current sample being output.
+    /// In this last case, the value read is that of the currently output sample's byte in wave RAM.
+    /// In any other case, the value read is 0xFF.
+    fn read_wave_ram(&self, addr: u16) -> u8 {
+        let ch = &self.ch3;
+        let a = usize::from(addr);
+
+        if !ch.enabled {
+            return ch.wave_ram[a];
+        }
+
+        if self.cycles == ch.sample_time {
+            ch.wave_ram[ch.position_counter >> 1]
+        } else {
+            0xff
+        }
+    }
+
+    /// Handles a write to the wave RAM, which is only allowed when the wave channel is disabled
+    /// or within a few cycles of the current sample being output.
+    /// In this last case, the value is written to the currently output sample's byte in wave RAM,
+    /// ignoring the provided address.
+    /// In any other case, the write is discarded.
+    fn write_to_wave_ram(&mut self, addr: u16, val: u8) {
+        let ch = &mut self.ch3;
+        let a = usize::from(addr);
+
+        if !ch.enabled {
+            ch.wave_ram[a] = val;
+            return;
+        }
+
+        if self.cycles == ch.sample_time {
+            ch.wave_ram[ch.position_counter >> 1] = val;
+        }
+    }
+
     /// Changes the current sample rate.
     pub fn set_sample_rate(&mut self, sample_rate: f32) {
         self.sample_period = (crate::CPU_CLOCK as f32) / sample_rate;
@@ -1194,7 +1256,7 @@ impl MemR for Apu {
             0xFF25 => self.nr51.bits(),
             0xFF26 => self.read_pwr_reg() | 0x70,
 
-            0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30],
+            0xFF30..=0xFF3F => self.read_wave_ram(addr - 0xFF30),
 
             // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F
             _ => 0xFF,
@@ -1206,7 +1268,7 @@ impl MemW for Apu {
     fn write(&mut self, addr: u16, val: u8) -> Result<(), dbg::TraceEvent> {
         // Writes to any register in range NR10-NR51 are ignored if the peripheral is off,
         // except the length counters, which can still be written while off.
-        // Wave RAM can always be read.
+        // Wave RAM can always be written.
         if !self.nr52.contains(NR52::PWR_CTRL) {
             match addr {
                 0xFF11 => self.ch1.write(addr - 0xFF10, val & 0b_0011_1111)?,
@@ -1214,7 +1276,7 @@ impl MemW for Apu {
                 0xFF1B => self.ch3.write(addr - 0xFF1A, val)?,
                 0xFF20 => self.ch4.write(addr - 0xFF1F, val & 0b_0011_1111)?,
                 0xFF26 => self.write_to_pwr_reg(val)?,
-                0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30] = val,
+                0xFF30..=0xFF3F => self.write_to_wave_ram(addr - 0xFF30, val),
                 _ => (),
             }
         } else {
@@ -1228,7 +1290,7 @@ impl MemW for Apu {
                 0xFF25 => self.nr51 = NR51::from_bits_truncate(val),
                 0xFF26 => self.write_to_pwr_reg(val)?,
 
-                0xFF30..=0xFF3F => self.ch3.wave_ram[usize::from(addr) - 0xFF30] = val,
+                0xFF30..=0xFF3F => self.write_to_wave_ram(addr - 0xFF30, val),
 
                 // Unused regs in this range: 0xFF15, 0xFF1F, 0xFF27..=0xFF2F
                 _ => (),

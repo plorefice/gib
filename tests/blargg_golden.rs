@@ -32,6 +32,7 @@ test_cases! {
     dmg_sound_06_overflow_on_trigger("dmg_sound/rom_singles/06-overflow on trigger") 5;
     dmg_sound_07_len_sweep_period_sync("dmg_sound/rom_singles/07-len sweep period sync") 5;
     dmg_sound_08_len_ctr_during_power("dmg_sound/rom_singles/08-len ctr during power") 5;
+    dmg_sound_09_wave_read_while_on("dmg_sound/rom_singles/09-wave read while on") 5;
     dmg_sound_11_regs_after_power("dmg_sound/rom_singles/11-regs after power") 5;
 }
 

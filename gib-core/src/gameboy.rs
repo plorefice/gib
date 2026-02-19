@@ -60,6 +60,7 @@ impl GameBoy {
         Ok(())
     }
 
+    /// Advances the emulator state by a single M-cycle.
     fn tick(&mut self) -> Result<(), dbg::TraceEvent> {
         self.cpu.tick(&mut self.bus)?;
 
