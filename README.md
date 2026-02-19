@@ -86,7 +86,7 @@ are shown below.
 | ---------- | -------- | ----------------------------------------- |
 | CPU        | 100%     | Timings verification still missing        |
 | Video      | 80%      | BG, Sprite, Window and IRQ support        |
-| Sound      | 70%      | Channels #1, #2 and #3 are mostly working |
+| Sound      | 80%      | Mostly working                            |
 | Joypad     | 80%      | IRQ support missing                       |
 | Link cable | 0%       | Not implemented yet                       |
 | Timers     | 100%     | Passes all Gekkio's acceptance tests      |
@@ -108,7 +108,7 @@ The passing tests are also integrated in the emulator's test suite.
 | mem_timing     | 100%     | Full pass!                            |
 | halt_bug       | 100%     | Full pass!                            |
 | oam_bug        | -        | Not tested yet                        |
-| dmg_sound      | 70%      | Trigger and wave channels still wonky |
+| dmg_sound      | 100%     | Full pass!                            |
 
 ### Gekkio's test suite
 
